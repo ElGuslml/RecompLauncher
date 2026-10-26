@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <future>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -44,7 +45,11 @@ void OpenFolder(const std::filesystem::path& folder);
 
 // kDlc only when the game takes downloadable content (game::kHasDlcPage); kGame only when the game has options of its
 // own (game::kHasGamePage).
-enum class Page : int { kPlay, kDlc, kAchievements, kKeyboard, kGamepad, kVideo, kGraphics, kGame, kUpdates, kCount };
+// kProfile .. kProfileEdit are not in the sidebar's list: the profile's card opens them.
+enum class Page : int {
+  kPlay, kDlc, kAchievements, kKeyboard, kGamepad, kVideo, kGraphics, kGame, kUpdates,
+  kProfile, kProfileGame, kProfileEdit, kCount
+};
 
 class App {
  public:
@@ -247,6 +252,68 @@ class App {
   void SetPhoto(std::optional<Rgba> photo);
   // The avatar of the dialog or of a profile in a `size` dp circle at `pos`, with a ring of its color.
   void DrawAvatar(ImVec2 pos, float size, std::string_view avatar, ImTextureID photo, int color);
+  // The profile pages (profile_view.cpp, page_profile_*.cpp): every game whose launcher ran, with the current
+  // profile's achievements of it; the sidebar's card and its menu; the summary, the games, a game's achievements, the
+  // profile's editing.
+ public:
+  struct ProfileGame {
+    profiles::GameInfo info;
+    std::optional<Achievements> achievements;  // nullopt: its list was not copied yet
+    std::vector<ImTextureID> icons;            // made the first time each is drawn
+    bool current = false;                      // this launcher's game
+  };
+  struct ProfileTotals {
+    int unlocked = 0;
+    int total = 0;
+    uint32_t gamerscore = 0;
+    uint32_t total_gamerscore = 0;
+    int games = 0;
+    int Level() const { return int(gamerscore / 100) + 1; }
+  };
+
+ private:
+  void RegisterThisGame();
+  void LoadProfileGames();
+  void PollProfileGames();
+  ProfileTotals Totals() const;
+  ImTextureID ProfileGameIcon(ProfileGame& game, size_t index);
+  ImTextureID AvatarTexture(const profiles::Profile& profile);
+  void ForgetAvatar(const std::string& id);
+  void SwitchProfile(const std::string& id);
+  std::string UsedText(int64_t unix_time) const;    // "Usado ayer"
+  std::string WhenText(int64_t unix_time) const;    // "hoy", "ayer", a date
+  // A game's mark on its accent, in a `size` dp square at `pos`.
+  void GameTile(ImVec2 pos, float size, const profiles::GameInfo& info);
+  void SidebarProfileCard(const ImRect& rect);
+  void ProfileMenu();
+  void ProfilePage(const ImRect& rect);
+  void ProfileSummary(ImVec2 pos, float width);
+  void ProfileGames(ImVec2 pos, float width);
+  void ProfileGamePage(const ImRect& rect);
+  void ProfileEditPage(const ImRect& rect);
+  void OpenProfileEdit();
+  // One achievement's card (the Achievements page and a game's achievements): `pin` -1 none, 0 not pinned, 1 pinned;
+  // true when the pin was pressed.
+  bool AchievementCard(const ImRect& card, const Achievement& a, ImTextureID icon, int pin, bool pin_enabled);
+  std::vector<ProfileGame> profile_games_;
+  std::future<std::vector<ProfileGame>> profile_games_loading_;
+  std::map<std::string, ImTextureID> avatar_textures_;
+  bool profile_menu_open_ = false;
+  bool profile_menu_request_ = false;   // another page's button asks the sidebar card to open its menu
+  int profile_tab_ = 0;                 // 0 the summary, 1 the games
+  int profile_sort_ = 0;                // the games: last played, most complete, name
+  size_t profile_game_ = 0;             // the game of the achievements page, in profile_games_
+  int profile_game_filter_ = 0;         // its filter: unlocked, locked, all
+  std::string edit_id_;                 // the profile the edit page was opened for
+  std::string edit_name_;
+  std::string edit_motto_;
+  int edit_avatar_ = 0;                 // in profiles::kAvatars; -1 the photo
+  int edit_color_ = 0;
+  std::optional<Rgba> edit_photo_;      // a photo chosen while editing, not saved yet
+  ImTextureID edit_photo_texture_ = ImTextureID_Invalid;
+  bool edit_delete_armed_ = false;      // Delete pressed once
+  std::string edit_message_;
+  bool edit_message_error_ = false;
   profiles::Store store_;
   bool profiles_loaded_ = false;        // LoadProfiles ran (after the first run, if there was one)
   profiles::LegacyData legacy_;

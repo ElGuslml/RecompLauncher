@@ -31,28 +31,6 @@ const char* LanguageKey(uint32_t language) {
   return language < std::size(kKeys) ? kKeys[language] : "en";
 }
 
-// The game's user data folder: userdata\ next to it, or Documents\<game::kDocumentsFolder> (src/startup.cpp,
-// ConfigureUserData).
-// The one that has the list.
-std::filesystem::path AchievementsFolder(const std::filesystem::path& exe_dir) {
-  wchar_t name[16];
-  std::swprintf(name, std::size(name), L"%08X.info.toml", game::kTitleId);
-  std::error_code ec;
-  std::filesystem::path portable = exe_dir / L"userdata" / L"achievements";
-  if (std::filesystem::exists(portable / name, ec)) {
-    return portable;
-  }
-  PWSTR documents = nullptr;
-  std::filesystem::path result;
-  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &documents))) {
-    std::filesystem::path other = std::filesystem::path(documents) / game::kDocumentsFolder / L"achievements";
-    if (std::filesystem::exists(other / name, ec)) {
-      result = other;
-    }
-  }
-  CoTaskMemFree(documents);
-  return result.empty() ? portable : result;
-}
 
 // A PNG (or any image WIC reads) as RGBA pixels.
 bool DecodeImage(IWICImagingFactory* factory, const std::filesystem::path& path, Achievement& out) {
@@ -102,10 +80,45 @@ std::filesystem::path FromUtf8(std::string_view path) {
 
 }  // namespace
 
+// The game's user data folder: userdata\ next to it, or Documents\<game::kDocumentsFolder> (src/startup.cpp,
+// ConfigureUserData).
+// The one that has the list.
+std::filesystem::path AchievementsFolder(const std::filesystem::path& exe_dir) {
+  wchar_t name[16];
+  std::swprintf(name, std::size(name), L"%08X.info.toml", game::kTitleId);
+  std::error_code ec;
+  std::filesystem::path portable = exe_dir / L"userdata" / L"achievements";
+  if (std::filesystem::exists(portable / name, ec)) {
+    return portable;
+  }
+  PWSTR documents = nullptr;
+  std::filesystem::path result;
+  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &documents))) {
+    std::filesystem::path other = std::filesystem::path(documents) / game::kDocumentsFolder / L"achievements";
+    if (std::filesystem::exists(other / name, ec)) {
+      result = other;
+    }
+  }
+  CoTaskMemFree(documents);
+  return result.empty() ? portable : result;
+}
+
 std::optional<Achievements> LoadAchievements(const std::filesystem::path& exe_dir, uint32_t language) {
+  // The unlocks: the profile's the game runs with (profile_store.h), else the installation's.
   std::filesystem::path folder = AchievementsFolder(exe_dir);
   wchar_t title[16];
   std::swprintf(title, std::size(title), L"%08X", game::kTitleId);
+  std::filesystem::path unlocks = folder / (std::wstring(title) + L".toml");
+  if (std::optional<profiles::GameProfile> profile = profiles::ForGame(GameUserDataFolder(exe_dir))) {
+    unlocks = profile->folder / L"achievements" / (std::wstring(title) + L".toml");
+  }
+  return LoadAchievementsFrom(folder, game::kTitleId, unlocks, language);
+}
+
+std::optional<Achievements> LoadAchievementsFrom(const std::filesystem::path& folder, uint32_t title_id,
+                                                 const std::filesystem::path& unlocks_file, uint32_t language) {
+  wchar_t title[16];
+  std::swprintf(title, std::size(title), L"%08X", title_id);
   std::optional<toml::table> read = ReadToml(folder / (std::wstring(title) + L".info.toml"));
   if (!read) {
     return std::nullopt;
@@ -137,12 +150,7 @@ std::optional<Achievements> LoadAchievements(const std::filesystem::path& exe_di
     return {};
   };
 
-  // The unlocks: the profile's the game runs with (profile_store.h), else the installation's.
-  std::filesystem::path unlocks_folder = folder;
-  if (std::optional<profiles::GameProfile> profile = profiles::ForGame(GameUserDataFolder(exe_dir))) {
-    unlocks_folder = profile->folder / L"achievements";
-  }
-  toml::table unlocks = ReadToml(unlocks_folder / (std::wstring(title) + L".toml")).value_or(toml::table{});  // none yet
+  toml::table unlocks = ReadToml(unlocks_file).value_or(toml::table{});  // none yet
   const toml::table* unlocked = unlocks["unlocked"].as_table();
 
   HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);

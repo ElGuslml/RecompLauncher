@@ -47,6 +47,12 @@ struct Achievements {
 // Reads the list and the unlocks for the language (an XLanguage). nullopt when the game has not written the list.
 // Slow (files, icons): for a thread.
 std::optional<Achievements> LoadAchievements(const std::filesystem::path& exe_dir, uint32_t language);
+// The same from a list's folder (<TITLEID>.info.toml and its icons) and an unlocks file: another game's, as the
+// profiles' store keeps them (profile_store.h).
+std::optional<Achievements> LoadAchievementsFrom(const std::filesystem::path& folder, uint32_t title_id,
+                                                 const std::filesystem::path& unlocks_file, uint32_t language);
+// The folder where this game writes its list (its user data folder's achievements\).
+std::filesystem::path AchievementsFolder(const std::filesystem::path& exe_dir);
 
 // Starts the game to write the list, without a window, and waits for it (at most 30 s). False if it could not run.
 bool WriteAchievementList(const std::filesystem::path& exe_dir);

@@ -131,6 +131,7 @@ bool App::Busy() const {
   bool updating = update == Update::State::kDownloading || update == Update::State::kVerifying ||
                   update == Update::State::kInstalling;
   return listen_bind_ >= 0 || std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
+         profile_games_loading_.valid() ||
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
          dlc_install_.Get().state == DlcInstall::State::kRunning ||
          (installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning));
@@ -159,6 +160,11 @@ void App::PollAchievements() {
     ReleaseTextures();
     achievements_ = std::move(list);
     achievement_icons_.assign(achievements_->items.size(), ImTextureID_Invalid);
+    // The list for the other launchers, maybe just written by the game.
+    if (store_.Current() && profiles::CopyAchievementList(store_, game::kTitleId, AchievementsFolder(exe_dir_)) &&
+        profile_games_.empty()) {
+      LoadProfileGames();
+    }
   }
 }
 
@@ -278,6 +284,7 @@ void App::Navigate(Page page, bool focus_sidebar) {
 
 void App::Frame(ImVec2 size) {
   PollAchievements();
+  PollProfileGames();
   PollUpdates();
   PollDlc();
   ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -345,6 +352,15 @@ void App::Frame(ImVec2 size) {
       break;
     case Page::kUpdates:
       UpdatesPage(main);
+      break;
+    case Page::kProfile:
+      ProfilePage(main);
+      break;
+    case Page::kProfileGame:
+      ProfileGamePage(main);
+      break;
+    case Page::kProfileEdit:
+      ProfileEditPage(main);
       break;
     case Page::kCount:
       break;
@@ -580,8 +596,14 @@ void App::Sidebar(const ImRect& rect) {
   DrawLabel(kVersionType, ImVec2(x + Px(8.0f), bottom - LineHeight(kVersionType)), col::kTextDim,
             Ellipsize(kVersionType, version, width - Px(8.0f)));
   bottom -= LineHeight(kVersionType) + Px(14.0f);
-  if (gamepad_used_) {
-    float hints = Px(4.0f * 26.0f + 3.0f * 6.0f + 32.0f);
+  // The profile's card (profile_view.cpp), then what fits above it.
+  if (store_.Current()) {
+    float card_height = Px(64.0f);
+    SidebarProfileCard(ImRect(ImVec2(x, bottom - card_height), ImVec2(x + width, bottom)));
+    bottom -= card_height + Px(12.0f);
+  }
+  float hints = Px(4.0f * 26.0f + 3.0f * 6.0f + 32.0f);
+  if (gamepad_used_ && bottom - hints >= y + Px(12.0f)) {
     ControllerHints(ImVec2(x, bottom - hints), width);
     bottom -= hints + Px(12.0f);
   }

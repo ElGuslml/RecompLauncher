@@ -90,7 +90,9 @@ void App::LoadProfiles() {
     OpenCreateProfile(true);
     return;
   }
+  RegisterThisGame();
   CheckMigration();
+  LoadProfileGames();
 }
 
 void App::CheckMigration() {
@@ -131,6 +133,7 @@ void App::RunMigration(profiles::Keep keep) {
   profile_notice_ = text;
   // The unlocks are the profile's now.
   LoadAchievements();
+  LoadProfileGames();
 }
 
 void App::OpenCreateProfile(bool first) {
@@ -161,12 +164,16 @@ void App::BrowsePhoto() {
 }
 
 void App::PollPhoto() {
+  // The edit page takes the dialog's answer when it is open (page_profile_edit.cpp).
+  if (profile_dialog_ != ProfileDialog::kCreate) {
+    return;
+  }
   std::optional<std::string> chosen;
   {
     std::lock_guard lock(photo_dialog_->mutex);
     chosen.swap(photo_dialog_->path);
   }
-  if (!chosen || profile_dialog_ != ProfileDialog::kCreate) {
+  if (!chosen) {
     return;
   }
   std::u8string path8(chosen->begin(), chosen->end());
@@ -417,7 +424,11 @@ void App::CreateProfileCard(ImVec2 size) {
       }
       profile_dialog_ = ProfileDialog::kNone;
       SetPhoto(std::nullopt);
+      RegisterThisGame();
       CheckMigration();
+      // The new profile is the current one: the pages are its.
+      LoadAchievements();
+      LoadProfileGames();
     }
   }
   if (!profile_first_) {

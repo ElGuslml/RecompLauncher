@@ -326,6 +326,63 @@ struct Texts {
   const char* migrate_error;  // %s: why
   const char* profiles_newer;
   const char* saves_moved_note;  // a text file left in the game's user data folder; %s: the profile's folder
+
+  // The profile pages (page_profile_*.cpp, profile_view.cpp).
+  const char* level;  // %d: the level
+  const char* see_my_profile;
+  const char* edit;
+  const char* switch_profile;  // upper case
+  const char* new_profile;
+  const char* profiles_shared;
+  const char* used_today;
+  const char* used_yesterday;
+  const char* used_days_ago;  // %d: days
+  const char* used_on;  // %s: a date
+  const char* profile_tab_summary;
+  const char* profile_tab_games;
+  const char* change_profile;
+  const char* edit_profile;
+  const char* xp_next;  // %d: XP in the level, %d: the next level
+  const char* xp_total;  // %d: the XP
+  const char* stat_achievements;  // upper case
+  const char* stat_achievements_of;  // %d: the total
+  const char* stat_gamerscore;  // upper case
+  const char* stat_gamerscore_of;  // %d: the most
+  const char* stat_games;  // upper case
+  const char* stat_games_sub;
+  const char* my_games;
+  const char* see_all;
+  const char* last_seen;  // %s: today, yesterday or a date
+  const char* today;
+  const char* yesterday;
+  const char* achievements_of;  // %d unlocked, %d in all
+  const char* see_game_achievements;
+  const char* showcase;
+  const char* edit_showcase;
+  const char* showcase_empty;
+  const char* recent_achievements;
+  const char* recent_empty;
+  const char* games_summary;  // %d games, %d achievements
+  const char* sort_by;
+  const char* sort_recent;
+  const char* sort_complete;
+  const char* sort_name;
+  const char* games_hint;
+  const char* game_label;  // the game picker's label
+  const char* pin_hint;
+  const char* unlocked_on;  // %s: a date
+  const char* achievements_word;  // under a count
+  const char* back_my_profile;
+  const char* profile_motto;
+  const char* optional;
+  const char* profile_color_hint;
+  const char* profile_preview_note;
+  const char* delete_profile;
+  const char* delete_profile_confirm;  // the button's second press
+  const char* delete_last_profile;
+  const char* delete_failed;
+  const char* save_changes;
+  const char* changes_saved;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

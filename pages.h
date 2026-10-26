@@ -23,6 +23,10 @@ inline std::string FrameRateText(int fps, const char* experimental) {
   return text;
 }
 
+// An achievement's icon in `box`: the game's own, dimmed with a lock while locked; a question mark for a secret one
+// still locked (page_achievements.cpp).
+void DrawAchievementIcon(ImTextureID texture, const ImRect& box, bool unlocked, bool secret);
+
 // A card whose height is known after its rows: its background goes under them through a draw list channel.
 class Card {
  public:

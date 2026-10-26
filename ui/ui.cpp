@@ -105,6 +105,16 @@ constexpr const char* kIconBodies[int(Icon::kCount)] = {
     "<path d='M4 8h3l2-3h6l2 3h3v11H4z'/><circle cx='12' cy='13' r='3.5'/>",
     /* kClose */
     "<path d='M6 6l12 12'/><path d='M18 6L6 18'/>",
+    /* kChevronUp */
+    "<path d='M7 15l5-5 5 5'/>",
+    /* kPencil */
+    "<path d='M4 20h4L19 9l-4-4L4 16z'/><path d='M13.5 6.5l4 4'/>",
+    /* kPin */
+    "<path d='M9 4h6l-1 6 3 3v2H7v-2l3-3z'/><path d='M12 15v6'/>",
+    /* kInfo */
+    "<circle cx='12' cy='12' r='9'/><path d='M12 11v6'/><path d='M12 7.5v.5'/>",
+    /* kPlus */
+    "<path d='M12 5v14'/><path d='M5 12h14'/>",
 };
 
 struct Picture {
@@ -117,6 +127,8 @@ struct Picture {
 std::map<std::tuple<int, int, int, bool>, Picture> g_icons;
 // SVG pictures (avatars) by (key, pixel size).
 std::map<std::pair<std::string, int>, Picture> g_svgs;
+// Stroke icons given by their SVG (other games' marks) by (key, pixel size, stroke in hundredths).
+std::map<std::tuple<std::string, int, int>, Picture> g_svg_icons;
 
 struct ArtCache {
   Picture picture;
@@ -506,6 +518,42 @@ void DrawSvg(std::string_view key, std::string_view body, float view, const ImRe
               circle);
 }
 
+void DrawIconSvg(std::string_view key, std::string_view body, ImVec2 pos, float size, ImU32 color, float stroke) {
+  int pixels = std::max(1, int(Snap(Px(size))));
+  auto cache_key = std::make_tuple(std::string(key), pixels, int(stroke * 100.0f + 0.5f));
+  auto it = g_svg_icons.find(cache_key);
+  if (it == g_svg_icons.end()) {
+    char header[256];
+    std::snprintf(header, sizeof(header),
+                  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#FFFFFF' "
+                  "stroke-width='%g' stroke-linecap='round' stroke-linejoin='round'>",
+                  double(stroke));
+    std::string svg = std::string(header) + std::string(body) + "</svg>";
+    it = g_svg_icons.emplace(cache_key, Rasterize(std::move(svg), pixels, pixels, float(pixels) / 24.0f, 0, 0)).first;
+  }
+  if (it->second.texture == ImTextureID_Invalid) {
+    return;
+  }
+  ImVec2 at = Snap(pos);
+  List()->AddImage(it->second.texture, at, ImVec2(at.x + float(pixels), at.y + float(pixels)), ImVec2(0, 0),
+                   ImVec2(1, 1), color);
+}
+
+void Ring(ImVec2 center, float radius_dp, float thickness_dp, float fraction, ImU32 track, ImU32 fill) {
+  constexpr float kPi = 3.14159265f;
+  float radius = Px(radius_dp);
+  float thickness = Px(thickness_dp);
+  ImDrawList* draw = List();
+  draw->PathArcTo(center, radius, 0.0f, 2.0f * kPi, 64);
+  draw->PathStroke(track, ImDrawFlags_Closed, thickness);
+  fraction = std::clamp(fraction, 0.0f, 1.0f);
+  if (fraction > 0.0f) {
+    float start = -0.5f * kPi;
+    draw->PathArcTo(center, radius, start, start + 2.0f * kPi * fraction, std::max(8, int(64.0f * fraction)));
+    draw->PathStroke(fill, ImDrawFlags_None, thickness);
+  }
+}
+
 void DrawTexture(ImTextureID texture, const ImRect& rect, bool circle) {
   if (texture == ImTextureID_Invalid) {
     return;
@@ -595,6 +643,10 @@ void ReleasePictures() {
     Release(picture);
   }
   g_svgs.clear();
+  for (auto& [key, picture] : g_svg_icons) {
+    Release(picture);
+  }
+  g_svg_icons.clear();
   for (ArtCache& art : g_art) {
     Release(art.picture);
   }
@@ -728,6 +780,8 @@ ButtonColors ColorsOf(ButtonKind kind) {
       return {col::kCard, col::kOutline, col::kText, col::kTextMuted};
     case ButtonKind::kGhost:
       return {0, col::kOutline, col::kText, col::kTextMuted};
+    case ButtonKind::kDanger:
+      return {0, Fade(col::kError, 0.55f), col::kError, col::kError};
     case ButtonKind::kLight:
       return {col::kText, 0, col::kBackground, col::kBackground};
     case ButtonKind::kDonate:

@@ -15,8 +15,6 @@ namespace launcher {
 
 using namespace ui;
 
-namespace {
-
 // An achievement's icon in `box`: the game's own, dimmed with a lock while locked; a question mark for a secret
 // one still locked.
 void DrawAchievementIcon(ImTextureID texture, const ImRect& box, bool unlocked, bool secret) {
@@ -41,6 +39,8 @@ void DrawAchievementIcon(ImTextureID texture, const ImRect& box, bool unlocked, 
     DrawIcon(Icon::kLock, ImVec2(center.x - Px(6.0f), center.y - Px(6.0f)), 12.0f, col::kTextMuted, 2.0f);
   }
 }
+
+namespace {
 
 // A big number and the rest of its line ("7" "/ 30") on one baseline, from `x`; returns where it ends.
 float NumberPair(ImVec2 pos, const Type& big, const Type& small_type, const std::string& value, const std::string& rest,
@@ -160,79 +160,106 @@ void App::AchievementsPage(const ImRect& rect) {
     size_t columns = std::clamp(size_t((width + gap_x) / (Px(440.0f) + gap_x)), size_t(2), size_t(4));
     float card_width = std::floor((width - gap_x * float(columns - 1)) / float(columns));
     float card_height = Px(84.0f);
-    constexpr Type kName{Font::kSemiBold, 15};
-    constexpr Type kText{Font::kRegular, 13};
-    constexpr Type kScore{Font::kCondensedBold, 20};
-    constexpr Type kState{Font::kSemiBold, 12};
-    constexpr float kTextLine = 1.35f;
     for (size_t n = 0; n < shown.size(); ++n) {
       size_t index = shown[n];
       const Achievement& a = list.items[index];
-      bool unlocked = a.unlocked != 0;
-      bool hidden = !unlocked && a.secret();
       float x = origin.x + float(n % columns) * (card_width + gap_x);
       float top = origin.y + float(n / columns) * (card_height + gap_y);
       ImRect card(ImVec2(x, top), ImVec2(x + card_width, top + card_height));
-      // Focusable, so that a controller moves through the list (the region scrolls to it).
-      ImGui::PushID(int(a.id));
-      ItemState state = Item("card", card);
-      ImGui::PopID();
-      FillRect(card, state.hovered ? col::kCardRaised : col::kCard, 10.0f);
-
-      ImRect icon(ImVec2(card.Min.x + Px(14.0f), card.Min.y + Px(14.0f)),
-                  ImVec2(card.Min.x + Px(70.0f), card.Min.y + Px(70.0f)));
-      DrawAchievementIcon(AchievementIcon(index), icon, unlocked, hidden);
-
-      // The gamerscore and the state (the unlock date, or "Locked"), right.
-      std::string score = std::to_string(a.gamerscore) + " G";
-      std::string state_text = t_.locked;
-      if (unlocked) {
-        state_text = FormatDate(a.unlocked, language_);
-        if (state_text.empty()) {
-          state_text = t_.unlocked;
-        }
-      }
-      float right = card.Max.x - Px(14.0f);
-      float block = LineHeight(kScore) + Px(2.0f) + LineHeight(kState);
-      float score_y = card.Min.y + (card_height - block) * 0.5f;
-      DrawLabel(kScore, ImVec2(right - MeasureText(kScore, score).x, score_y),
-                unlocked ? col::kAccent : col::kTextSecondary, score);
-      float state_y = score_y + LineHeight(kScore) + Px(2.0f);
-      float state_width = MeasureText(kState, state_text).x;
-      if (unlocked) {
-        DrawLabel(kState, ImVec2(right - state_width, state_y), col::kSuccess, state_text);
-        DrawIcon(Icon::kCheck,
-                 ImVec2(right - state_width - Px(16.0f), state_y + (LineHeight(kState) - Px(12.0f)) * 0.5f), 12.0f,
-                 col::kSuccess, 2.4f);
-      } else {
-        DrawLabel(kState, ImVec2(right - state_width, state_y), col::kLabel, state_text);
-      }
-      float column = std::max({MeasureText(kScore, score).x, state_width + Px(16.0f), Px(64.0f)});
-
-      // The name and description, between the icon and the column; at most two lines of description.
-      float text_x = icon.Max.x + Px(14.0f);
-      float text_width = right - column - Px(12.0f) - text_x;
-      const char* name = hidden ? t_.achievement_secret : a.label.c_str();
-      const char* description =
-          hidden ? t_.achievement_secret_hint : (unlocked ? a.description.c_str() : a.unachieved_description.c_str());
-      float text_height = std::min(DrawParagraph(kText, ImVec2(0, 0), text_width, kTextLine, 0, description, false),
-                                   LineHeight(kText) * kTextLine * 2.0f);
-      float block_height = LineHeight(kName) + Px(3.0f) + text_height;
-      float text_y = card.Min.y + std::max(Px(12.0f), (card_height - block_height) * 0.5f);
-      DrawLabel(kName, ImVec2(text_x, text_y), col::kText, Ellipsize(kName, name, text_width));
-      float description_y = text_y + LineHeight(kName) + Px(3.0f);
-      ImGui::PushClipRect(ImVec2(text_x, description_y), ImVec2(text_x + text_width, description_y + text_height),
-                          true);
-      DrawParagraph(kText, ImVec2(text_x, description_y), text_width, kTextLine, col::kTextMuted, description);
-      ImGui::PopClipRect();
-      if (state.focused) {
-        FocusRing(card, 10.0f);
-      }
+      AchievementCard(card, a, AchievementIcon(index), -1, false);
     }
     size_t rows = (shown.size() + columns - 1) / columns;
     ImGui::Dummy(ImVec2(width, float(rows) * (card_height + gap_y)));
   }
   EndScroll();
+}
+
+bool App::AchievementCard(const ImRect& card, const Achievement& a, ImTextureID texture, int pin, bool pin_enabled) {
+  constexpr Type kName{Font::kSemiBold, 15};
+  constexpr Type kText{Font::kRegular, 13};
+  constexpr Type kScore{Font::kCondensedBold, 20};
+  constexpr Type kState{Font::kSemiBold, 12};
+  constexpr float kTextLine = 1.35f;
+  const float card_height = card.GetHeight();
+  bool unlocked = a.unlocked != 0;
+  bool hidden = !unlocked && a.secret();
+  ImGui::PushID(int(a.id));
+  // The pin (a game's achievements, an unlocked one): a square button at the right, registered before the card under
+  // it (the first item under the mouse takes it).
+  float right = card.Max.x - Px(14.0f);
+  ImRect button(ImVec2(right - Px(36.0f), card.Min.y + (card_height - Px(36.0f)) * 0.5f),
+                ImVec2(right, card.Min.y + (card_height + Px(36.0f)) * 0.5f));
+  bool pin_active = pin_enabled && unlocked;
+  ItemState pin_state;
+  if (pin >= 0) {
+    pin_state = Item("pin", button, pin_active);
+  }
+  // Focusable, so that a controller moves through the list (the region scrolls to it).
+  ItemState state = Item("card", card);
+  FillRect(card, state.hovered ? col::kCardRaised : col::kCard, 10.0f);
+
+  ImRect icon(ImVec2(card.Min.x + Px(14.0f), card.Min.y + Px(14.0f)),
+              ImVec2(card.Min.x + Px(70.0f), card.Min.y + Px(70.0f)));
+  DrawAchievementIcon(texture, icon, unlocked, hidden);
+
+  bool pressed = false;
+  if (pin >= 0) {
+    bool enabled = pin_active;
+    FillRect(button, pin ? col::kAccentTint : (pin_state.hovered ? col::kCardSelected : col::kCard), 8.0f);
+    StrokeRect(button, pin ? col::kAccent : col::kOutline, 8.0f);
+    DrawIcon(Icon::kPin, ImVec2(button.Min.x + Px(9.0f), button.Min.y + Px(9.0f)), 18.0f,
+             pin ? col::kAccent : (enabled ? col::kTextMuted : Fade(col::kTextDim, 0.5f)), 2.0f, pin == 1);
+    if (pin_state.focused) {
+      FocusRing(button, 8.0f);
+    }
+    pressed = pin_state.pressed;
+    right = button.Min.x - Px(14.0f);
+  }
+
+  // The gamerscore and the state (the unlock date, or "Locked"), right.
+  std::string score = std::to_string(a.gamerscore) + " G";
+  std::string state_text = t_.locked;
+  if (unlocked) {
+    state_text = FormatDate(a.unlocked, language_);
+    if (state_text.empty()) {
+      state_text = t_.unlocked;
+    }
+  }
+  float block = LineHeight(kScore) + Px(2.0f) + LineHeight(kState);
+  float score_y = card.Min.y + (card_height - block) * 0.5f;
+  DrawLabel(kScore, ImVec2(right - MeasureText(kScore, score).x, score_y), unlocked ? col::kAccent : col::kTextSecondary,
+            score);
+  float state_y = score_y + LineHeight(kScore) + Px(2.0f);
+  float state_width = MeasureText(kState, state_text).x;
+  if (unlocked) {
+    DrawLabel(kState, ImVec2(right - state_width, state_y), col::kSuccess, state_text);
+    DrawIcon(Icon::kCheck, ImVec2(right - state_width - Px(16.0f), state_y + (LineHeight(kState) - Px(12.0f)) * 0.5f),
+             12.0f, col::kSuccess, 2.4f);
+  } else {
+    DrawLabel(kState, ImVec2(right - state_width, state_y), col::kLabel, state_text);
+  }
+  float column = std::max({MeasureText(kScore, score).x, state_width + Px(16.0f), Px(64.0f)});
+
+  // The name and description, between the icon and the column; at most two lines of description.
+  float text_x = icon.Max.x + Px(14.0f);
+  float text_width = right - column - Px(12.0f) - text_x;
+  const char* name = hidden ? t_.achievement_secret : a.label.c_str();
+  const char* description =
+      hidden ? t_.achievement_secret_hint : (unlocked ? a.description.c_str() : a.unachieved_description.c_str());
+  float text_height = std::min(DrawParagraph(kText, ImVec2(0, 0), text_width, kTextLine, 0, description, false),
+                               LineHeight(kText) * kTextLine * 2.0f);
+  float block_height = LineHeight(kName) + Px(3.0f) + text_height;
+  float text_y = card.Min.y + std::max(Px(12.0f), (card_height - block_height) * 0.5f);
+  DrawLabel(kName, ImVec2(text_x, text_y), col::kText, Ellipsize(kName, name, text_width));
+  float description_y = text_y + LineHeight(kName) + Px(3.0f);
+  ImGui::PushClipRect(ImVec2(text_x, description_y), ImVec2(text_x + text_width, description_y + text_height), true);
+  DrawParagraph(kText, ImVec2(text_x, description_y), text_width, kTextLine, col::kTextMuted, description);
+  ImGui::PopClipRect();
+  if (state.focused) {
+    FocusRing(card, 10.0f);
+  }
+  ImGui::PopID();
+  return pressed;
 }
 
 void App::AchievementsCard(const ImRect& r, float link_y) {

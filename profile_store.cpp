@@ -6,6 +6,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <shellapi.h>
 #include <shlobj.h>
 
 #include <toml.hpp>
@@ -14,6 +15,7 @@
 #include <chrono>
 #include <cstring>
 #include <ctime>
+#include <cwchar>
 #include <fstream>
 #include <map>
 #include <random>
@@ -290,6 +292,13 @@ Store Load() {
     profile.color = int((*table)["color"].value_or<int64_t>(0));
     profile.created = (*table)["created"].value_or<int64_t>(0);
     profile.last_used = (*table)["last_used"].value_or<int64_t>(0);
+    if (const toml::array* showcase = (*table)["showcase"].as_array()) {
+      for (const toml::node& entry : *showcase) {
+        if (auto text = entry.value<std::string>(); text && profile.showcase.size() < kShowcaseMax) {
+          profile.showcase.push_back(*text);
+        }
+      }
+    }
     profile.folder = it->path();
     store.profiles.push_back(std::move(profile));
   }
@@ -324,6 +333,11 @@ bool SaveProfile(const Store& store, const Profile& profile) {
                         "color = " + std::to_string(profile.color) + "\n" +
                         "created = " + std::to_string(profile.created) + "\n" +
                         "last_used = " + std::to_string(profile.last_used) + "\n";
+  content += "showcase = [";
+  for (size_t i = 0; i < profile.showcase.size() && i < kShowcaseMax; ++i) {
+    content += (i ? ", " : "") + Quote(profile.showcase[i]);
+  }
+  content += "]\n";
   return WriteWhole(profile.folder / L"profile.toml", content);
 }
 
@@ -351,6 +365,114 @@ Profile* Create(Store& store, std::string_view name, std::string_view avatar, in
     return nullptr;
   }
   return &store.profiles.back();
+}
+
+bool Delete(Store& store, std::string_view id, std::string_view writer) {
+  if (store.read_only || store.profiles.size() < 2) {
+    return false;
+  }
+  auto it = std::find_if(store.profiles.begin(), store.profiles.end(), [&](const Profile& p) { return p.id == id; });
+  if (it == store.profiles.end()) {
+    return false;
+  }
+  // The Recycle Bin: SHFileOperation takes a list of paths ended by two zeros.
+  std::wstring from = it->folder.wstring();
+  from.push_back(L'\0');
+  from.push_back(L'\0');
+  SHFILEOPSTRUCTW operation = {};
+  operation.wFunc = FO_DELETE;
+  operation.pFrom = from.c_str();
+  operation.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI;
+  if (SHFileOperationW(&operation) != 0 || operation.fAnyOperationsAborted) {
+    return false;
+  }
+  bool was_current = store.current == it->id;
+  store.profiles.erase(it);
+  if (was_current) {
+    auto last = std::max_element(store.profiles.begin(), store.profiles.end(),
+                                 [](const Profile& a, const Profile& b) { return a.last_used < b.last_used; });
+    store.current = last->id;
+  }
+  return Save(store, writer);
+}
+
+std::vector<GameInfo> Games(const Store& store) {
+  std::vector<GameInfo> games;
+  std::error_code ec;
+  for (fs::directory_iterator it(store.root / L"games", ec), end; !ec && it != end; it.increment(ec)) {
+    std::optional<toml::table> table = ReadToml(it->path() / L"game.toml");
+    if (!table || !IsTitle(it->path().filename().wstring())) {
+      continue;
+    }
+    GameInfo game;
+    game.title_id = uint32_t(std::wcstoul(it->path().filename().c_str(), nullptr, 16));
+    game.name = (*table)["name"].value_or<std::string>("");
+    game.accent = uint32_t((*table)["accent"].value_or<int64_t>(0));
+    game.icon = (*table)["icon"].value_or<std::string>("");
+    game.launcher = FromUtf8((*table)["launcher"].value_or<std::string>(""));
+    game.version = (*table)["version"].value_or<std::string>("");
+    game.seen = (*table)["seen"].value_or<int64_t>(0);
+    game.folder = it->path();
+    games.push_back(std::move(game));
+  }
+  return games;
+}
+
+bool RegisterGame(const Store& store, const GameInfo& game) {
+  if (store.read_only || store.root.empty() || !game.title_id) {
+    return false;
+  }
+  char title[16];
+  std::snprintf(title, sizeof(title), "%08X", game.title_id);
+  std::string content = "# A game whose launcher ran: what the other launchers show of it.\n"
+                        "name = " + Quote(game.name) + "\n" +
+                        "accent = " + std::to_string(game.accent) + "\n" +
+                        "icon = " + Quote(game.icon) + "\n" +
+                        "launcher = " + Quote(ToUtf8(game.launcher)) + "\n" +
+                        "version = " + Quote(game.version) + "\n" +
+                        "seen = " + std::to_string(game.seen) + "\n";
+  return WriteWhole(store.root / L"games" / FromUtf8(title) / L"game.toml", content);
+}
+
+fs::path GameAchievementsFolder(const Store& store, uint32_t title_id) {
+  wchar_t title[16];
+  std::swprintf(title, std::size(title), L"%08X", title_id);
+  return store.root / L"games" / title / L"achievements";
+}
+
+bool CopyAchievementList(const Store& store, uint32_t title_id, const fs::path& from) {
+  if (store.read_only || store.root.empty()) {
+    return false;
+  }
+  wchar_t title[16];
+  std::swprintf(title, std::size(title), L"%08X", title_id);
+  fs::path info = from / (std::wstring(title) + L".info.toml");
+  fs::path to = GameAchievementsFolder(store, title_id);
+  std::error_code ec;
+  if (!fs::exists(info, ec)) {
+    return false;
+  }
+  // Only when the game wrote a newer list (its language, a new version).
+  fs::path copied = to / info.filename();
+  if (fs::exists(copied, ec) && fs::last_write_time(copied, ec) >= fs::last_write_time(info, ec) && !ec) {
+    return true;
+  }
+  int files = 0;
+  std::string error;
+  if (fs::is_directory(from / title, ec) && !CopyTree(from / title, to / title, &files, &error)) {
+    return false;
+  }
+  // The list last: a reader that finds it finds its icons.
+  fs::create_directories(to, ec);
+  return fs::copy_file(info, copied, fs::copy_options::overwrite_existing, ec);
+}
+
+std::map<uint32_t, int64_t> Unlocks(const fs::path& file) { return ReadUnlocks(file); }
+
+fs::path UnlocksFile(const Profile& profile, uint32_t title_id) {
+  wchar_t title[24];
+  std::swprintf(title, std::size(title), L"%08X.toml", title_id);
+  return profile.folder / L"achievements" / title;
 }
 
 size_t CountChars(std::string_view utf8) {

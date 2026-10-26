@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -40,7 +41,23 @@ struct Profile {
   int color = 0;            // the profile's color: an index in the launcher's list
   int64_t created = 0;      // Unix time
   int64_t last_used = 0;    // Unix time: made current or played
+  // The showcase: up to kShowcaseMax achievements, each "<TITLEID>:<achievement id>" ("41560830:65").
+  std::vector<std::string> showcase;
   std::filesystem::path folder;
+};
+
+inline constexpr size_t kShowcaseMax = 3;
+
+// A game whose launcher has run (games\<TITLEID>\game.toml): what the other launchers show of it.
+struct GameInfo {
+  uint32_t title_id = 0;
+  std::string name;                // "Guitar Hero: Metallica"
+  uint32_t accent = 0;             // its launcher's accent, 0xRRGGBB
+  std::string icon;                // its mark: SVG elements in a 24-unit box, stroked (game.h's kBrandIcon)
+  std::filesystem::path launcher;  // its launcher's executable, where it was last seen
+  std::string version;             // the game's version there
+  int64_t seen = 0;                // Unix time: its launcher last ran
+  std::filesystem::path folder;    // games\<TITLEID>
 };
 
 struct Store {
@@ -67,6 +84,21 @@ bool Save(const Store& store, std::string_view writer);
 bool SaveProfile(const Store& store, const Profile& profile);
 // A new profile with its folder, made current; null on a read-only store or an error.
 Profile* Create(Store& store, std::string_view name, std::string_view avatar, int color, std::string_view writer);
+// The profile's folder sent to the Recycle Bin (its saves with it) and its entry dropped; the current one becomes the
+// one used last. False for the last profile, a read-only store or an error.
+bool Delete(Store& store, std::string_view id, std::string_view writer);
+
+// The games whose launcher ran (games\*\game.toml), and this one's entry written (each launcher at its start).
+std::vector<GameInfo> Games(const Store& store);
+bool RegisterGame(const Store& store, const GameInfo& game);
+// The game's achievements list for the other launchers (games\<TITLEID>\achievements\: <TITLEID>.info.toml and the
+// icons, as the game writes them in its user data folder): copied from `from` when newer.
+std::filesystem::path GameAchievementsFolder(const Store& store, uint32_t title_id);
+bool CopyAchievementList(const Store& store, uint32_t title_id, const std::filesystem::path& from);
+// The profile's unlocks of a game (the SDK's file in the profile's folder), and what such a file holds: each
+// achievement's id and its unlock time (FILETIME, 0 when unknown).
+std::filesystem::path UnlocksFile(const Profile& profile, uint32_t title_id);
+std::map<uint32_t, int64_t> Unlocks(const std::filesystem::path& file);
 
 // UTF-8 strings measured and cut in characters (code points), and trimmed of spaces.
 size_t CountChars(std::string_view utf8);

@@ -107,6 +107,11 @@ enum class Icon : int {
   kDrum,
   kCamera,  // a profile's photo
   kClose,
+  kChevronUp,
+  kPencil,
+  kPin,
+  kInfo,
+  kPlus,
   kCount
 };
 
@@ -152,6 +157,7 @@ enum class ButtonKind {
   kHero,       // the Play page's dark secondary button
   kOutline,    // card background, outlined
   kGhost,      // transparent, outlined
+  kDanger,     // transparent, outlined and written in the error color (Delete profile)
   kLight,      // light background
   kDonate,     // coral
   kDisabled,   // the mockup's disabled primary (Continue, Extract before a valid ISO)
@@ -217,6 +223,11 @@ void EndScroll();
 // A picture made of SVG elements in a `view` x `view` box (an avatar), drawn into `rect` (in a circle when
 // `circle`); rasterized once per key and size.
 void DrawSvg(std::string_view key, std::string_view body, float view, const ImRect& rect, bool circle);
+// A stroke icon given by its SVG elements in a 24-unit box (another game's mark), as DrawIcon draws its own; `key`
+// names it in the cache.
+void DrawIconSvg(std::string_view key, std::string_view body, ImVec2 pos, float size, ImU32 color, float stroke = 1.8f);
+// A ring of progress (the mockup's completion rings): `fraction` of it from the top, clockwise.
+void Ring(ImVec2 center, float radius_dp, float thickness_dp, float fraction, ImU32 track, ImU32 fill);
 // A texture (a photo) drawn into `rect`, in a circle when `circle`.
 void DrawTexture(ImTextureID texture, const ImRect& rect, bool circle);
 

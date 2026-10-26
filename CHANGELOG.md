@@ -2,6 +2,22 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 2.3.0
+
+- The profile in every launcher: a card at the bottom of the sidebar (avatar, name, level) opens a menu with the
+  profile, "See my profile", "Edit", the other profiles (switching sets the current one for every launcher) and
+  "Create new profile".
+- The profile page: banner in the profile's color, level (100 XP a level, 1 XP per Gamerscore point), and two tabs.
+  Summary: achievements, Gamerscore and games of every game on this PC, the games' cards (completion, "See
+  achievements", "Play" for this one), the showcase and the latest achievements. My games: the games sorted by last
+  played, completion or name.
+- A game's achievements in the profile, for any game whose launcher ran on this PC: totals, completion, unlocked /
+  locked / all, and a pin on each unlocked one for the showcase (at most three, kept in `profile.toml`).
+- Edit profile: a preview as the launchers show it, the name, a motto (up to 40 characters), the avatar or a photo,
+  the color; Delete profile sends it to the Recycle Bin with its saves after a second press, never the last one.
+- Each launcher registers its game in the store (`games\<title ID>\game.toml`: name, accent, icon, launcher path,
+  game version, last seen) with a copy of its achievement list, so that the other launchers can show it.
+
 ## 2.2.0
 
 - Profiles shared by every launcher, in `%APPDATA%\ElGuslml Recomps\` (`profile_store.h`): `store.toml` (the current
