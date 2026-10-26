@@ -9,7 +9,9 @@ comes back when it closes.
 The players' profiles are shared by every launcher (`profile_store.h`, `%APPDATA%\ElGuslml Recomps\`): each game
 keeps the current profile's saves, settings and achievements in the profile's folder. Each launcher registers its
 game there with its achievement list, so the profile's pages show every recompilation the player has run: level,
-Gamerscore, each game's achievements and a showcase of pinned ones.
+Gamerscore, each game's achievements and a showcase of pinned ones, the time played (counted by the launcher from Play
+to the game's exit) with its streaks and the week's activity, and Play on another game, which opens that game's
+launcher.
 
 Each game takes this repository as a submodule, `recomp_launcher/`. The code is the same for every game; what
 belongs to one game stays in its own repository.

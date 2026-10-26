@@ -16,7 +16,8 @@
 //
 // "Play" starts the game (with the arguments the launcher received) and the launcher stays:
 // it shows "Starting the game…" until the game's window appears, hides, and comes back on the Play page when the
-// game exits (with a notice if it closed with an error). So the launcher and the game look like one program, and
+// game exits (with a notice if it closed with an error); the time between goes to the profile's playtime (App::GameTick,
+// App::GameExited). So the launcher and the game look like one program, and
 // Steam sees it running from the launcher's start to its end. The game runs in a job object that is closed with
 // the launcher: if Steam stops the launcher, the game stops too. The launcher lets go of the controllers while the
 // game runs.
@@ -374,6 +375,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       }
     }
     if (app.GameRunning()) {
+      app.GameTick();
       if (game.Exited()) {
         // Back: the launcher on the Play page, in front, with the controllers.
         uint32_t exit_code = game.ExitCode();
@@ -403,9 +405,10 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         hidden = true;
       }
       if (hidden) {
-        // Nothing to draw: sleep until the game exits, answering Windows' messages meanwhile.
+        // Nothing to draw: sleep until the game exits, answering Windows' messages meanwhile, and wake each minute
+        // to write the playtime so far (App::GameTick).
         HANDLE process = game.handle();
-        MsgWaitForMultipleObjects(1, &process, FALSE, INFINITE, QS_ALLINPUT);
+        MsgWaitForMultipleObjects(1, &process, FALSE, 60'000, QS_ALLINPUT);
         SDL_PumpEvents();
         SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
         continue;

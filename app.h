@@ -85,6 +85,8 @@ class App {
   // The game exited (the launcher shows again): back on the Play page with PLAY focused, the achievements read
   // again, and a notice when the exit code is not 0.
   void GameExited(uint32_t exit_code);
+  // While the game runs (main.cpp, at least once a minute): its playtime so far written to the profile.
+  void GameTick();
 
   // The arguments of the launcher's next start after an update (main.cpp): it names the version it came from.
   std::string UpdatedFromArgument() const;
@@ -259,8 +261,12 @@ class App {
   struct ProfileGame {
     profiles::GameInfo info;
     std::optional<Achievements> achievements;  // nullopt: its list was not copied yet
+    profiles::Playtime playtime;               // the current profile's
     std::vector<ImTextureID> icons;            // made the first time each is drawn
     bool current = false;                      // this launcher's game
+    bool installed = false;                    // its launcher is where it last ran
+    // When it was last played with this profile, or else when its launcher last ran.
+    int64_t LastSeen() const { return playtime.last ? playtime.last : info.seen; }
   };
   struct ProfileTotals {
     int unlocked = 0;
@@ -270,12 +276,33 @@ class App {
     int games = 0;
     int Level() const { return int(gamerscore / 100) + 1; }
   };
+  // The profile's playtime over every game: totals, streaks of days with play, and this week (Monday first).
+  struct ProfileActivity {
+    int64_t seconds = 0;
+    int played = 0;          // games with playtime
+    int streak = 0;          // days in a row with play, up to today (or yesterday, before today's first game)
+    int best_streak = 0;
+    int64_t week[7] = {};
+    int64_t week_seconds = 0;
+    int today = 0;           // today's index in week
+  };
 
  private:
   void RegisterThisGame();
   void LoadProfileGames();
   void PollProfileGames();
   ProfileTotals Totals() const;
+  // Playtime: the session counted from Play to the game's exit (profile_view.cpp).
+  void BeginSession();
+  void CountSession(bool end);
+  // "86 h", "2,5 h", "45 min"; "12 días", "1 día".
+  std::string HoursText(int64_t seconds) const;
+  std::string DaysText(int days) const;
+  // The game played last with this profile (profile_games_'s index), or profile_games_.size() if none was.
+  size_t LastPlayedGame() const;
+  // A game's Play or Continue: this launcher's game starts; another's launcher opens in place of this one.
+  bool CanPlay(const ProfileGame& game) const { return game.current || game.installed; }
+  void PlayProfileGame(const ProfileGame& game);
   ImTextureID ProfileGameIcon(ProfileGame& game, size_t index);
   ImTextureID AvatarTexture(const profiles::Profile& profile);
   void ForgetAvatar(const std::string& id);
@@ -296,12 +323,17 @@ class App {
   // true when the pin was pressed.
   bool AchievementCard(const ImRect& card, const Achievement& a, ImTextureID icon, int pin, bool pin_enabled);
   std::vector<ProfileGame> profile_games_;
+  ProfileActivity profile_activity_;
   std::future<std::vector<ProfileGame>> profile_games_loading_;
+  std::filesystem::path session_profile_;  // the running session's profile folder; empty: none is counted
+  int64_t session_start_ = 0;              // Unix time
+  uint64_t session_mark_ = 0;              // QueryUnbiasedInterruptTime of the last count (100 ns, sleep excluded)
+  bool session_counted_ = false;           // its first stretch was written
   std::map<std::string, ImTextureID> avatar_textures_;
   bool profile_menu_open_ = false;
   bool profile_menu_request_ = false;   // another page's button asks the sidebar card to open its menu
   int profile_tab_ = 0;                 // 0 the summary, 1 the games
-  int profile_sort_ = 0;                // the games: last played, most complete, name
+  int profile_sort_ = 0;                // the games: last played, most played, most complete, name
   size_t profile_game_ = 0;             // the game of the achievements page, in profile_games_
   int profile_game_filter_ = 0;         // its filter: unlocked, locked, all
   std::string edit_id_;                 // the profile the edit page was opened for

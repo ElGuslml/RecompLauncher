@@ -233,16 +233,19 @@ void App::GameStarted() {
                              std::chrono::system_clock::now().time_since_epoch()).count();
     profiles::SaveProfile(store_, *profile);
   }
+  BeginSession();
 }
 
 void App::GameExited(uint32_t exit_code) {
   result_ = Result::kNone;
   game_running_ = false;
   game_exit_code_ = exit_code;
+  CountSession(true);
   Navigate(Page::kPlay, false);
   focus_page_ = true;
-  // The game may have unlocked some, or written the list for the first time.
+  // The game may have unlocked some, or written the list for the first time; the profile pages show the new time.
   LoadAchievements();
+  LoadProfileGames();
 }
 
 void App::StartingOverlay(ImVec2 size) {

@@ -1,7 +1,8 @@
 // What the profile pages read and share (app.h): this launcher's game registered in the profiles' store with its
-// achievements list, every registered game with the current profile's achievements of it, the profiles' avatars as
-// textures, and the sidebar's profile card with its menu (the profiles mockup's "Barra lateral con avatar" and
-// "Menú del avatar").
+// achievements list, every registered game with the current profile's achievements and playtime of it, the session
+// being counted while the game runs, another game's launcher opened from its card, the profiles' avatars as textures,
+// and the sidebar's profile card with its menu (the profiles mockup's "Barra lateral con avatar" and "Menú del
+// avatar").
 
 #include "app.h"
 
@@ -10,10 +11,15 @@
 #endif
 #include <windows.h>
 
+#include <SDL3/SDL_messagebox.h>
+
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <initializer_list>
+#include <map>
 
 #include "game.h"
 #include "launcher_version.h"
@@ -47,6 +53,63 @@ ImU32 Rgb(uint32_t rgb) { return IM_COL32((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF,
 uint32_t ToRgb(ImU32 color) {
   return ((color >> IM_COL32_R_SHIFT) & 0xFF) << 16 | ((color >> IM_COL32_G_SHIFT) & 0xFF) << 8 |
          ((color >> IM_COL32_B_SHIFT) & 0xFF);
+}
+
+// Days since 1970-01-01 of a civil date (Howard Hinnant's days_from_civil): days in a row, without time zones.
+int64_t DayNumber(int year, int month, int day) {
+  year -= month <= 2;
+  int64_t era = (year >= 0 ? year : year - 399) / 400;
+  int64_t yoe = year - era * 400;
+  int64_t doy = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+  int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return era * 146097 + doe - 719468;
+}
+
+// A playtime day ("2026-10-26"), or -1.
+int64_t DayNumber(const std::string& date) {
+  int year = 0, month = 0, day = 0;
+  if (std::sscanf(date.c_str(), "%d-%d-%d", &year, &month, &day) != 3) {
+    return -1;
+  }
+  return DayNumber(year, month, day);
+}
+
+int64_t Today() {
+  std::time_t now = std::time(nullptr);
+  std::tm local = {};
+  localtime_s(&local, &now);
+  return DayNumber(local.tm_year + 1900, local.tm_mon + 1, local.tm_mday);
+}
+
+App::ProfileActivity ActivityOf(const std::vector<App::ProfileGame>& games) {
+  App::ProfileActivity activity;
+  std::map<int64_t, int64_t> days;
+  for (const App::ProfileGame& game : games) {
+    activity.seconds += game.playtime.seconds;
+    activity.played += game.playtime.seconds > 0;
+    for (const auto& [date, seconds] : game.playtime.days) {
+      if (int64_t day = DayNumber(date); day >= 0 && seconds > 0) days[day] += seconds;
+    }
+  }
+  // The longest run of days, and the one that reaches today or yesterday.
+  int64_t today = Today();
+  int run = 0;
+  int64_t previous = -2;
+  for (const auto& [day, seconds] : days) {
+    run = day == previous + 1 ? run + 1 : 1;
+    previous = day;
+    activity.best_streak = std::max(activity.best_streak, run);
+    if (day == today || day == today - 1) activity.streak = run;
+  }
+  // 1970-01-01 was a Thursday: Monday is 0.
+  activity.today = int((today + 3) % 7);
+  int64_t monday = today - activity.today;
+  for (int i = 0; i < 7; ++i) {
+    auto it = days.find(monday + i);
+    activity.week[i] = it != days.end() ? it->second : 0;
+    activity.week_seconds += activity.week[i];
+  }
+  return activity;
 }
 
 // `a` over `b` at `t` (0 = b, 1 = a).
@@ -93,6 +156,9 @@ void App::LoadProfileGames() {
       game.current = info.title_id == game::kTitleId;
       game.achievements = LoadAchievementsFrom(profiles::GameAchievementsFolder(store, info.title_id), info.title_id,
                                                profiles::UnlocksFile(*profile, info.title_id), language);
+      game.playtime = profiles::ReadPlaytime(profiles::PlaytimeFile(profile->folder, info.title_id));
+      std::error_code ec;
+      game.installed = !info.launcher.empty() && std::filesystem::is_regular_file(info.launcher, ec);
       game.info = std::move(info);
       games.push_back(std::move(game));
     }
@@ -121,6 +187,128 @@ void App::PollProfileGames() {
   if (profile_game_ >= profile_games_.size()) {
     profile_game_ = 0;
   }
+  profile_activity_ = ActivityOf(profile_games_);
+}
+
+void App::BeginSession() {
+  session_profile_.clear();
+  if (store_.read_only) {
+    return;
+  }
+  // The profile the game runs with (none while the installation's old saves are not copied yet).
+  if (std::optional<profiles::GameProfile> profile = profiles::ForGame(GameUserDataFolder(exe_dir_))) {
+    session_profile_ = profile->folder;
+    session_start_ = Now();
+    ULONGLONG mark = 0;
+    QueryUnbiasedInterruptTime(&mark);
+    session_mark_ = mark;
+    session_counted_ = false;
+  }
+}
+
+void App::CountSession(bool end) {
+  if (session_profile_.empty()) {
+    return;
+  }
+  // The time since the last count without the computer's sleep (the unbiased interrupt time stops meanwhile).
+  ULONGLONG mark = 0;
+  QueryUnbiasedInterruptTime(&mark);
+  int64_t seconds = int64_t((mark - session_mark_) / 10'000'000ULL);
+  if (!end && seconds < 60) {
+    return;
+  }
+  // A game that closed within seconds (it did not start) is no session.
+  if (end && !session_counted_ && seconds < 10) {
+    session_profile_.clear();
+    return;
+  }
+  if (seconds > 0) {
+    int64_t now = Now();
+    if (profiles::AddPlaytime(session_profile_, game::kTitleId, now - seconds, now, !session_counted_)) {
+      session_counted_ = true;
+      session_mark_ += uint64_t(seconds) * 10'000'000ULL;
+    }
+  }
+  if (end) {
+    session_profile_.clear();
+  }
+}
+
+void App::GameTick() { CountSession(false); }
+
+std::string App::HoursText(int64_t seconds) const {
+  char text[32];
+  if (seconds <= 0) {
+    return "0 h";
+  }
+  if (seconds < 3600) {
+    std::snprintf(text, sizeof(text), "%d min", int(std::max<int64_t>(1, seconds / 60)));
+    return text;
+  }
+  double hours = double(seconds) / 3600.0;
+  if (hours >= 9.95) {
+    std::snprintf(text, sizeof(text), "%d h", int(std::lround(hours)));
+    return text;
+  }
+  // One decimal below ten hours, without a trailing zero ("2 h", "2,5 h").
+  int tenths = int(std::lround(hours * 10.0));
+  if (tenths % 10 == 0) {
+    std::snprintf(text, sizeof(text), "%d h", tenths / 10);
+  } else {
+    std::snprintf(text, sizeof(text), "%d%s%d h", tenths / 10, t_.decimal_separator, tenths % 10);
+  }
+  return text;
+}
+
+std::string App::DaysText(int days) const {
+  if (days == 1) {
+    return t_.day_one;
+  }
+  char text[48];
+  std::snprintf(text, sizeof(text), t_.days_count, days);
+  return text;
+}
+
+size_t App::LastPlayedGame() const {
+  size_t last = profile_games_.size();
+  for (size_t i = 0; i < profile_games_.size(); ++i) {
+    if (profile_games_[i].playtime.last &&
+        (last == profile_games_.size() || profile_games_[i].playtime.last > profile_games_[last].playtime.last)) {
+      last = i;
+    }
+  }
+  return last;
+}
+
+void App::PlayProfileGame(const ProfileGame& game) {
+  if (game.current) {
+    result_ = Result::kPlay;
+    return;
+  }
+  // The other game's launcher, on its own (out of a job that would close it with this one, when the job allows),
+  // then this one closes: the other handles its updates, first run and settings.
+  std::wstring command_line = L"\"" + game.info.launcher.wstring() + L"\"";
+  std::filesystem::path folder = game.info.launcher.parent_path();
+  STARTUPINFOW startup = {sizeof(startup)};
+  PROCESS_INFORMATION process = {};
+  AllowSetForegroundWindow(ASFW_ANY);
+  bool started = false;
+  for (DWORD flags : {DWORD(CREATE_BREAKAWAY_FROM_JOB), DWORD(0)}) {
+    if (CreateProcessW(game.info.launcher.c_str(), command_line.data(), nullptr, nullptr, FALSE, flags, nullptr,
+                       folder.c_str(), &startup, &process)) {
+      started = true;
+      break;
+    }
+  }
+  if (!started) {
+    char text[512];
+    std::snprintf(text, sizeof(text), t_.open_launcher_failed, game.info.name.c_str());
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, game::kLauncherName, text, window_);
+    return;
+  }
+  CloseHandle(process.hThread);
+  CloseHandle(process.hProcess);
+  result_ = Result::kQuit;
 }
 
 App::ProfileTotals App::Totals() const {

@@ -475,6 +475,75 @@ fs::path UnlocksFile(const Profile& profile, uint32_t title_id) {
   return profile.folder / L"achievements" / title;
 }
 
+fs::path PlaytimeFile(const fs::path& profile_folder, uint32_t title_id) {
+  wchar_t title[24];
+  std::swprintf(title, std::size(title), L"%08X.toml", title_id);
+  return profile_folder / L"games" / title;
+}
+
+Playtime ReadPlaytime(const fs::path& file) {
+  Playtime playtime;
+  std::optional<toml::table> table = ReadToml(file);
+  if (!table) {
+    return playtime;
+  }
+  playtime.seconds = (*table)["seconds"].value_or<int64_t>(0);
+  playtime.first = (*table)["first"].value_or<int64_t>(0);
+  playtime.last = (*table)["last"].value_or<int64_t>(0);
+  playtime.sessions = int((*table)["sessions"].value_or<int64_t>(0));
+  if (const toml::table* days = (*table)["days"].as_table()) {
+    for (auto&& [day, seconds] : *days) {
+      if (std::optional<int64_t> value = seconds.value<int64_t>()) {
+        playtime.days[std::string(day.str())] = *value;
+      }
+    }
+  }
+  return playtime;
+}
+
+bool AddPlaytime(const fs::path& profile_folder, uint32_t title_id, int64_t from, int64_t to, bool new_session) {
+  if (profile_folder.empty() || to <= from) {
+    return false;
+  }
+  fs::path file = PlaytimeFile(profile_folder, title_id);
+  Playtime playtime = ReadPlaytime(file);
+  // Each local day's share: up to its next midnight.
+  for (int64_t at = from; at < to;) {
+    std::time_t time = std::time_t(at);
+    std::tm local = {};
+    localtime_s(&local, &time);
+    char day[16];
+    std::strftime(day, sizeof(day), "%Y-%m-%d", &local);
+    std::tm next = local;
+    next.tm_mday += 1;
+    next.tm_hour = 0;
+    next.tm_min = 0;
+    next.tm_sec = 0;
+    next.tm_isdst = -1;
+    int64_t midnight = int64_t(std::mktime(&next));
+    int64_t end = midnight > at ? std::min(to, midnight) : to;
+    playtime.days[day] += end - at;
+    at = end;
+  }
+  playtime.seconds += to - from;
+  if (!playtime.first) {
+    playtime.first = from;
+  }
+  playtime.last = std::max(playtime.last, to);
+  if (new_session) {
+    ++playtime.sessions;
+  }
+  std::string content = "# The time played in this game with this profile, counted by its launcher.\n"
+                        "seconds = " + std::to_string(playtime.seconds) + "\n" +
+                        "first = " + std::to_string(playtime.first) + "\n" +
+                        "last = " + std::to_string(playtime.last) + "\n" +
+                        "sessions = " + std::to_string(playtime.sessions) + "\n\n[days]\n";
+  for (const auto& [day, seconds] : playtime.days) {
+    content += Quote(day) + " = " + std::to_string(seconds) + "\n";
+  }
+  return WriteWhole(file, content);
+}
+
 size_t CountChars(std::string_view utf8) {
   return size_t(std::count_if(utf8.begin(), utf8.end(), [](char c) { return (static_cast<unsigned char>(c) & 0xC0) != 0x80; }));
 }

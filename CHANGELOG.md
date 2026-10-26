@@ -2,6 +2,19 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 2.4.0
+
+- Playtime: the time from Play to the game's exit goes to the profile (`profiles\<id>\games\<title ID>.toml`: the
+  seconds, the first and last session, the sessions, the seconds of each local day), written each minute while the
+  game runs and at its exit; the computer's sleep is not counted, nor a game that closes within seconds, nor a game
+  started without its launcher.
+- The profile page shows it: hours played (and in how many games) and the best streak of days with play (and the
+  current one) among the totals; each game's hours on its card; the week's activity (a bar a day, Monday first,
+  the week's hours, the current streak) beside the showcase; the recent achievements across.
+- My games: sorted by most played too; each game's hours; Continue on the game played last and Play on the others.
+- Play or Continue on another game opens that game's launcher (where it last ran) and closes this one; a game whose
+  launcher is gone shows no Play.
+
 ## 2.3.0
 
 - The profile in every launcher: a card at the bottom of the sidebar (avatar, name, level) opens a menu with the

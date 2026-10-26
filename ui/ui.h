@@ -112,6 +112,8 @@ enum class Icon : int {
   kPin,
   kInfo,
   kPlus,
+  kClock,
+  kFlame,  // a streak
   kCount
 };
 

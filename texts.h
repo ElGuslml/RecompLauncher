@@ -362,7 +362,7 @@ struct Texts {
   const char* showcase_empty;
   const char* recent_achievements;
   const char* recent_empty;
-  const char* games_summary;  // %d games, %d achievements
+  const char* games_summary;  // %d games, %s hours, %d achievements
   const char* sort_by;
   const char* sort_recent;
   const char* sort_complete;
@@ -383,6 +383,24 @@ struct Texts {
   const char* delete_failed;
   const char* save_changes;
   const char* changes_saved;
+
+  // The playtime (page_profile_summary.cpp, profile_view.cpp).
+  const char* stat_hours;  // upper case
+  const char* stat_hours_in_one;  // in one game
+  const char* stat_hours_in;  // %d: games
+  const char* stat_streak;  // upper case
+  const char* stat_streak_now;  // %s: days
+  const char* day_one;
+  const char* days_count;  // %d: days
+  const char* weekly_activity;
+  const char* week_total;  // %s: hours
+  const char* streak_chip;  // %s: days
+  const char* weekdays;  // seven short names, Monday first, separated by commas
+  const char* sort_hours;
+  const char* continue_game;
+  const char* play_game;  // a game card's, not the Play page's
+  const char* hours_played;  // %s: hours
+  const char* open_launcher_failed;  // %s: the game's name
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

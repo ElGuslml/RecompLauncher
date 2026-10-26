@@ -6,7 +6,8 @@
 //   profiles\<id>\profile.toml   a profile: its name, motto, avatar, color, dates
 //   profiles\<id>\               the profile's folder, the game's profile_root (SDK change 47): the saves
 //                                (B13EBABEBABEBABE\<title>\...), the settings in each game (<title>\profile\), the
-//                                achievement unlocks (achievements\<title>.toml)
+//                                achievement unlocks (achievements\<title>.toml), the playtime (games\<title>.toml)
+//   games\<title>\               a game whose launcher ran: game.toml, a copy of its achievement list
 //   backups\                     what a migration replaced
 //
 // A launcher keeps the store; a game only reads which profile it runs with (ForGame). The saves made before the
@@ -99,6 +100,22 @@ bool CopyAchievementList(const Store& store, uint32_t title_id, const std::files
 // achievement's id and its unlock time (FILETIME, 0 when unknown).
 std::filesystem::path UnlocksFile(const Profile& profile, uint32_t title_id);
 std::map<uint32_t, int64_t> Unlocks(const std::filesystem::path& file);
+
+// A game's playtime in a profile (the profile's games\<TITLEID>.toml), counted by its launcher from Play to the game's
+// exit: a game started without its launcher is not counted.
+struct Playtime {
+  int64_t seconds = 0;
+  int64_t first = 0;   // Unix time: the first session's start
+  int64_t last = 0;    // Unix time: the last session's end (or its last count, while it runs)
+  int sessions = 0;
+  std::map<std::string, int64_t> days;  // seconds on each local day, "2026-10-26"
+};
+std::filesystem::path PlaytimeFile(const std::filesystem::path& profile_folder, uint32_t title_id);
+Playtime ReadPlaytime(const std::filesystem::path& file);
+// A stretch of a session, `from` to `to` (Unix times), added to the profile's playtime of the game, split at local
+// midnights; `new_session` counts a session. Only the game's launcher writes its file.
+bool AddPlaytime(const std::filesystem::path& profile_folder, uint32_t title_id, int64_t from, int64_t to,
+                 bool new_session);
 
 // UTF-8 strings measured and cut in characters (code points), and trimmed of spaces.
 size_t CountChars(std::string_view utf8);
