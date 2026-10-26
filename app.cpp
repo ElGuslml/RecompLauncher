@@ -107,6 +107,9 @@ App::App(Settings settings, uint32_t language)
   // to see it in a development build, whose game falls back to the repository's files).
   installing_ = !GameInstalled(exe_dir_) || std::wstring(GetCommandLineW()).find(L"--launcher_first_run") != std::wstring::npos;
   if (!installing_) {
+    // The profiles first: the achievements' unlocks may be the profile's (page_profile.cpp).
+    LoadProfiles();
+    profiles_loaded_ = true;
     LoadAchievements();
   }
   // Updates: what an update left is cleaned up, and a new version is looked for if allowed.
@@ -217,6 +220,13 @@ void App::GameStarted() {
   result_ = Result::kNone;
   game_running_ = true;
   game_exit_code_ = 0;
+  profile_notice_.clear();
+  // The profile the game runs with was used now.
+  if (profiles::Profile* profile = store_.Find(store_.current); profile && !store_.read_only) {
+    profile->last_used = std::chrono::duration_cast<std::chrono::seconds>(
+                             std::chrono::system_clock::now().time_since_epoch()).count();
+    profiles::SaveProfile(store_, *profile);
+  }
 }
 
 void App::GameExited(uint32_t exit_code) {
@@ -286,6 +296,11 @@ void App::Frame(ImVec2 size) {
     InstallScreen(size);
     ImGui::End();
     return;
+  }
+  // After the first run: the profiles (a first profile to make, this installation's saves).
+  if (!profiles_loaded_) {
+    profiles_loaded_ = true;
+    LoadProfiles();
   }
 
   ImVec2 origin = viewport->Pos;
@@ -401,6 +416,11 @@ void App::Frame(ImVec2 size) {
   }
 
   ImGui::End();
+  ProfileDialogs(size);
+  // Not while a profile dialog waits (its first frame, before its popup takes the input).
+  if (profile_dialog_ != ProfileDialog::kNone && result_ == Result::kPlay) {
+    result_ = Result::kNone;
+  }
   if (game_running_) {
     StartingOverlay(size);
   }

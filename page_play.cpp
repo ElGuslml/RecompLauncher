@@ -67,6 +67,8 @@ void App::PlayPage(const ImRect& rect) {
     char text[256];
     std::snprintf(text, sizeof(text), t_.game_closed_error, code);
     Notice(notice, true, text, t_.open_logs, Page::kCount);
+  } else if (!profile_notice_.empty()) {
+    Notice(notice, profile_notice_error_, profile_notice_.c_str(), nullptr, Page::kCount);
   } else if (!updated_from_.empty()) {
     char text[128];
     std::snprintf(text, sizeof(text), t_.updated_to, kVersion);
@@ -218,6 +220,9 @@ void App::Notice(const ImRect& rect, bool error, const char* text, const char* l
   float x = rect.Min.x + Px(48.0f);
   DrawLabel(kText, ImVec2(x, rect.Min.y), col::kText, text, rect.GetHeight());
   constexpr Type kLinkType{Font::kSemiBold, 14};
+  if (!link || !*link) {
+    return;
+  }
   float link_width = MeasureText(kLinkType, link).x + Px(20.0f);
   float link_x = std::max(x + MeasureText(kText, text).x + Px(24.0f), rect.Max.x - Px(16.0f) - link_width);
   if (Link("notice", ImVec2(link_x, rect.Min.y + (rect.GetHeight() - LineHeight(kLinkType)) * 0.5f), link)) {

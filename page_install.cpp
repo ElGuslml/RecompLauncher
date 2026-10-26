@@ -603,7 +603,12 @@ void App::InstallScreen(ImVec2 size) {
         Navigate(Page::kVideo, false);
       }
       if (Button("play", ImVec2(main.Max.x - play_width, footer_y), play, t_.play)) {
-        result_ = Result::kPlay;
+        // Without a profile yet, the launcher first asks for one (page_profile.cpp); then PLAY.
+        if (profiles::Load().Current()) {
+          result_ = Result::kPlay;
+        } else {
+          installing_ = false;
+        }
       }
       default_focus();
       break;

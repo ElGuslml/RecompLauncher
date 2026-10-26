@@ -18,7 +18,9 @@
 
 #include <toml.hpp>
 
+#include "dlc.h"
 #include "game.h"
+#include "profile_store.h"
 
 namespace launcher {
 namespace {
@@ -135,8 +137,12 @@ std::optional<Achievements> LoadAchievements(const std::filesystem::path& exe_di
     return {};
   };
 
-  // The unlocks.
-  toml::table unlocks = ReadToml(folder / (std::wstring(title) + L".toml")).value_or(toml::table{});  // none yet
+  // The unlocks: the profile's the game runs with (profile_store.h), else the installation's.
+  std::filesystem::path unlocks_folder = folder;
+  if (std::optional<profiles::GameProfile> profile = profiles::ForGame(GameUserDataFolder(exe_dir))) {
+    unlocks_folder = profile->folder / L"achievements";
+  }
+  toml::table unlocks = ReadToml(unlocks_folder / (std::wstring(title) + L".toml")).value_or(toml::table{});  // none yet
   const toml::table* unlocked = unlocks["unlocked"].as_table();
 
   HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);

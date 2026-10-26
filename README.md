@@ -6,6 +6,9 @@ game's options, installs the game from the player's ISO the first time, shows it
 downloadable content and updates it from the game's GitHub releases. "Play" starts the game, and the launcher
 comes back when it closes.
 
+The players' profiles are shared by every launcher (`profile_store.h`, `%APPDATA%\ElGuslml Recomps\`): each game
+keeps the current profile's saves, settings and achievements in the profile's folder.
+
 Each game takes this repository as a submodule, `recomp_launcher/`. The code is the same for every game; what
 belongs to one game stays in its own repository.
 
@@ -39,6 +42,10 @@ recomp_launcher_add(mygame_launcher
     INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/res"
     DEFAULT_GAME_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 ```
+
+The game executable reads which profile it runs with (`profile_store.h`): `recomp_launcher_add_profiles(<game target>
+SDK_DIR "${REXSDK_DIR}")`, and its `src/startup.cpp` sets the SDK's `profile_root` and `profile_name` from
+`launcher::profiles::ForGame` (KameoRecomp's `ConfigureProfile`).
 
 Windows only. It needs the ReXGlue SDK tree (SDL3, Dear ImGui, toml++ and stb, and the SDK's `imgui` and
 `SDL3::SDL3` targets) and builds with the game's toolchain (LLVM/Clang, Ninja, the Windows SDK). To try a working

@@ -16,6 +16,8 @@
 #include <chrono>
 #include <cstdio>
 #include <map>
+#include <string>
+#include <utility>
 #include <tuple>
 #include <vector>
 
@@ -99,6 +101,10 @@ constexpr const char* kIconBodies[int(Icon::kCount)] = {
     /* kDrum */
     "<ellipse cx='12' cy='9' rx='8' ry='3'/><path d='M4 9v7c0 1.7 3.6 3 8 3s8-1.3 8-3V9'/><path d='M3 2l7 6'/>"
     "<path d='M21 2l-7 6'/>",
+    /* kCamera */
+    "<path d='M4 8h3l2-3h6l2 3h3v11H4z'/><circle cx='12' cy='13' r='3.5'/>",
+    /* kClose */
+    "<path d='M6 6l12 12'/><path d='M18 6L6 18'/>",
 };
 
 struct Picture {
@@ -109,6 +115,8 @@ struct Picture {
 
 // Icons by (icon, pixel size, stroke in hundredths, filled).
 std::map<std::tuple<int, int, int, bool>, Picture> g_icons;
+// SVG pictures (avatars) by (key, pixel size).
+std::map<std::pair<std::string, int>, Picture> g_svgs;
 
 struct ArtCache {
   Picture picture;
@@ -483,11 +491,110 @@ void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding, ImDrawF
   }
 }
 
+void DrawSvg(std::string_view key, std::string_view body, float view, const ImRect& rect, bool circle) {
+  int pixels = std::max(1, int(Snap(std::min(rect.GetWidth(), rect.GetHeight()))));
+  auto cache_key = std::make_pair(std::string(key), pixels);
+  auto it = g_svgs.find(cache_key);
+  if (it == g_svgs.end()) {
+    char header[160];
+    std::snprintf(header, sizeof(header), "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 %g %g'>",
+                  double(view), double(view));
+    std::string svg = std::string(header) + std::string(body) + "</svg>";
+    it = g_svgs.emplace(cache_key, Rasterize(std::move(svg), pixels, pixels, float(pixels) / view, 0, 0)).first;
+  }
+  DrawTexture(it->second.texture, ImRect(rect.Min, ImVec2(rect.Min.x + float(pixels), rect.Min.y + float(pixels))),
+              circle);
+}
+
+void DrawTexture(ImTextureID texture, const ImRect& rect, bool circle) {
+  if (texture == ImTextureID_Invalid) {
+    return;
+  }
+  ImVec2 a = Snap(rect.Min);
+  ImVec2 b = Snap(rect.Max);
+  if (circle) {
+    List()->AddImageRounded(texture, a, b, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, (b.x - a.x) * 0.5f);
+  } else {
+    List()->AddImage(texture, a, b);
+  }
+}
+
+namespace {
+
+struct FieldLimit {
+  size_t max_chars;
+};
+
+// Keeps a field's text within its characters as it is typed or pasted.
+int LimitField(ImGuiInputTextCallbackData* data) {
+  const size_t max_chars = static_cast<FieldLimit*>(data->UserData)->max_chars;
+  size_t chars = 0;
+  for (int i = 0; i < data->BufTextLen; ++i) {
+    if ((static_cast<unsigned char>(data->Buf[i]) & 0xC0) != 0x80) {
+      if (chars == max_chars) {
+        data->DeleteChars(i, data->BufTextLen - i);
+        break;
+      }
+      ++chars;
+    }
+  }
+  return 0;
+}
+
+}  // namespace
+
+bool TextField(const char* id, const ImRect& rect, std::string* value, size_t max_chars, std::string_view hint) {
+  constexpr Type kType{Font::kMedium, 16};
+  ImGuiID item = ImGui::GetID(id);
+  bool active = ImGui::GetActiveID() == item;
+  bool hovered = ImGui::IsMouseHoveringRect(rect.Min, rect.Max);
+  FillRect(rect, col::kField, 8.0f);
+  StrokeRect(rect, active ? col::kAccent : hovered ? col::kTextDim : col::kFieldBorder, 8.0f, active ? 1.5f : 1.0f);
+
+  // Dear ImGui's own field, without its frame, over the text's line.
+  ImFont* font = FontOf(kType);
+  float pixels = FontPixels(kType);
+  float padding_x = Px(14.0f);
+  ImGui::PushFont(font, pixels);
+  float frame_height = ImGui::GetFrameHeight();
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, ImGui::GetStyle().FramePadding.y));
+  ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(0, 0, 0, 0));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(0, 0, 0, 0));
+  ImGui::PushStyleColor(ImGuiCol_Text, col::kText);
+  ImGui::PushStyleColor(ImGuiCol_TextDisabled, col::kTextDim);
+  ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, Fade(col::kAccent, 0.35f));
+  ImGui::PushStyleColor(ImGuiCol_NavCursor, IM_COL32(0, 0, 0, 0));
+  ImGui::SetCursorScreenPos(Snap(ImVec2(rect.Min.x + padding_x, rect.Min.y + (rect.GetHeight() - frame_height) * 0.5f)));
+  ImGui::SetNextItemWidth(rect.GetWidth() - padding_x * 2.0f);
+  char buffer[256];
+  std::snprintf(buffer, sizeof(buffer), "%s", value->c_str());
+  FieldLimit limit{max_chars};
+  std::string hint_text(hint);
+  bool changed = ImGui::InputTextWithHint(id, hint_text.c_str(), buffer, sizeof(buffer),
+                                          ImGuiInputTextFlags_CallbackEdit, LimitField, &limit);
+  bool focused = ImGui::IsItemFocused() && GImGui->NavCursorVisible;
+  ImGui::PopStyleColor(7);
+  ImGui::PopStyleVar();
+  ImGui::PopFont();
+  if (focused && !active) {
+    FocusRing(rect, 8.0f);
+  }
+  if (changed) {
+    *value = buffer;
+  }
+  return changed;
+}
+
 void ReleasePictures() {
   for (auto& [key, picture] : g_icons) {
     Release(picture);
   }
   g_icons.clear();
+  for (auto& [key, picture] : g_svgs) {
+    Release(picture);
+  }
+  g_svgs.clear();
   for (ArtCache& art : g_art) {
     Release(art.picture);
   }

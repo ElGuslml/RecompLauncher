@@ -22,6 +22,8 @@
 #include "achievements.h"
 #include "dlc.h"
 #include "install.h"
+#include "picture.h"
+#include "profile_store.h"
 #include "updater.h"
 #include "settings.h"
 #include "texts.h"
@@ -102,7 +104,7 @@ class App {
   // The release notes (Markdown) at `pos`, `width` wide. Returns the height; draws only when `draw`.
   float ReleaseNotes(const std::string& markdown, ImVec2 pos, float width, bool draw);
   // A notice across the top of the Play page's art (an error exit code, an update installed).
-  // `link_page` kCount: the link opens the logs folder.
+  // `link_page` kCount: the link opens the logs folder; a null `link`: none.
   void Notice(const ImRect& rect, bool error, const char* text, const char* link, Page link_page);
   // When updates were last checked ("22/10/2026 18:04"), or "never".
   std::string LastCheckedText() const;
@@ -229,6 +231,37 @@ class App {
   std::string dlc_confirm_;  // the installed folder whose Remove waits for a second press
   bool dlc_listed_ = false;  // read once the page is first shown, and after each change
   bool dlc_refresh_after_install_ = false;
+
+  // The profiles (page_profile.cpp, profile_store.h): the first profile's dialog when there is none, and this
+  // installation's saves from before the profiles copied into the current one.
+  enum class ProfileDialog { kNone, kCreate, kConflict };
+  void LoadProfiles();
+  void CheckMigration();
+  void RunMigration(profiles::Keep keep);
+  void OpenCreateProfile(bool first);
+  void ProfileDialogs(ImVec2 size);
+  void CreateProfileCard(ImVec2 size);
+  void ConflictCard(ImVec2 size);
+  void BrowsePhoto();
+  void PollPhoto();
+  void SetPhoto(std::optional<Rgba> photo);
+  // The avatar of the dialog or of a profile in a `size` dp circle at `pos`, with a ring of its color.
+  void DrawAvatar(ImVec2 pos, float size, std::string_view avatar, ImTextureID photo, int color);
+  profiles::Store store_;
+  bool profiles_loaded_ = false;        // LoadProfiles ran (after the first run, if there was one)
+  profiles::LegacyData legacy_;
+  ProfileDialog profile_dialog_ = ProfileDialog::kNone;
+  bool profile_dialog_opened_ = false;  // its popup was opened (the first frame focuses the name)
+  bool profile_first_ = false;          // the first profile: the dialog cannot be closed
+  std::string new_name_;
+  int new_avatar_ = 0;                  // in profiles::kAvatars; -1 the photo
+  int new_color_ = 0;
+  std::optional<Rgba> new_photo_;
+  ImTextureID new_photo_texture_ = ImTextureID_Invalid;
+  std::string profile_error_;           // under the dialog's fields
+  std::shared_ptr<DialogResult> photo_dialog_ = std::make_shared<DialogResult>();
+  std::string profile_notice_;          // the Play page's notice: the saves copied, or why not
+  bool profile_notice_error_ = false;
 };
 
 }  // namespace launcher

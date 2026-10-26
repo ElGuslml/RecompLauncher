@@ -2,6 +2,23 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 2.2.0
+
+- Profiles shared by every launcher, in `%APPDATA%\ElGuslml Recomps\` (`profile_store.h`): `store.toml` (the current
+  profile, a schema: a launcher that finds a newer one only reads), `profiles\<id>\profile.toml` (name of at most 15
+  characters, motto, avatar, color, dates) and each profile's folder, where the game keeps its saves, settings and
+  achievement unlocks (the SDK's `profile_root`, change 47).
+- The first start without a profile asks for one ("Create your profile": the Windows user's name proposed, five
+  avatars or a photo cropped to a circle, six colors).
+- The saves, settings and unlocks this installation had before the profiles are copied into the current profile,
+  checked file by file, and the installation keeps its copy with a note; a profile that already has saves of the game
+  asks which to keep (the other goes to `backups\`).
+- The game runs with the current profile (`recomp_launcher_add_profiles`: `profile_store.cpp` in the game executable,
+  which sets `profile_root` and `profile_name`), unless the installation's saves are not copied yet.
+- The Achievements page reads the profile's unlocks.
+- A text field, avatars drawn from SVG, photos (Windows Imaging Component) for the launcher's pages.
+- `ELGUSLML_RECOMPS_DIR`: another folder for the profiles (tests).
+
 ## 2.1.0
 
 - Its own repository, a submodule of each game (`recomp_launcher/`), built with `RecompLauncher.cmake`. The types of a

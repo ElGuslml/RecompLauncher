@@ -305,6 +305,27 @@ struct Texts {
   const char* group_other;  // the controls no function is on
   const char* pad_guitar;   // a controller's kind
   const char* pad_drums;
+
+  // The profiles (profile_store.h): the first profile's dialog, the migration of an installation's saves.
+  const char* profile_create_title;  // the first profile's dialog
+  const char* profile_new_title;  // another profile's dialog
+  const char* profile_create_text;
+  const char* profile_name;
+  const char* profile_name_hint;
+  const char* profile_avatar;
+  const char* profile_photo;  // a button under its camera icon: short
+  const char* profile_photo_error;
+  const char* profile_color;
+  const char* profile_create;  // the dialog's button
+  const char* profile_save_error;  // %s: why
+  const char* migrate_conflict_title;  // %s: the game's name
+  const char* migrate_conflict_text;
+  const char* migrate_keep_installation;  // a button
+  const char* migrate_keep_profile;  // a button
+  const char* migrated;  // %s: the game's name
+  const char* migrate_error;  // %s: why
+  const char* profiles_newer;
+  const char* saves_moved_note;  // a text file left in the game's user data folder; %s: the profile's folder
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

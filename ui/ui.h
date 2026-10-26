@@ -105,6 +105,8 @@ enum class Icon : int {
   kTrash,
   kGuitar,
   kDrum,
+  kCamera,  // a profile's photo
+  kClose,
   kCount
 };
 
@@ -211,6 +213,16 @@ void Progress(const ImRect& rect, float fraction, ImU32 track = col::kTrack, ImU
 // from ImGui::GetCursorScreenPos() and end with ImGui::Dummy() for the content's height.
 void BeginScroll(const char* id, const ImRect& rect);
 void EndScroll();
+
+// A picture made of SVG elements in a `view` x `view` box (an avatar), drawn into `rect` (in a circle when
+// `circle`); rasterized once per key and size.
+void DrawSvg(std::string_view key, std::string_view body, float view, const ImRect& rect, bool circle);
+// A texture (a photo) drawn into `rect`, in a circle when `circle`.
+void DrawTexture(ImTextureID texture, const ImRect& rect, bool circle);
+
+// A one-line text field: `value` (UTF-8) edited in place, at most `max_chars` characters, `hint` while empty. True
+// when the text changed.
+bool TextField(const char* id, const ImRect& rect, std::string* value, size_t max_chars, std::string_view hint);
 
 // Rounded rectangles on the current window.
 void FillRect(const ImRect& rect, ImU32 color, float rounding_dp = 0, ImDrawFlags corners = 0);

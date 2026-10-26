@@ -10,6 +10,10 @@
 #       [INCLUDE_DIRS <dir>...]         more include directories (the game's src/ for project.h, res/ for version.h)
 #       [DEFAULT_GAME_ROOT <dir>])      a development build's game files: the launcher then skips the first run
 #
+#   recomp_launcher_add_profiles(<game target> SDK_DIR <dir>)
+#       the game executable reads which profile it runs with (profile_store.h's ForGame): the store's code compiled
+#       into it, without the launcher's UI
+#
 # Windows only: SDL3 and Dear ImGui linked statically, drawn with Direct3D 11, nanosvg for the icons and art.
 
 set(RECOMP_LAUNCHER_DIR "${CMAKE_CURRENT_LIST_DIR}")
@@ -44,6 +48,9 @@ function(recomp_launcher_add target)
       "${dir}/net.cpp"
       "${dir}/updater.cpp"
       "${dir}/zip.cpp"
+      "${dir}/profile_store.cpp"
+      "${dir}/page_profile.cpp"
+      "${dir}/picture.cpp"
       "${dir}/ui/gfx.cpp"
       "${dir}/ui/ui.cpp"
       "${ARG_GAME_DIR}/game.cpp"
@@ -60,10 +67,20 @@ function(recomp_launcher_add target)
       "${ARG_SDK_DIR}/thirdparty/imgui/backends" "${ARG_SDK_DIR}/thirdparty/tomlplusplus"
       "${ARG_SDK_DIR}/thirdparty/inja/third_party/include" "${ARG_SDK_DIR}/thirdparty/stb")
   target_link_libraries(${target} PRIVATE imgui SDL3::SDL3 d3d11 dxgi d3dcompiler shcore windowscodecs ole32 winhttp
-      bcrypt)
+      bcrypt shell32 secur32)
 
   # The resource compiler gets the same include directories, where it also looks for the files a resource names: the
   # script finds "fonts/..." here and "art/..." in the game's folder. A change to any of them rebuilds the resources.
   file(GLOB resources CONFIGURE_DEPENDS "${dir}/fonts/*.ttf" "${ARG_GAME_DIR}/art/*.svg" "${dir}/launcher_version.h")
   set_source_files_properties("${ARG_RC}" PROPERTIES OBJECT_DEPENDS "${resources}")
+endfunction()
+
+function(recomp_launcher_add_profiles target)
+  cmake_parse_arguments(ARG "" "SDK_DIR" "" ${ARGN})
+  if(NOT ARG_SDK_DIR)
+    message(FATAL_ERROR "recomp_launcher_add_profiles(${target}): SDK_DIR is missing")
+  endif()
+  target_sources(${target} PRIVATE "${RECOMP_LAUNCHER_DIR}/profile_store.cpp")
+  target_include_directories(${target} PRIVATE "${RECOMP_LAUNCHER_DIR}" "${ARG_SDK_DIR}/thirdparty/tomlplusplus")
+  target_link_libraries(${target} PRIVATE shell32 ole32)
 endfunction()
