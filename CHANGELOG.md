@@ -2,6 +2,23 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.1.0
+
+Singing, for a game that sets `game::kHasMicrophones` (Guitar Hero: Metallica; every game's `game.h` defines it,
+`false` where the game has no microphone, and `kMicrophoneGainDefault`):
+
+- Controls: a Microphone among the devices, under the keyboard, marked experimental. Its rows choose the PC's
+  recording device the game hears as its USB microphone (none, the Windows default, or any device; one not connected
+  now stays chosen, marked), the channel of it (all of them mixed, or one: an audio interface's input), its gain
+  (-24 to +6 dB in steps of 6; `game::kMicrophoneGainDefault` until changed) and show its level as the game hears it,
+  from the device while the rows show. Its hint says which controllers sing. The SDK's `usb_microphone_1`,
+  `usb_microphone_1_channel` and `usb_microphone_1_gain` (recomp change 55).
+- Each gamepad, and the keyboard, has an Instrument row: the game's instrument, or the vocals (a plain gamepad, the
+  singer's). A controller that sings shows no buttons to assign, only that row and the microphone it sings with. The
+  controller is kept by its serial number, or its GUID where it has none, as the game's SDL reads them: the SDK's
+  `gamepad_device_subtypes` (recomp change 56). Its status in the devices list says so. `GameTexts::part_instrument`
+  and `part_vocals` give the game's words.
+
 ## 3.0.0
 
 A new design (Gustavo's mockup of 2026-10-28, "GHMetallica Launcer 2"), the same for every game; each game gives its

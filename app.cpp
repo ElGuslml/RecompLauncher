@@ -97,7 +97,7 @@ bool App::Busy() const {
          std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
          profile_games_loading_.valid() ||
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
-         dlc_install_.Get().state == DlcInstall::State::kRunning ||
+         dlc_install_.Get().state == DlcInstall::State::kRunning || mic_meter_.stream ||
          (installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning));
 }
 
@@ -229,6 +229,7 @@ std::string App::UpdatedFromArgument() const {
 
 void App::GameStarted() {
   result_ = Result::kNone;
+  CloseMicMeter();
   game_running_ = true;
   game_exit_code_ = 0;
   profile_notice_.clear();
@@ -407,6 +408,10 @@ void App::Frame(ImVec2 size) {
       break;
     case Page::kCount:
       break;
+  }
+  // The microphone's level meter records only while its rows show.
+  if (mic_meter_frame_ != ImGui::GetFrameCount()) {
+    CloseMicMeter();
   }
   // The control a controller enters the page on: the page's choice (PLAY), or its first.
   ImGuiID first = CapturedFirstItem();

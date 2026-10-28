@@ -120,6 +120,7 @@ enum class Icon : int {
   kFlame,  // a streak
   kChevronRight,
   kChevronLeft,
+  kMicrophone,
   kCount
 };
 

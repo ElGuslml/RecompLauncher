@@ -193,6 +193,30 @@ bool GetBool(const Config& c, const std::string& key, bool fallback) {
   return s == "true" ? true : s == "false" ? false : fallback;
 }
 
+// A TOML basic string with its escapes, for a text that can need them (a recording device's name).
+std::string GetEscapedString(const Config& c, const std::string& key) {
+  std::string s = GetString(c, key);
+  std::string out;
+  for (size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == '\\' && i + 1 < s.size()) {
+      ++i;
+    }
+    out += s[i];
+  }
+  return out;
+}
+
+std::string Escaped(std::string_view s) {
+  std::string out;
+  for (char ch : s) {
+    if (ch == '\\' || ch == '"') {
+      out += '\\';
+    }
+    out += ch;
+  }
+  return out;
+}
+
 std::string Utf8(const wchar_t* text) {
   int length = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
   if (length <= 1) {
@@ -341,6 +365,16 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   o.keyboard_tap = *game::kKeyboardTapTarget && !GetString(c, "mnk_tap_target").empty();
 
   o.gamepad_remap = GetString(c, "gamepad_remap");
+  if (game::kHasMicrophones) {
+    for (int i = 0; i < 2; ++i) {
+      std::string n = std::to_string(i + 1);
+      o.microphones[size_t(i)] = GetEscapedString(c, "usb_microphone_" + n);
+      o.microphone_channels[size_t(i)] = std::clamp(GetInt(c, "usb_microphone_" + n + "_channel", 0), 0, 8);
+      o.microphone_gains[size_t(i)] = int(std::lround(
+          std::clamp(GetDouble(c, "usb_microphone_" + n + "_gain", game::kMicrophoneGainDefault), -40.0, 20.0)));
+    }
+    o.device_subtypes = GetString(c, "gamepad_device_subtypes");
+  }
 
   o.check_updates = GetBool(c, "launcher_check_updates", true);
   o.last_update_check = std::strtoll(GetString(c, "launcher_last_update_check").c_str(), nullptr, 10);
@@ -748,6 +782,19 @@ bool SaveOptions(const Settings& s) {
   // The controllers' layouts: per SDL gamepad type, which button presses each Xbox 360 control
   // ("ps5:a=east,b=south"); empty: the standard layout.
   f << "gamepad_remap = \"" << o.gamepad_remap << "\"\n";
+  if (game::kHasMicrophones) {
+    f << "# Singing: usb_microphone_1/2 are the recording devices of the game's two microphones (\"default\" = the\n"
+         "# system's, empty = none); usb_microphone_*_channel the channel each takes (0 = all mixed), *_gain its\n"
+         "# gain in dB;\n"
+         "# gamepad_device_subtypes each controller's part (its serial number or GUID = 1 for the singer).\n";
+    for (int i = 0; i < 2; ++i) {
+      std::string n = std::to_string(i + 1);
+      f << "usb_microphone_" << n << " = \"" << Escaped(o.microphones[size_t(i)]) << "\"\n";
+      f << "usb_microphone_" << n << "_channel = " << o.microphone_channels[size_t(i)] << "\n";
+      f << "usb_microphone_" << n << "_gain = " << o.microphone_gains[size_t(i)] << "\n";
+    }
+    f << "gamepad_device_subtypes = \"" << o.device_subtypes << "\"\n";
+  }
   f << "launcher_check_updates = " << boolean(o.check_updates) << "\n";
   if (o.last_update_check > 0) {
     f << "launcher_last_update_check = " << o.last_update_check << "\n";

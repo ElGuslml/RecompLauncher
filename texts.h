@@ -450,6 +450,35 @@ struct Texts {
   const char* hint_done;
   // Launcher 3.0: the View button's hint on Play (the profiles).
   const char* hint_profile;
+  // Launcher 3.1: singing (game::kHasMicrophones, page_controls.cpp): the microphone among the Controls tab's
+  // devices, its rows and help, and a controller's part.
+  const char* device_microphone;
+  const char* microphone_off;  // the device's status: no microphone chosen
+  const char* microphone_device;
+  const char* microphone_channel;
+  const char* microphone_level;
+  const char* microphone_none;
+  const char* microphone_system;  // the system's default recording device
+  const char* microphone_missing;  // %s: a chosen device that is not connected
+  const char* microphone_all_channels;
+  const char* microphone_channel_n;  // %d
+  const char* microphone_mono;
+  const char* microphone_singers;  // %s: the controllers whose part is the vocals
+  const char* microphone_no_singer;
+  const char* part;  // a controller's row: what it plays
+  const char* part_instrument;  // game.cpp's word first
+  const char* part_vocals;  // game.cpp's word first
+  const char* help_mic_kicker;
+  const char* help_mic_title;
+  const char* help_mic_text;
+  const char* help_mic_tip_level;
+  const char* help_mic_tip_channel;
+  const char* help_mic_tip_privacy;
+  const char* help_tip_part;
+  // Launcher 3.1: the microphone's gain, and the help of a controller that sings.
+  const char* microphone_gain;
+  const char* help_vocals_title;
+  const char* help_vocals_text;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <SDL3/SDL_audio.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_gamepad.h>
 #include <SDL3/SDL_scancode.h>
@@ -135,8 +136,21 @@ class App {
   // scrolling region at `origin` (pixels), `width` wide: a controller's (page_controls.cpp) or the keyboard's
   // (page_keyboard.cpp). Each returns their height.
   void ControlsPage(const ImRect& rect);
-  float PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_JoystickType kind);
+  // `part_key`: the controller's identity in gamepad_device_subtypes (PadKey), for its part's row.
+  float PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_JoystickType kind, const std::string& part_key);
   float KeyRows(ImVec2 origin, float width);
+  // Singing (game::kHasMicrophones, page_microphone.cpp): the microphone's rows, a controller's part row (`key`: its
+  // PadKey, or "keyboard"), the microphone's status in the devices list (with its dot's color), who sings (the
+  // mapping's hint), and the level meter's recording, read while the rows are drawn.
+  float MicRows(ImVec2 origin, float width);
+  float PartRow(ImVec2 origin, float width, const std::string& key);
+  std::string MicStatus(ImU32* dot);
+  std::string SingersText();
+  bool Sings(const std::string& key) const;
+  // A controller's identity in gamepad_device_subtypes, as the SDK's: its serial number, else its GUID.
+  const std::string& PadKey(SDL_JoystickID id);
+  void UpdateMicMeter();
+  void CloseMicMeter();
   // The Settings tab's categories: Game (page kGame), Video (kVideo), Graphics (kGraphics).
   void SettingsPage(const ImRect& rect);
   void UpdatesPage(const ImRect& rect);
@@ -201,6 +215,20 @@ class App {
   SDL_GamepadType pad_type_ = SDL_GAMEPAD_TYPE_UNKNOWN;  // the chosen controller's type: its layout is edited
   int pad_listen_ = -1;  // the control waiting for a button, or -1
   bool pad_release_wait_ = false;
+  std::map<SDL_JoystickID, std::string> pad_keys_;  // PadKey's, by controller
+
+  // The Controls tab's microphone (page_microphone.cpp): chosen among the devices; its recording device heard for the
+  // level meter while its rows are drawn (closed in the first frame without them).
+  bool microphone_selected_ = false;
+  struct MicMeter {
+    SDL_AudioStream* stream = nullptr;
+    std::string device;  // the usb_microphone_1 value it was opened for
+    int channels = 1;
+    float peak = 0.0f;   // the loudest sample lately, 0 to 1, falling
+    std::chrono::steady_clock::time_point read_at{};
+    std::chrono::steady_clock::time_point retry_at{};  // a device that did not open is tried again then
+  } mic_meter_;
+  int mic_meter_frame_ = -1;  // ImGui's frame count when the rows last read it
 
   // Achievements page.
   int achievement_filter_ = 0;

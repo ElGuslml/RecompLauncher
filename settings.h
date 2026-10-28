@@ -123,6 +123,17 @@ struct Options {
   // edited by the Gamepad page (page_gamepad.cpp).
   std::string gamepad_remap;
 
+  // Singing (game::kHasMicrophones, the Controls tab): the recording device of each of the game's USB microphones
+  // (the SDK's usb_microphone_1 and _2, recomp change 55: a device's name, kSystemMicrophone for the system's default,
+  // "" for none) and the channel of it the game hears (usb_microphone_1_channel and _2: 0 = all of them mixed, n =
+  // channel n); each controller's part (the SDK's gamepad_device_subtypes, change 56: "serial or GUID=subtype",
+  // comma-separated; a controller not in it plays the game's instrument).
+  std::array<std::string, 2> microphones;
+  std::array<int, 2> microphone_channels{};
+  // usb_microphone_1_gain and _2: dB added to the recording (game::kMicrophoneGainDefault until changed).
+  std::array<int, 2> microphone_gains{game::kMicrophoneGainDefault, game::kMicrophoneGainDefault};
+  std::string device_subtypes;
+
   // The launcher's own.
   bool check_updates = true;    // launcher_check_updates
   int64_t last_update_check = 0;  // launcher_last_update_check: when a check last answered (Unix time); 0 = never
@@ -130,6 +141,9 @@ struct Options {
   bool ui_maximized = false;    // launcher_ui_maximized
   Size ui_size{0, 0};           // launcher_ui_width/height, in pixels at 100 % scaling; 0 = the default
 };
+
+// usb_microphone_1's value for the system's default recording device.
+inline constexpr const char* kSystemMicrophone = "default";
 
 // The defaults of each page's "Reset" (the game's own, src/startup.cpp; the SDK's for the keyboard).
 void ResetVideo(Options& o);

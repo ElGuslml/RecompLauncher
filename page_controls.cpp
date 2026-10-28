@@ -1,6 +1,7 @@
-// The Controls tab (Gustavo's 2026-10-28 mockup): the devices on the left (the controllers SDL sees, then the keyboard),
-// the chosen one's mapping in the middle (each of the game's functions, or each Xbox 360 control, and what presses it)
-// and its help on the right, with Reset. Every change is saved at once.
+// The Controls tab (Gustavo's 2026-10-28 mockup): the devices on the left (the controllers SDL sees, then the keyboard,
+// then the microphone where the game sings: page_microphone.cpp), the chosen one's mapping in the middle (each of the
+// game's functions, or each Xbox 360 control, and what presses it; the microphone's device) and its help on the right,
+// with Reset. Every change is saved at once.
 //
 // A controller's mapping is the SDK's gamepad_remap (recomp change 36,
 // thirdparty/rexglue-sdk/src/input/sdl/sdl_input_driver.cpp): one layout per type of controller, kept in the options
@@ -380,6 +381,8 @@ struct DeviceLook {
   ImU32 tile;
 };
 
+constexpr DeviceLook kMicrophoneLook = {Icon::kMicrophone, col::kTextSoft, col::kField};
+
 DeviceLook LookOf(SDL_JoystickType kind, bool keyboard) {
   if (keyboard) {
     return {Icon::kKeyboard, col::kTextSoft, col::kField};
@@ -513,7 +516,8 @@ void App::AssignPad(int input) {
   pad_release_wait_ = true;
 }
 
-float App::PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_JoystickType kind) {
+float App::PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_JoystickType kind,
+                   const std::string& part_key) {
   std::string type_key = TypeKey(type);
   std::string& remap = settings_.o.gamepad_remap;
   Sources sources = SourcesFor(remap, type_key, true);
@@ -536,6 +540,15 @@ float App::PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_Joystic
   }
   constexpr ImU32 kGlyphColors[] = {col::kGlyphA, col::kGlyphB, col::kGlyphX, col::kGlyphY};
   float y = origin.y;
+  // What it plays (page_microphone.cpp): a gamepad can sing; a guitar and a drum kit play their own.
+  if (!part_key.empty() && kind != SDL_JOYSTICK_TYPE_GUITAR && kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
+    y += PartRow(ImVec2(origin.x, y), width, part_key);
+    // A controller that sings has no frets to assign.
+    if (Sings(part_key)) {
+      return y - origin.y;
+    }
+    y += Px(6.0f);
+  }
   for (int i = 0; i < int(rows.size()); ++i) {
     const Row& row = rows[size_t(i)];
     ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(44.0f)));
@@ -600,7 +613,8 @@ void App::ControlsPage(const ImRect& rect) {
     };
     chosen = std::min_element(pads.begin(), pads.end(), [&](const Pad& a, const Pad& b) { return rank(a) < rank(b); });
   }
-  const Pad* pad = keyboard_selected_ || pads.empty() ? nullptr : &*chosen;
+  bool microphone = game::kHasMicrophones && microphone_selected_;
+  const Pad* pad = microphone || keyboard_selected_ || pads.empty() ? nullptr : &*chosen;
   SDL_GamepadType type = pad ? pad->type : SDL_GAMEPAD_TYPE_UNKNOWN;
   if (type != pad_type_) {
     if (pad_listen_ >= 0) StopListening();
@@ -612,7 +626,7 @@ void App::ControlsPage(const ImRect& rect) {
            : kind == SDL_JOYSTICK_TYPE_DRUM_KIT ? t_.help_drums_kicker
                                                 : t_.help_pad_kicker;
   };
-  DeviceLook look = LookOf(pad ? pad->kind : SDL_JOYSTICK_TYPE_GAMEPAD, !pad);
+  DeviceLook look = microphone ? kMicrophoneLook : LookOf(pad ? pad->kind : SDL_JOYSTICK_TYPE_GAMEPAD, !pad);
 
   // --- The layout: 24 40 20 dp of padding, the devices 280 dp wide, the help 300, 20 dp between ---
   ImRect main(ImVec2(rect.Min.x + Px(40.0f), rect.Min.y + Px(24.0f)), ImVec2(rect.Max.x - Px(40.0f), rect.Max.y - Px(20.0f)));
@@ -639,9 +653,11 @@ void App::ControlsPage(const ImRect& rect) {
     constexpr Type kName{Font::kBold, 15};
     constexpr Type kStatus{Font::kRegular, 13};
     float height = Px(66.0f);
-    for (int i = 0; i <= int(pads.size()); ++i) {
+    int entries = int(pads.size()) + 1 + (game::kHasMicrophones ? 1 : 0);
+    for (int i = 0; i < entries; ++i) {
       bool keyboard = i == int(pads.size());
-      const Pad* p = keyboard ? nullptr : &pads[size_t(i)];
+      bool mic = i == int(pads.size()) + 1;
+      const Pad* p = keyboard || mic ? nullptr : &pads[size_t(i)];
       ImRect r(ImVec2(devices.Min.x, y), ImVec2(devices.Max.x, y + height));
       if (keyboard && pads.empty()) {
         // No controller: a dashed place for one above the keyboard.
@@ -651,20 +667,21 @@ void App::ControlsPage(const ImRect& rect) {
         y += height + Px(10.0f);
         r = ImRect(ImVec2(devices.Min.x, y), ImVec2(devices.Max.x, y + height));
       }
-      ImGui::PushID(keyboard ? -1 : int(p->id));
+      ImGui::PushID(mic ? -2 : keyboard ? -1 : int(p->id));
       ItemState state = Item("##device", r);
       ImGuiID id = ImGui::GetItemID();
       ImGui::PopID();
       device_ids.push_back(id);
-      bool on = keyboard ? !pad : pad == p;
+      bool on = mic ? microphone : keyboard ? !pad && !microphone : pad == p;
       if (on) {
         device_focus = id;
       }
       if (state.pressed) {
         if (!on) {
           StopListening();
+          microphone_selected_ = mic;
           keyboard_selected_ = keyboard;
-          if (!keyboard) selected_device_ = p->id;
+          if (p) selected_device_ = p->id;
         }
         controls_focus_mapping_ = PressedByNav();
       }
@@ -676,7 +693,7 @@ void App::ControlsPage(const ImRect& rect) {
         StrokeRect(ImRect(ImVec2(r.Min.x - Px(3.5f), r.Min.y - Px(3.5f)), ImVec2(r.Max.x + Px(3.5f), r.Max.y + Px(3.5f))),
                    col::kAccent, 13.5f, 3.0f);
       }
-      DeviceLook device = LookOf(p ? p->kind : SDL_JOYSTICK_TYPE_GAMEPAD, keyboard);
+      DeviceLook device = mic ? kMicrophoneLook : LookOf(p ? p->kind : SDL_JOYSTICK_TYPE_GAMEPAD, keyboard);
       ImRect tile(ImVec2(r.Min.x + Px(14.0f), r.GetCenter().y - Px(20.0f)),
                   ImVec2(r.Min.x + Px(54.0f), r.GetCenter().y + Px(20.0f)));
       FillRect(tile, device.tile, 8.0f);
@@ -684,16 +701,24 @@ void App::ControlsPage(const ImRect& rect) {
       // The name, and under it a dot and the status: connected (green) with its kind, or the keyboard on or off.
       float text_x = tile.Max.x + Px(12.0f);
       float text_width = r.Max.x - Px(14.0f) - text_x;
-      std::string name = keyboard ? std::string(t_.device_keyboard) : name_of(*p);
+      std::string name = keyboard ? std::string(t_.device_keyboard) : mic ? std::string(t_.device_microphone) : name_of(*p);
       std::string status;
       ImU32 dot = col::kSuccess;
-      if (keyboard) {
+      if (mic) {
+        status = MicStatus(&dot);
+      } else if (keyboard) {
         status = settings_.o.mnk ? t_.keyboard_status_on : t_.keyboard_status_off;
         dot = settings_.o.mnk ? col::kSuccess : col::kTextDim;
       } else {
         status = kind_of(p->kind);
         const char* type_name = TypeName(p->type, t_);
         if (type_name != t_.controller) status += std::string(" \xC2\xB7 ") + type_name;
+      }
+      // The singer's controller says so (its part: page_microphone.cpp).
+      if (game::kHasMicrophones && !mic && (keyboard ? settings_.o.mnk && Sings("keyboard")
+                                                     : p->kind == SDL_JOYSTICK_TYPE_GAMEPAD && Sings(PadKey(p->id)))) {
+        const game::GameTexts& own = game::GameTextsFor(language_);
+        status += std::string(" \xC2\xB7 ") + (own.part_vocals ? own.part_vocals : t_.part_vocals);
       }
       float block = LineHeight(kName) + Px(2.0f) + LineHeight(kStatus);
       float top = r.GetCenter().y - block * 0.5f;
@@ -720,10 +745,13 @@ void App::ControlsPage(const ImRect& rect) {
       // once that mapping is drawn).
       size_t index = size_t(focused - device_ids.begin());
       bool keyboard = index == pads.size();
-      if (keyboard != keyboard_selected_ || (!keyboard && pads[index].id != selected_device_)) {
+      bool mic = index == pads.size() + 1;
+      if (mic != microphone || keyboard != keyboard_selected_ ||
+          (!keyboard && !mic && pads[index].id != selected_device_)) {
         StopListening();
+        microphone_selected_ = mic;
         keyboard_selected_ = keyboard;
-        if (!keyboard) selected_device_ = pads[index].id;
+        if (!keyboard && !mic) selected_device_ = pads[index].id;
       }
       controls_focus_mapping_ = true;
       ImGui::NavMoveRequestCancel();
@@ -747,15 +775,36 @@ void App::ControlsPage(const ImRect& rect) {
     float y = mapping.Min.y + Px(20.0f);
     constexpr Type kTitle{Font::kDisplayBold, 24};
     char title[192];
-    std::snprintf(title, sizeof(title), t_.mapping_of, pad ? name_of(*pad).c_str() : t_.device_keyboard);
+    if (microphone) {
+      std::snprintf(title, sizeof(title), "%s", t_.device_microphone);
+    } else {
+      std::snprintf(title, sizeof(title), t_.mapping_of, pad ? name_of(*pad).c_str() : t_.device_keyboard);
+    }
     DrawLabel(kTitle, ImVec2(x, y), col::kText, Ellipsize(kTitle, Upper(title), width));
+    if (microphone) {
+      // Singing is experimental: a badge after the title, as a Settings value's.
+      constexpr Type kTag{Font::kBold, 10, 0.08f};
+      std::string tag = Upper(t_.experimental);
+      float tag_x = x + MeasureText(kTitle, Upper(title)).x + Px(12.0f);
+      ImRect badge(ImVec2(tag_x, y + (LineHeight(kTitle) - Px(18.0f)) * 0.5f),
+                   ImVec2(tag_x + MeasureText(kTag, tag).x + Px(12.0f), y + (LineHeight(kTitle) + Px(18.0f)) * 0.5f));
+      FillRect(badge, Fade(col::kGlyphY, 0.18f), 4.0f);
+      DrawLabel(kTag, ImVec2(badge.Min.x + Px(6.0f), badge.Min.y), col::kGlyphY, tag, badge.GetHeight());
+    }
     y += LineHeight(kTitle);
-    // The hint; for a moment after Shift, Ctrl or Alt was pressed alone, why it was not taken.
+    // The hint (the microphone's: who sings); for a moment after Shift, Ctrl or Alt was pressed alone, why it was not
+    // taken.
     constexpr Type kHint{Font::kRegular, 13};
-    bool notice = !pad && std::chrono::steady_clock::now() < notice_until_;
+    bool notice = !pad && !microphone && std::chrono::steady_clock::now() < notice_until_;
+    std::string hint = microphone ? SingersText() : pad ? t_.mapping_select_hint : t_.mapping_select_key_hint;
+    if (game::kHasMicrophones && pad && pad->kind != SDL_JOYSTICK_TYPE_GUITAR &&
+        pad->kind != SDL_JOYSTICK_TYPE_DRUM_KIT && Sings(PadKey(pad->id))) {
+      // The singer's controller has nothing to assign: the microphone it sings with.
+      ImU32 dot = 0;
+      hint = std::string(t_.device_microphone) + ": " + MicStatus(&dot);
+    }
     DrawLabel(kHint, ImVec2(x, y), notice ? col::kAccentLight : col::kTabText,
-              Ellipsize(kHint, notice ? notice_ : std::string(pad ? t_.mapping_select_hint : t_.mapping_select_key_hint),
-                        width));
+              Ellipsize(kHint, notice ? notice_ : hint, width));
     y += LineHeight(kHint) + Px(12.0f);
     // 3 dp around the rows for the focus outline.
     ImRect list(ImVec2(x - Px(3.0f), y), ImVec2(mapping.Max.x - Px(17.0f), mapping.Max.y - Px(17.0f)));
@@ -763,7 +812,10 @@ void App::ControlsPage(const ImRect& rect) {
     ImVec2 origin = ImGui::GetCursorScreenPos();
     float rows_width = list.GetWidth() - Px(6.0f) - (ImGui::GetCurrentWindow()->ScrollbarY ? Px(12.0f) : 0.0f);
     ImVec2 rows_origin(origin.x + Px(3.0f), origin.y + Px(3.0f));
-    float height = pad ? PadRows(rows_origin, rows_width, pad->type, pad->kind) : KeyRows(rows_origin, rows_width);
+    float height = microphone ? MicRows(rows_origin, rows_width)
+                   : pad      ? PadRows(rows_origin, rows_width, pad->type, pad->kind,
+                                        game::kHasMicrophones ? PadKey(pad->id) : std::string())
+                              : KeyRows(rows_origin, rows_width);
     ImGui::SetCursorScreenPos(origin);
     ImGui::Dummy(ImVec2(list.GetWidth(), height + Px(6.0f)));
     // The rows: up and down in their column; left from a row's first control (or B) back to the device.
@@ -792,18 +844,27 @@ void App::ControlsPage(const ImRect& rect) {
     SDL_JoystickType kind = pad ? pad->kind : SDL_JOYSTICK_TYPE_GAMEPAD;
     bool guitar = kind == SDL_JOYSTICK_TYPE_GUITAR;
     bool drums = kind == SDL_JOYSTICK_TYPE_DRUM_KIT;
-    const char* kicker = !pad ? t_.help_keyboard_kicker : guitar ? t_.help_guitar_kicker
-                         : drums ? t_.help_drums_kicker : t_.help_pad_kicker;
-    const char* title = !pad ? t_.help_keyboard_title : guitar ? t_.help_guitar_title
+    bool singer = game::kHasMicrophones && pad && !guitar && !drums && Sings(PadKey(pad->id));
+    const char* kicker = microphone ? t_.help_mic_kicker : !pad ? t_.help_keyboard_kicker
+                         : guitar ? t_.help_guitar_kicker : drums ? t_.help_drums_kicker : t_.help_pad_kicker;
+    const char* title = microphone ? t_.help_mic_title : !pad ? t_.help_keyboard_title
+                        : singer ? t_.help_vocals_title : guitar ? t_.help_guitar_title
                         : drums ? t_.help_drums_title : t_.help_pad_title;
-    const char* body = !pad ? t_.help_keyboard_text : guitar ? t_.help_guitar_text
+    const char* body = microphone ? t_.help_mic_text : !pad ? t_.help_keyboard_text
+                       : singer ? t_.help_vocals_text : guitar ? t_.help_guitar_text
                        : drums ? t_.help_drums_text : t_.help_pad_text;
     std::vector<const char*> tips;
-    if (pad) {
+    if (microphone) {
+      tips = {t_.help_mic_tip_level, t_.help_mic_tip_channel, t_.help_mic_tip_privacy};
+    } else if (singer) {
+      tips = {t_.help_tip_part};
+    } else if (pad) {
+      if (game::kHasMicrophones && !guitar && !drums) tips.push_back(t_.help_tip_part);
       // gamepad_remap keeps one layout per SDL type: a guitar and a drum kit are Xbox 360 controllers to it.
       tips.push_back(type == SDL_GAMEPAD_TYPE_XBOX360 ? t_.help_tip_shared_360 : t_.help_tip_same_type);
       tips.push_back(t_.help_tip_fixed);
     } else {
+      if (game::kHasMicrophones) tips.push_back(t_.help_tip_part);
       tips.push_back(t_.mnk_hint);
       // The game's own switch (game.h, kKeyboardTapTarget): what it does.
       const game::GameTexts& own = game::GameTextsFor(language_);
@@ -846,7 +907,11 @@ void App::ControlsPage(const ImRect& rect) {
                                    ButtonPressed(PadButton::kY));
     if (reset) {
       StopListening();
-      if (pad) {
+      if (microphone) {
+        settings_.o.microphones = {};
+        settings_.o.microphone_channels = {};
+        settings_.o.microphone_gains = {game::kMicrophoneGainDefault, game::kMicrophoneGainDefault};
+      } else if (pad) {
         // Back to the standard layout, for this type of controller.
         std::string type_key = TypeKey(type);
         settings_.o.gamepad_remap = WithLayout(settings_.o.gamepad_remap, type_key,

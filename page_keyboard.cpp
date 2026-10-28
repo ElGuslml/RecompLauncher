@@ -341,6 +341,10 @@ float App::KeyRows(ImVec2 origin, float width) {
   if (*game::kKeyboardTapTarget && own.keyboard_tap_title) {
     switch_row("tap", own.keyboard_tap_title, &o.keyboard_tap);
   }
+  // What the keyboard's controller plays (page_microphone.cpp): the instrument or the vocals.
+  if (game::kHasMicrophones) {
+    y += PartRow(ImVec2(origin.x, y), width, "keyboard") + Px(kGap);
+  }
 
   // The rows: the game's functions in its groups (game.h, GameControlsFor), then the controls no function is on; or
   // the Xbox 360 controls in theirs. Each has a primary and a secondary key.
