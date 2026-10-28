@@ -2,6 +2,62 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.0.0
+
+A new design (Gustavo's mockup of 2026-10-28, "GHMetallica Launcer 2"), the same for every game; each game gives its
+colors, its art and its words.
+
+- The shell: the game's art under every page (darkened under all but Play), a header with the game's logo and name,
+  the tabs between LB and RB (Play, DLC, Achievements, Controls, Settings, Updates), Donate (Ko-fi) and the profile's
+  avatar; a footer with the controller connected, the version and the controller's buttons for the page. The
+  sidebar is gone.
+- Fonts: Oswald for titles and Source Sans 3 for text (both SIL OFL, `fonts/`), in place of Barlow.
+- Play: the game's name over the art with PLAY (A) and Quit, the last session; cards for the achievements, the
+  settings in use and the updates. Y opens Donate.
+- Settings: one tab with its categories (Game, Video, Graphics) on the left, each option a row stepped with left and
+  right, the help of the row in focus on the right, Reset (Y). The game's switches can be screen effects
+  (`game::ToggleGroup::kScreenEffects`, under Graphics); a switch can need another (`Toggle::needs`: off and locked
+  while that one is off).
+- Controls: one tab for every device: the controllers SDL sees and the keyboard on the left, the chosen one's mapping
+  in the middle (the game's functions, or the Xbox 360 controls), its help on the right. A reassigns, X clears, Y
+  resets. The keyboard keeps its two keys per function, its switches and the mouse.
+- Achievements: a grid with the detail of the chosen one, secret ones revealed with Y, the filter on X.
+- DLC: packages install as soon as a folder is chosen or dropped; the installed list marks the new ones.
+- Updates: the version's notes with their headings as tags, the last check, Check again.
+- The first run: four steps in the header and a card over the art for each (Welcome, Choose your ISO and its
+  invalid variant, Extracting, Ready).
+- Profiles: the avatar opens "Who's playing?" (every profile, switching, creating); the profile's page with its
+  summary (totals, the week, the recent achievements, the showcase) and its games (LB and RB); a game's achievements
+  with a star for the showcase; editing and creating a profile in one page with a preview. A profile's level shows
+  on its card for every profile.
+- The controller: up from a page's top reaches the header (the tabs, Donate, the avatar), and A on a tab opens it
+  with the focus in the page; View (Back) opens the profiles. Each page starts on its own control (the chosen
+  device, the chosen achievement, the current category), even inside a scrolling list (`ui::RequestFocus`).
+  Settings: A starts changing a row (left and right step it until A or B), otherwise left goes back to the
+  categories. Controls: up and down go through the devices, A or right goes to the chosen one's mapping, left
+  comes back. Achievements: All lists the unlocked ones first.
+- The buttons' glyphs follow what the player uses last: an Xbox controller's letters, a PlayStation controller's
+  symbols (and Create, Share or Select), a Switch controller's letters by position, or the keyboard's keys, which
+  now do the same: Enter (A), Esc (B), F (X), R (Y), Q and E (LB, RB), P (View). Only A, Enter, Space or the mouse
+  press a control: Y on Play opened Donate and pressed PLAY too (ImGui's navigation takes Y as its "input").
+- Settings: the chosen row is outlined only while the rows have the focus.
+- Video, Format: the image's aspect ratio by name, 16:9, 21:9, 32:9 and the screen's own (marked "your screen")
+  in place of "fill the screen" / "16:9 with bars"; each says whether it fills the screen or has bars at the
+  sides or above and below. With NativeXRenderer every one can be chosen on any screen (its D104,
+  `native_x_renderer_aspect`: 21:9 on a 16:9 screen, 32:9 on a 21:9 one); with Xenos the screen's or 16:9.
+  `Options::native_aspect` replaces `native_fill`; `NativeRenderSize` / `NativeHeights` take the image's aspect
+  ratio.
+
+For a game moving to 3.0.0 (its `launcher/`):
+- `game.h`: `kBrandTitle` and `kBrandSubtitle` (the header's two lines) in place of `kSidebarTitle` /
+  `kSidebarSubtitle`; `kArtFocusX` / `kArtFocusY` for `art/background.svg` in place of `kHeroFocusX` / `kHeroFocusY`;
+  no `kInstallTitleCard` nor `kHeroTitleBar`; `kToggles` entries are `{cvar, default, group, needs}` and `GameTexts`
+  has `toggle_help`; `GameControl` has no `on_guitar`; `GameTexts` has no `gamepad_nav`, `gamepad_title`,
+  `gamepad_subtitle` nor `functions_column`.
+- `palette.h`: the shell's colors (`kHeader` to `kGhostBorder`, see the template's), `kRoundness` 1.
+- `res/launcher.rc`: the fonts `IDR_FONT_REGULAR` .. `IDR_FONT_DISPLAY_BOLD` (`fonts/SourceSans3-*.ttf`,
+  `fonts/Oswald-*.ttf`) and `IDR_ART_BACKGROUND` (`art/background.svg`, 1280 x 760); no `hero.svg` nor `install.svg`.
+
 ## 2.5.0
 
 - The game's own icon, the one the Xbox 360 dashboard shows, in place of its mark: the sidebar's logo, the first

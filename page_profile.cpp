@@ -256,7 +256,7 @@ void App::ProfileDialogs(ImVec2 size) {
 }
 
 void App::CreateProfileCard(ImVec2 size) {
-  constexpr Type kTitle{Font::kCondensedBold, 30};
+  constexpr Type kTitle{Font::kDisplayBold, 30};
   constexpr Type kSubtitle{Font::kRegular, 15};
   constexpr Type kLabel{Font::kSemiBold, 14};
   constexpr Type kCount{Font::kRegular, 13};
@@ -444,7 +444,7 @@ void App::CreateProfileCard(ImVec2 size) {
 }
 
 void App::ConflictCard(ImVec2 size) {
-  constexpr Type kTitle{Font::kCondensedBold, 28};
+  constexpr Type kTitle{Font::kDisplayBold, 28};
   constexpr Type kText{Font::kRegular, 15};
   constexpr float kWidth = 560.0f;
   constexpr float kPadding = 28.0f;

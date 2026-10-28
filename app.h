@@ -15,7 +15,10 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <array>
 #include <optional>
+#include <set>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -45,10 +48,10 @@ void OpenFolder(const std::filesystem::path& folder);
 
 // kDlc only when the game takes downloadable content (game::kHasDlcPage); kGame only when the game has options of its
 // own (game::kHasGamePage).
-// kProfile .. kProfileEdit are not in the sidebar's list: the profile's card opens them.
+// kProfiles .. kProfileEdit are not tabs: the header's avatar opens kProfiles, the others follow from it.
 enum class Page : int {
-  kPlay, kDlc, kAchievements, kKeyboard, kGamepad, kVideo, kGraphics, kGame, kUpdates,
-  kProfile, kProfileGame, kProfileEdit, kCount
+  kPlay, kDlc, kAchievements, kControls, kVideo, kGraphics, kGame, kUpdates,
+  kProfiles, kProfile, kProfileGame, kProfileEdit, kCount
 };
 
 class App {
@@ -95,18 +98,47 @@ class App {
   // A setting changed: the options file (game::kOptionsFile) is written at once.
   void Changed();
 
-  void Sidebar(const ImRect& rect);
-  void ControllerHints(ImVec2 pos, float width);
+  // The shell (shell.cpp): the art under every page, darkened by `dim` (0 to 1); the header with the tabs, Donate and
+  // the profile's avatar; the footer with the controller, the version and the controller's hints for the page.
+  // kA .. kY and kView are ui::Button's (the same order).
+  enum class HintKey { kA, kB, kX, kY, kLB, kRB, kView, kBumpers, kArrows };
+  struct Hint {
+    HintKey key;
+    const char* label;
+  };
+  void Background(ImVec2 size, float dim);
+  void Header(const ImRect& rect);
+  void Footer(const ImRect& rect, std::span<const Hint> hints);
+  std::vector<Hint> PageHints() const;
+  // The header and the footer over the page, each a child window of its own; the header's controls join the page's
+  // navigation (up from its top), the footer's hints take none.
+  void Chrome(ImVec2 size);
+  // The first run's steps in the header, between `left` and `right` (pixels).
+  void InstallSteps(const ImRect& rect, float left, float right);
+  // The tabs: whether `tab` (its first page) holds the current page; the next one that the game has, LB/RB's.
+  bool OnTab(Page tab) const;
+  void NextTab(int step);
+  // Where B goes from the current page (a profile page's parent; Play from the tabs).
+  Page BackPage() const;
+  // The controller's up and down in a column of controls (`rows`, top first; each row one control, or two side by
+  // side): the row above or below, in the same column; up from the first reaches the header, down from the last
+  // stays. ImGui's own choice would take the nearest control, which can be the next column's (a list in a child
+  // window). True when the focus was in the column and a move was taken.
+  bool ColumnNav(std::span<const std::array<ImGuiID, 2>> rows);
+  void Donate();
 
   // Pages, each in its own file (page_*.cpp). `rect` is the area right of the sidebar.
   void PlayPage(const ImRect& rect);
   void DlcPage(const ImRect& rect);
   void AchievementsPage(const ImRect& rect);
-  void KeyboardPage(const ImRect& rect);
-  void GamepadPage(const ImRect& rect);
-  void VideoPage(const ImRect& rect);
-  void GraphicsPage(const ImRect& rect);
-  void GamePage(const ImRect& rect);
+  // The Controls tab (page_controls.cpp): the devices, the chosen one's mapping, its help. Its rows, in the mapping's
+  // scrolling region at `origin` (pixels), `width` wide: a controller's (page_controls.cpp) or the keyboard's
+  // (page_keyboard.cpp). Each returns their height.
+  void ControlsPage(const ImRect& rect);
+  float PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_JoystickType kind);
+  float KeyRows(ImVec2 origin, float width);
+  // The Settings tab's categories: Game (page kGame), Video (kVideo), Graphics (kGraphics).
+  void SettingsPage(const ImRect& rect);
   void UpdatesPage(const ImRect& rect);
   // The release notes (Markdown) at `pos`, `width` wide. Returns the height; draws only when `draw`.
   float ReleaseNotes(const std::string& markdown, ImVec2 pos, float width, bool draw);
@@ -116,23 +148,13 @@ class App {
   // When updates were last checked ("22/10/2026 18:04"), or "never".
   std::string LastCheckedText() const;
 
-  // The pages' shared pieces. Each returns the y below it (pixels).
-  // `badge`: a badge right of the title (the keyboard's "experimental"), or null.
-  float Header(ImVec2 pos, const char* kicker, const char* title, const char* subtitle, const char* badge = nullptr);
-  // A settings row in a card: the title and hint on the left, the control at `*control` (its height in
-  // dp is `control_height`). Returns the row's height.
-  float Row(ImVec2 pos, float width, float padding_y, const char* title, const char* hint, float control_height,
-            bool last, ImVec2* control);
-  // "Changes are saved automatically" and a reset button at the bottom of `rect`; true when reset.
-  bool Footer(const ImRect& rect, const char* reset_label);
-
-  void Navigate(Page page, bool focus_sidebar);
+  // Opens a page; `focus` puts the controller's focus on its first control (a tab changed with LB/RB).
+  void Navigate(Page page, bool focus);
   void StartingOverlay(ImVec2 size);
-  void FocusSidebar() { focus_sidebar_ = true; }
 
-  // The keyboard page's key being assigned (page_keyboard.cpp).
+  // The keyboard's key being assigned (page_keyboard.cpp).
   bool OnKeyCapture(const SDL_Event& event);
-  // The Gamepad page's control being assigned a button (page_gamepad.cpp).
+  // A controller's control being assigned a button (page_controls.cpp).
   bool OnPadCapture(const SDL_Event& event);
   void AssignPad(int input);
   void StartListening(int bind, int slot);
@@ -143,29 +165,47 @@ class App {
   const Texts& t_;
   Page page_ = Page::kPlay;
   Result result_ = Result::kNone;
-  bool focus_sidebar_ = false;
-  bool gamepad_used_ = false;  // the last input came from a controller: the hints show
+  bool gamepad_used_ = false;  // the last input came from a controller: the focus shows
+  // The buttons' glyphs: the controller or the keyboard used last (ui::SetGlyphStyle); until then, a connected
+  // controller's, or the keyboard's.
+  void UseGlyphsOf(SDL_GamepadType type);
+  ui::GlyphStyle glyph_style_ = ui::GlyphStyle::kKeyboard;
+  const char* view_label_ = "View";
+  bool glyphs_chosen_ = false;
   ImGuiID page_focus_ = 0;     // the control the controller enters the page on (App::Frame)
+  ImGuiID back_focus_ = 0;     // B's target while the focus is in a page's second column (its list); 0: back to Play
+  ImGuiID header_focus_ = 0;   // the header's control up from the page reaches: the current tab, or the avatar
+  std::vector<ImGuiID> header_items_;  // the header's controls (tabs, Donate, avatar), this frame
+  ImGuiID category_focus_ = 0; // the Settings tab's current category button
+  int settings_row_[3] = {};   // the row in focus in each Settings category (its help shows)
+  bool settings_editing_ = false;  // A on a Settings row: left and right change its value until A or B
+  ImGuiID settings_row_focus_ = 0;  // the Settings row in focus last (right from a category returns to it)
+  bool controls_focus_mapping_ = false;  // a device chosen with A: the focus goes to its mapping
+  ImGuiID mapping_first_ = 0;  // the Controls tab's first row control (the mapping's)
+  std::vector<std::array<ImGuiID, 2>> mapping_rows_;  // its rows' controls, this frame (ColumnNav)
   bool focus_page_ = false;    // focus page_focus_ on the next frame (back from the game)
   bool game_running_ = false;
   uint32_t game_exit_code_ = 0;  // the last game's, when not 0: a notice on the Play page
 
-  // Keyboard page.
+  // The Controls tab's keyboard.
   int listen_bind_ = -1;  // the Bind whose key is being assigned, or -1
   int listen_slot_ = 0;   // 0 = primary, 1 = secondary
   uint8_t held_modifiers_ = 0;
   bool modifier_pressed_ = false;
-  std::string notice_;  // a message under the keyboard page's title, for a moment
+  std::string notice_;  // a message in place of the keyboard mapping's hint, for a moment
   std::chrono::steady_clock::time_point notice_until_{};
 
-  // Gamepad page.
-  int selected_pad_ = 0;
+  // The Controls tab's controllers.
+  SDL_JoystickID selected_device_ = 0;  // the controller picked; while it is not connected, the first one
+  bool keyboard_selected_ = false;      // the keyboard was picked instead
   SDL_GamepadType pad_type_ = SDL_GAMEPAD_TYPE_UNKNOWN;  // the chosen controller's type: its layout is edited
   int pad_listen_ = -1;  // the control waiting for a button, or -1
   bool pad_release_wait_ = false;
 
   // Achievements page.
   int achievement_filter_ = 0;
+  size_t achievement_selected_ = 0;          // the detail's achievement (an index of achievements_->items)
+  std::set<uint32_t> revealed_achievements_;  // secret ones revealed this session (their ids)
 
   // The achievements (achievements.h): read on a thread when the launcher opens, and once the first run has
   // extracted the game; the game is asked to write their list when it is missing. The game's icon with them.
@@ -178,7 +218,6 @@ class App {
   void ReleaseAchievementIcons();
   // The icon of achievements_->items[index], made into a texture the first time it is drawn.
   ImTextureID AchievementIcon(size_t index);
-  void AchievementsCard(const ImRect& rect, float link_y);
   uint32_t language_;
   std::future<AchievementsRead> achievements_loading_;
   std::optional<Achievements> achievements_;
@@ -215,8 +254,6 @@ class App {
     install_step_ = step;
     step_changed_ = true;
   }
-  void InstallArt(const ImRect& rect);
-  void Stepper(ImVec2 pos);
   void ChooseIso(const std::string& path);
   void BrowseIso();
   void PollInstall();
@@ -242,7 +279,6 @@ class App {
   void ScanDlc(const std::string& path);  // UTF-8
   void ListDlc();
   void PollDlc();
-  void InstalledDlcCard(ImVec2 pos, float width);
   std::shared_ptr<DialogResult> dlc_dialog_ = std::make_shared<DialogResult>();
   std::string dlc_scanned_;  // the folder searched, UTF-8
   std::future<std::vector<DlcPackage>> dlc_scan_;
@@ -253,6 +289,8 @@ class App {
   std::string dlc_confirm_;  // the installed folder whose Remove waits for a second press
   bool dlc_listed_ = false;  // read once the page is first shown, and after each change
   bool dlc_refresh_after_install_ = false;
+  std::vector<std::string> dlc_installing_names_;  // the folders of the packages being installed
+  std::set<std::string> dlc_new_;                  // installed this session: marked "New" in the list
 
   // The profiles (page_profile.cpp, profile_store.h): the first profile's dialog when there is none, and this
   // installation's saves from before the profiles copied into the current one.
@@ -328,32 +366,40 @@ class App {
   std::string WhenText(int64_t unix_time) const;    // "hoy", "ayer", a date
   // A game's icon, else its mark on its accent, in a `size` dp square at `pos`.
   void GameTile(ImVec2 pos, float size, const ProfileGame& game);
-  void SidebarProfileCard(const ImRect& rect);
-  void ProfileMenu();
+  // "Who's playing?" (page_profiles.cpp): every profile, switching, creating.
+  void ProfilesPage(const ImRect& rect);
   void ProfilePage(const ImRect& rect);
-  void ProfileSummary(ImVec2 pos, float width);
-  void ProfileGames(ImVec2 pos, float width);
+  void ProfileSummary(const ImRect& body);
+  void ProfileGames(const ImRect& body);
   void ProfileGamePage(const ImRect& rect);
   void ProfileEditPage(const ImRect& rect);
   void OpenProfileEdit();
+  // The edit page empty, creating another profile.
+  void OpenProfileCreate();
   // One achievement's card (the Achievements page and a game's achievements): `pin` -1 none, 0 not pinned, 1 pinned;
   // true when the pin was pressed.
   bool AchievementCard(const ImRect& card, const Achievement& a, ImTextureID icon, int pin, bool pin_enabled);
   std::vector<ProfileGame> profile_games_;
   ProfileActivity profile_activity_;
-  std::future<std::vector<ProfileGame>> profile_games_loading_;
+  // The games, and every profile's gamerscore over them (the profiles page's levels), read on a thread.
+  struct ProfileGamesRead {
+    std::vector<ProfileGame> games;
+    std::map<std::string, uint32_t> gamerscores;
+  };
+  std::future<ProfileGamesRead> profile_games_loading_;
+  std::map<std::string, uint32_t> profile_gamerscores_;
+  std::string profiles_selected_;       // the profiles page's chosen card (a profile's id)
   std::filesystem::path session_profile_;  // the running session's profile folder; empty: none is counted
   int64_t session_start_ = 0;              // Unix time
   uint64_t session_mark_ = 0;              // QueryUnbiasedInterruptTime of the last count (100 ns, sleep excluded)
   bool session_counted_ = false;           // its first stretch was written
   std::map<std::string, ImTextureID> avatar_textures_;
-  bool profile_menu_open_ = false;
-  bool profile_menu_request_ = false;   // another page's button asks the sidebar card to open its menu
   int profile_tab_ = 0;                 // 0 the summary, 1 the games
   int profile_sort_ = 0;                // the games: last played, most played, most complete, name
   size_t profile_game_ = 0;             // the game of the achievements page, in profile_games_
   int profile_game_filter_ = 0;         // its filter: unlocked, locked, all
-  std::string edit_id_;                 // the profile the edit page was opened for
+  std::string edit_id_;                 // the profile the edit page was opened for; empty: creating one
+  Page edit_back_ = Page::kProfiles;    // where Cancel and B go from it
   std::string edit_name_;
   std::string edit_motto_;
   int edit_avatar_ = 0;                 // in profiles::kAvatars; -1 the photo

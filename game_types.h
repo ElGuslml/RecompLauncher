@@ -29,11 +29,19 @@ struct Language {
   const char* locales;       // null: any locale of the language
 };
 
-// A switch of the game's own (game.h's kToggles): a boolean cvar with a row in the Game page; its title and hint are
-// game.cpp's (GameTexts::toggles, in the same order).
+// Where a switch of the game's own is shown in the Settings tab: the Game category, or the Graphics category's screen
+// effects (the game's post-processing, each turned off by a cvar of its src/).
+enum class ToggleGroup { kGame, kScreenEffects };
+
+// A switch of the game's own (game.h's kToggles): a boolean cvar with a row in the Settings tab; its title, hint and help
+// are game.cpp's (GameTexts::toggles and toggle_help, in the same order). `needs`: another switch's cvar that must
+// be on for this one to be (GH Metallica's grain needs its color correction); while that one is off, this one is off
+// and cannot be changed.
 struct Toggle {
   const char* cvar;
   bool default_value;
+  ToggleGroup group = ToggleGroup::kGame;
+  const char* needs = nullptr;
 };
 
 // A control's keys by default where they are not the SDK's (game.h's kKeyboardDefaults: the Keyboard page's "Reset to
@@ -53,10 +61,8 @@ struct GameControl {
   uint32_t chip_color;   // 0xRRGGBB
   uint32_t chip_text;    // 0xRRGGBB
   const char* name;      // the function, in the launcher's language
-  // The Gamepad page's value for a control the controllers cannot move (the D-pad, a stick): on a guitar ("Whammy
-  // bar") and on any other controller ("Right stick"). On a guitar the moved buttons are named after the function they
-  // press by default ("Green fret").
-  const char* on_guitar = nullptr;
+  // The Controls tab's value for a control the controllers cannot move (the D-pad, a stick): its name on the
+  // controller ("Right stick").
   const char* on_pad = nullptr;
 };
 struct GameControlGroup {

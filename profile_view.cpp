@@ -150,7 +150,8 @@ void App::LoadProfileGames() {
   profiles::Store store = store_;
   uint32_t language = language_;
   profile_games_loading_ = std::async(std::launch::async, [store, language] {
-    std::vector<ProfileGame> games;
+    ProfileGamesRead read;
+    std::vector<ProfileGame>& games = read.games;
     const profiles::Profile* profile = store.Current();
     for (profiles::GameInfo& info : profiles::Games(store)) {
       ProfileGame game;
@@ -170,7 +171,18 @@ void App::LoadProfileGames() {
     std::stable_sort(games.begin(), games.end(), [](const ProfileGame& a, const ProfileGame& b) {
       return a.current != b.current ? a.current : a.info.seen > b.info.seen;
     });
-    return games;
+    // Every profile's gamerscore over the same lists, from its unlocks.
+    for (const profiles::Profile& other : store.profiles) {
+      uint32_t& score = read.gamerscores[other.id];
+      for (const ProfileGame& game : games) {
+        if (!game.achievements) continue;
+        std::map<uint32_t, int64_t> unlocks = profiles::Unlocks(profiles::UnlocksFile(other, game.info.title_id));
+        for (const Achievement& a : game.achievements->items) {
+          if (unlocks.count(a.id)) score += a.gamerscore;
+        }
+      }
+    }
+    return read;
   });
 }
 
@@ -185,7 +197,9 @@ void App::PollProfileGames() {
     }
     gfx::DestroyTexture(game.picture);
   }
-  profile_games_ = profile_games_loading_.get();
+  ProfileGamesRead read = profile_games_loading_.get();
+  profile_games_ = std::move(read.games);
+  profile_gamerscores_ = std::move(read.gamerscores);
   for (ProfileGame& game : profile_games_) {
     game.icons.assign(game.achievements ? game.achievements->items.size() : 0, ImTextureID_Invalid);
     if (game.picture_pixels) {
@@ -436,192 +450,6 @@ void App::GameTile(ImVec2 pos, float size, const ProfileGame& game) {
     std::snprintf(key, sizeof(key), "game%08X", info.title_id);
     DrawIconSvg(key, info.icon, at, icon, accent, 2.0f);
   }
-}
-
-void App::SidebarProfileCard(const ImRect& rect) {
-  const profiles::Profile* profile = store_.Current();
-  if (!profile) {
-    return;
-  }
-  bool active = page_ == Page::kProfile || page_ == Page::kProfileGame || page_ == Page::kProfileEdit ||
-                profile_menu_open_;
-  ItemState state = Item("##profile_card", rect);
-  FillRect(rect, active || state.hovered ? col::kCardRaised : col::kSidebar, 10.0f);
-  StrokeRect(rect, active ? col::kAccent : col::kSidebarBorder, 10.0f);
-  float avatar = 40.0f;
-  ImVec2 avatar_pos(rect.Min.x + Px(10.0f), rect.Min.y + (rect.GetHeight() - Px(avatar)) * 0.5f);
-  DrawAvatar(avatar_pos, avatar, profile->avatar, AvatarTexture(*profile), profile->color);
-  constexpr Type kName{Font::kBold, 14};
-  constexpr Type kLevel{Font::kSemiBold, 12};
-  float text_x = avatar_pos.x + Px(avatar + 12.0f);
-  float text_width = rect.Max.x - Px(34.0f) - text_x;
-  float block = LineHeight(kName) + Px(2.0f) + LineHeight(kLevel);
-  float text_y = rect.Min.y + (rect.GetHeight() - block) * 0.5f;
-  DrawLabel(kName, ImVec2(text_x, text_y), col::kText, Ellipsize(kName, profile->name, text_width));
-  if (!profile_games_.empty()) {
-    char level[48];
-    std::snprintf(level, sizeof(level), t_.level, Totals().Level());
-    DrawLabel(kLevel, ImVec2(text_x, text_y + LineHeight(kName) + Px(2.0f)), col::kAccent, level);
-  }
-  DrawIcon(Icon::kChevronUp, ImVec2(rect.Max.x - Px(26.0f), rect.Min.y + (rect.GetHeight() - Px(16.0f)) * 0.5f), 16.0f,
-           col::kTextMuted, 2.0f);
-  if (state.focused) {
-    FocusRing(rect, 10.0f);
-  }
-  if (state.pressed || profile_menu_request_) {
-    ImGui::OpenPopup("##profile_menu");
-    profile_menu_request_ = false;
-  }
-  // The menu, right of the sidebar, its foot level with the card's.
-  ImGui::SetNextWindowPos(ImVec2(rect.Max.x + Px(34.0f), rect.Max.y + Px(16.0f)), ImGuiCond_Always, ImVec2(0.0f, 1.0f));
-  ProfileMenu();
-}
-
-void App::ProfileMenu() {
-  constexpr float kWidth = 372.0f;
-  constexpr float kPadding = 20.0f;
-  ImGui::SetNextWindowSize(ImVec2(Px(kWidth), 0.0f));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.0f);
-  ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 0.0f);
-  ImGui::PushStyleColor(ImGuiCol_PopupBg, IM_COL32(0, 0, 0, 0));
-  profile_menu_open_ = ImGui::BeginPopup("##profile_menu", ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
-  ImGui::PopStyleColor();
-  ImGui::PopStyleVar(3);
-  if (!profile_menu_open_) {
-    return;
-  }
-  const profiles::Profile* profile = store_.Current();
-  if (!profile) {
-    ImGui::CloseCurrentPopup();
-    ImGui::EndPopup();
-    return;
-  }
-  ImDrawList* draw = ImGui::GetWindowDrawList();
-  ImVec2 origin = ImGui::GetCursorScreenPos();
-  float width = Px(kWidth);
-  float x = origin.x + Px(kPadding);
-  float inner = width - Px(kPadding * 2.0f);
-  // The card's background goes under its rows (two channels: its height is known at the end).
-  draw->ChannelsSplit(2);
-  draw->ChannelsSetCurrent(1);
-  float y = origin.y + Px(kPadding);
-  bool close = false;
-
-  // The profile: its avatar, name, motto, level and its progress.
-  constexpr Type kName{Font::kCondensedBold, 24};
-  constexpr Type kMotto{Font::kRegular, 13};
-  constexpr Type kLevel{Font::kSemiBold, 12};
-  DrawAvatar(ImVec2(x, y), 64.0f, profile->avatar, AvatarTexture(*profile), profile->color);
-  float text_x = x + Px(64.0f + 14.0f);
-  float text_width = x + inner - text_x;
-  ProfileTotals totals = Totals();
-  DrawLabel(kName, ImVec2(text_x, y + Px(2.0f)), col::kText, Ellipsize(kName, profile->name, text_width));
-  float line_y = y + Px(2.0f) + LineHeight(kName);
-  if (!profile->motto.empty()) {
-    DrawLabel(kMotto, ImVec2(text_x, line_y), col::kTextMuted, Ellipsize(kMotto, profile->motto, text_width));
-    line_y += LineHeight(kMotto) + Px(2.0f);
-  }
-  char level[48];
-  std::snprintf(level, sizeof(level), t_.level, totals.Level());
-  DrawLabel(kLevel, ImVec2(text_x, line_y), col::kAccent, level);
-  float bar_x = text_x + MeasureText(kLevel, level).x + Px(10.0f);
-  float bar_y = line_y + (LineHeight(kLevel) - Px(6.0f)) * 0.5f;
-  Progress(ImRect(ImVec2(bar_x, bar_y), ImVec2(x + inner, bar_y + Px(6.0f))), float(totals.gamerscore % 100) / 100.0f);
-  y += std::max(Px(64.0f), line_y + LineHeight(kLevel) - y) + Px(16.0f);
-
-  // See my profile, edit.
-  ButtonSpec see{ButtonKind::kPrimary, Type{Font::kBold, 15}, 44, 16, 8};
-  ButtonSpec edit{ButtonKind::kGhost, Type{Font::kSemiBold, 15}, 44, 16, 8, Icon::kPencil, 16, 2};
-  float edit_width = ButtonWidth(edit, t_.edit);
-  if (Button("##see_profile", ImVec2(x, y), see, t_.see_my_profile, true, inner - edit_width - Px(8.0f))) {
-    profile_tab_ = 0;
-    Navigate(Page::kProfile, false);
-    close = true;
-  }
-  if (Button("##edit_profile", ImVec2(x + inner - edit_width, y), edit, t_.edit, !store_.read_only)) {
-    OpenProfileEdit();
-    close = true;
-  }
-  y += Px(44.0f) + Px(16.0f);
-  draw->AddLine(ImVec2(x, y), ImVec2(x + inner, y), col::kDivider, Px(1.0f));
-  y += Px(16.0f);
-
-  // The other profiles, and a new one.
-  constexpr Type kSection{Font::kBold, 11, 0.1f};
-  constexpr Type kRowName{Font::kSemiBold, 15};
-  constexpr Type kRowSub{Font::kRegular, 12};
-  DrawLabel(kSection, ImVec2(x, y), col::kLabel, t_.switch_profile);
-  y += LineHeight(kSection) + Px(8.0f);
-  for (const profiles::Profile& other : store_.profiles) {
-    if (other.id == profile->id) {
-      continue;
-    }
-    ImRect row(ImVec2(x - Px(8.0f), y), ImVec2(x + inner + Px(8.0f), y + Px(56.0f)));
-    ImGui::PushID(other.id.c_str());
-    ItemState state = Item("##row", row, !store_.read_only);
-    ImGui::PopID();
-    if (state.hovered || state.focused) {
-      FillRect(row, col::kCardSelected, 8.0f);
-    }
-    DrawAvatar(ImVec2(x, y + Px(8.0f)), 40.0f, other.avatar, AvatarTexture(other), other.color);
-    float row_x = x + Px(40.0f + 12.0f);
-    float row_width = x + inner - row_x;
-    float block = LineHeight(kRowName) + Px(2.0f) + LineHeight(kRowSub);
-    float row_y = y + (Px(56.0f) - block) * 0.5f;
-    DrawLabel(kRowName, ImVec2(row_x, row_y), col::kText, Ellipsize(kRowName, other.name, row_width));
-    DrawLabel(kRowSub, ImVec2(row_x, row_y + LineHeight(kRowName) + Px(2.0f)), col::kTextMuted,
-              Ellipsize(kRowSub, UsedText(other.last_used), row_width));
-    if (state.focused) {
-      FocusRing(row, 8.0f);
-    }
-    if (state.pressed) {
-      SwitchProfile(other.id);
-      close = true;
-    }
-    y += Px(56.0f) + Px(2.0f);
-  }
-  {
-    ImRect row(ImVec2(x - Px(8.0f), y), ImVec2(x + inner + Px(8.0f), y + Px(56.0f)));
-    ItemState state = Item("##new_profile", row, !store_.read_only);
-    if (state.hovered || state.focused) {
-      FillRect(row, col::kCardSelected, 8.0f);
-    }
-    ImVec2 center(x + Px(20.0f), y + Px(28.0f));
-    float radius = Px(19.0f);
-    for (int i = 0; i < 24; i += 2) {
-      float a0 = float(i) * 3.14159265f / 12.0f, a1 = float(i + 1) * 3.14159265f / 12.0f;
-      draw->PathArcTo(center, radius, a0, a1, 4);
-      draw->PathStroke(col::kDashed, ImDrawFlags_None, Px(1.5f));
-    }
-    DrawIcon(Icon::kPlus, ImVec2(center.x - Px(9.0f), center.y - Px(9.0f)), 18.0f, col::kTextSoft, 2.0f);
-    DrawLabel(kRowName, ImVec2(x + Px(52.0f), y), col::kText, t_.new_profile, Px(56.0f));
-    if (state.focused) {
-      FocusRing(row, 8.0f);
-    }
-    if (state.pressed) {
-      OpenCreateProfile(false);
-      close = true;
-    }
-    y += Px(56.0f) + Px(12.0f);
-  }
-  // The note: the profiles are every launcher's.
-  constexpr Type kNote{Font::kRegular, 12};
-  DrawIcon(Icon::kInfo, ImVec2(x, y + (LineHeight(kNote) - Px(14.0f)) * 0.5f), 14.0f, col::kTextDim, 2.0f);
-  float note_height = DrawParagraph(kNote, ImVec2(x + Px(22.0f), y), inner - Px(22.0f), 1.4f, col::kTextDim,
-                                    t_.profiles_shared);
-  y += note_height + Px(kPadding);
-
-  draw->ChannelsSetCurrent(0);
-  ImRect card(origin, ImVec2(origin.x + width, y));
-  FillRect(card, col::kCard, 14.0f);
-  StrokeRect(card, col::kOutline, 14.0f);
-  draw->ChannelsMerge();
-  ImGui::Dummy(ImVec2(width, y - origin.y));
-  if (close || ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
-    ImGui::CloseCurrentPopup();
-  }
-  ImGui::EndPopup();
 }
 
 }  // namespace launcher

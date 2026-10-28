@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <map>
 #include <string>
@@ -39,15 +40,28 @@ namespace {
 float g_scale = 1.0f;
 bool g_capture_first = false;
 ImGuiID g_first_item = 0;
+ImGuiID g_focus_request = 0;
+bool g_focus_request_show = false;
+int g_focus_request_frames = 0;  // frames since asked: a request whose item never shows is dropped
 ImFont* g_fonts[int(Font::kCount)] = {};
 NSVGrasterizer* g_rasterizer = nullptr;
 
 ImFont* FontOf(const Type& type) { return g_fonts[int(type.font)]; }
 
-// Barlow's ascent minus its descent (hhea and typo metrics: 1000 and -200 of 1000 units), in em: CSS's
-// "line-height: normal", and the size ImGui gives the font for a CSS font size.
-constexpr float kBarlowHeight = 1.2f;
-float FontPixels(const Type& type) { return Px(type.size) * kBarlowHeight; }
+// A font's vertical metrics, in em. `file_height` is the embedded file's ascent minus its descent: ImGui sizes a font
+// by it, so a CSS font size of 1 em is that many pixels for ImGui. `ascent` and `height` are the mockup's: the line box
+// of "line-height: normal" and the baseline in it, as the browser laid the mockup out with Google Fonts' files.
+// Source Sans 3: Adobe's static files have 1000 and -326 of 1000 units, Google Fonts' 1024 and -400. Oswald: 1193 and
+// -289 in both.
+struct Metrics {
+  float file_height;
+  float ascent;
+  float height;
+};
+constexpr Metrics kSourceSans{1.326f, 1.024f, 1.424f};
+constexpr Metrics kOswald{1.482f, 1.193f, 1.482f};
+const Metrics& MetricsOf(const Type& type) { return type.font >= Font::kDisplayMedium ? kOswald : kSourceSans; }
+float FontPixels(const Type& type) { return Px(type.size) * MetricsOf(type).file_height; }
 
 // The paths of each icon, in a 24-unit box (the mockup's, which follow Lucide's style; drawn here
 // from scratch where the mockup had none: the mouse and the keyboard).
@@ -94,10 +108,11 @@ constexpr const char* kIconBodies[int(Icon::kCount)] = {
     /* kTrash */
     "<path d='M4 7h16'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12'/>"
     "<path d='M9 7V4h6v3'/>",
-    /* kGuitar */
-    "<path d='M14 10l6-6'/><path d='M18 2l4 4'/>"
-    "<path d='M11 9c-2-1-5 0-6 2-1 1.5 0 3-1.5 4.5S3 19 5 20.5c1.5 1.5 3.5 1.5 5 0s3 -.5 4.5-1.5c2-1 3-4 2-6z'/>"
-    "<circle cx='10' cy='15' r='1.5'/>",
+    /* kGuitar: the 2026-10-28 mockup's, a guitar tilted 40 degrees */
+    "<g transform='rotate(40 12 12)'><path d='M11 13C10.4 11.6 9.6 10.2 8.6 10.4C7.4 10.6 7.6 12.6 7.9 14.2C8.1 15.4 6.6 16.6 "
+    "6.7 19C6.8 21.6 9.2 23.4 12 23.4S17.3 21.8 17.3 19.2C17.3 16.8 15.9 15.8 16.1 14.6C16.3 13.4 16.6 11.9 15.6 11.6C14.6 "
+    "11.3 13.6 12.4 13 13.2M11 13V6.5M13 13.2V6.5M11 6.5V1.7Q11 1 11.7 1.1L13.3 1.6Q14 1.9 13.8 2.6L13 6.5M11 2.6H9.8M11 "
+    "4H9.8M11 5.4H9.8M10.2 16.2h3.6M10.2 18.4h3.6'/></g>",
     /* kDrum */
     "<ellipse cx='12' cy='9' rx='8' ry='3'/><path d='M4 9v7c0 1.7 3.6 3 8 3s8-1.3 8-3V9'/><path d='M3 2l7 6'/>"
     "<path d='M21 2l-7 6'/>",
@@ -119,6 +134,8 @@ constexpr const char* kIconBodies[int(Icon::kCount)] = {
     "<circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/>",
     /* kFlame */
     "<path d='M12 3c1 3 4 5 5 8a5.5 5.5 0 1 1-11 1c0-2 1-3.5 2-4.5 0 2 1 3 2 3-1-3 1-5.5 2-7.5z'/>",
+    /* kChevronRight */ "<path d='M9 6l6 6-6 6'/>",
+    /* kChevronLeft */ "<path d='M15 6l-6 6 6 6'/>",
 };
 
 struct Picture {
@@ -232,8 +249,8 @@ std::string_view MapWindowsFont(const wchar_t* name) {
   return view ? std::string_view(static_cast<const char*>(view), size_t(size.QuadPart)) : std::string_view();
 }
 
-// Windows' fonts for the scripts Barlow does not have, which the names of the game's languages (game.h, in their
-// own words) use: merged after Barlow into each font, in this order.
+// Windows' fonts for the scripts Source Sans 3 does not have, which the names of the game's languages (game.h, in
+// their own words) use: merged after it into each font, in this order.
 std::vector<std::string_view> FallbackFonts() {
   bool han = false, kana = false, hangul = false, cyrillic = false;
   bool traditional = false, simplified = false;
@@ -268,12 +285,14 @@ std::vector<std::string_view> FallbackFonts() {
 
 bool LoadFonts() {
   ImGuiIO& io = ImGui::GetIO();
-  constexpr int kIds[int(Font::kCount)] = {IDR_FONT_REGULAR,  IDR_FONT_MEDIUM, IDR_FONT_SEMIBOLD,
-                                           IDR_FONT_BOLD,     IDR_FONT_CONDENSED_SEMIBOLD,
-                                           IDR_FONT_CONDENSED_BOLD};
-  constexpr const char* kNames[int(Font::kCount)] = {"Barlow Regular",          "Barlow Medium",
-                                                     "Barlow SemiBold",         "Barlow Bold",
-                                                     "Barlow Condensed SemiBold", "Barlow Condensed Bold"};
+  constexpr int kIds[int(Font::kCount)] = {IDR_FONT_REGULAR,         IDR_FONT_MEDIUM,
+                                           IDR_FONT_SEMIBOLD,        IDR_FONT_BOLD,
+                                           IDR_FONT_DISPLAY_MEDIUM,  IDR_FONT_DISPLAY_SEMIBOLD,
+                                           IDR_FONT_DISPLAY_BOLD};
+  constexpr const char* kNames[int(Font::kCount)] = {"Source Sans 3 Regular", "Source Sans 3 Medium",
+                                                     "Source Sans 3 SemiBold", "Source Sans 3 Bold",
+                                                     "Oswald Medium",          "Oswald SemiBold",
+                                                     "Oswald Bold"};
   for (int i = 0; i < int(Font::kCount); ++i) {
     std::string_view data = Resource(kIds[i]);
     if (data.empty()) {
@@ -281,7 +300,7 @@ bool LoadFonts() {
     }
     ImFontConfig config;
     config.FontDataOwnedByAtlas = false;  // the resource stays mapped
-    // ImGui sizes a font by its ascent minus its descent, 1.2 em for Barlow (FontPixels). (A negative size
+    // ImGui sizes a font by its ascent minus its descent (Metrics::file_height, FontPixels). (A negative size
     // would map the em square, but ImGui 1.92 then scales glyph advances by a negative factor.)
     config.SizePixels = 16.0f;
     std::snprintf(config.Name, sizeof(config.Name), "%s", kNames[i]);
@@ -301,7 +320,7 @@ bool LoadFonts() {
   return true;
 }
 
-float LineHeight(const Type& type) { return Px(type.size) * kBarlowHeight; }
+float LineHeight(const Type& type) { return Px(type.size) * MetricsOf(type).height; }
 
 ImVec2 MeasureText(const Type& type, std::string_view text) {
   float size = Px(type.size);
@@ -325,10 +344,11 @@ void DrawLabel(const Type& type, ImVec2 pos, ImU32 color, std::string_view text,
   ImFont* font = FontOf(type);
   float size = Px(type.size);
   float pixels = FontPixels(type);
-  // CSS puts the baseline at the top of the line box, plus half the leading, plus the ascent (1 em);
-  // ImGui puts it at the top plus its baked (rounded) ascent.
+  // CSS puts the baseline at the top of the line box, plus half the leading, plus the ascent; ImGui puts it at the
+  // top plus its baked (rounded) ascent.
+  const Metrics& metrics = MetricsOf(type);
   float box = line_height > 0.0f ? line_height : LineHeight(type);
-  float baseline = pos.y + (box - size * kBarlowHeight) * 0.5f + size;
+  float baseline = pos.y + (box - size * metrics.height) * 0.5f + size * metrics.ascent;
   ImVec2 at = Snap(ImVec2(pos.x, baseline - font->GetFontBaked(pixels)->Ascent));
   const char* begin = text.data();
   const char* end = begin + text.size();
@@ -472,7 +492,7 @@ static ImVec2 ArtSize(Art art, int id) {
 }
 
 void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding, ImDrawFlags corners) {
-  constexpr int kIds[int(Art::kCount)] = {IDR_ART_HERO, IDR_ART_INSTALL};
+  constexpr int kIds[int(Art::kCount)] = {IDR_ART_BACKGROUND};
   int width = int(Snap(rect.GetWidth()));
   int height = int(Snap(rect.GetHeight()));
   if (width <= 0 || height <= 0) {
@@ -672,14 +692,33 @@ ItemState Item(ImGuiID id, const ImRect& rect, bool enabled) {
     ImGui::ItemAdd(rect, 0);
     return state;
   }
-  if (g_capture_first && !g_first_item) {
+  ImGuiContext& g = *GImGui;
+  // A mouse-only item (NoNav) is no page's first control.
+  if (g_capture_first && !g_first_item && !(g.CurrentItemFlags & ImGuiItemFlags_NoNav)) {
     g_first_item = id;
   }
-  if (!ImGui::ItemAdd(rect, id)) {
+  bool visible = ImGui::ItemAdd(rect, id);
+  // The focus asked for this item: given now, with its window and its rectangle (ImGui moves the controller's focus
+  // from that rectangle), and scrolled into view. Not while another item is held active (A still down on the tab or
+  // the device that asked): ImGui would keep the focus there.
+  if (g_focus_request == id && (g.ActiveId == 0 || g.ActiveId == id)) {
+    g_focus_request = 0;
+    ImGui::SetFocusID(id, ImGui::GetCurrentWindow());
+    if (g_focus_request_show) {
+      ImGui::SetNavCursorVisible(true);
+    }
+    ImGui::ScrollToBringRectIntoView(ImGui::GetCurrentWindow(), rect);
+  }
+  if (!visible) {
     return state;
   }
   state.pressed = ImGui::ButtonBehavior(rect, id, &state.hovered, &state.held);
-  ImGuiContext& g = *GImGui;
+  // Only A (or Enter, Space, the mouse) presses an item: ImGui's navigation also activates the item in focus with Y
+  // (Triangle, its "input") and X (Square), which are the pages' own shortcuts (Y on Play opens Donate, not PLAY).
+  if (state.pressed && (ImGui::IsKeyDown(ImGuiKey_GamepadFaceUp) || ImGui::IsKeyDown(ImGuiKey_GamepadFaceLeft)) &&
+      !ImGui::IsKeyDown(ImGuiKey_GamepadFaceDown)) {
+    state.pressed = false;
+  }
   state.focused = g.NavId == id && g.NavCursorVisible && g.NavWindow &&
                   (g.NavWindow == ImGui::GetCurrentWindow() || g.NavWindow->RootWindow == ImGui::GetCurrentWindow()->RootWindow);
   if (state.hovered) {
@@ -699,7 +738,23 @@ bool AnyGamepadButtonDown() {
   return false;
 }
 
+void RequestFocus(ImGuiID id, bool show) {
+  g_focus_request = id;
+  g_focus_request_show = show;
+  g_focus_request_frames = 0;
+}
+
+bool FocusRequested() { return g_focus_request != 0; }
+
+bool PressedByNav() {
+  return !ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseReleased(ImGuiMouseButton_Left);
+}
+
 void CaptureFirstItem() {
+  // Dropped when its item has not shown for a few frames (not counting the frames A is held).
+  if (g_focus_request && GImGui->ActiveId == 0 && ++g_focus_request_frames > 3) {
+    g_focus_request = 0;
+  }
   g_capture_first = true;
   g_first_item = 0;
 }
@@ -710,10 +765,11 @@ ImGuiID CapturedFirstItem() {
 }
 
 void FocusRing(const ImRect& rect, float rounding) {
-  float offset = Px(3.0f);
+  // The mockup's ":focus-visible { outline: 3px solid; outline-offset: 4px }": the line's middle 5.5 dp out.
+  float offset = Px(5.5f);
   List()->AddRect(Snap(ImVec2(rect.Min.x - offset, rect.Min.y - offset)),
-                  Snap(ImVec2(rect.Max.x + offset, rect.Max.y + offset)), col::kAccent, Radius(rounding) + Px(2.0f), 0,
-                  Px(2.0f));
+                  Snap(ImVec2(rect.Max.x + offset, rect.Max.y + offset)), col::kFocus, Radius(rounding) + offset, 0,
+                  Px(3.0f));
 }
 
 // --- Shapes ---
@@ -771,6 +827,118 @@ void DashedRect(const ImRect& rect, ImU32 color, float rounding_dp, float dash_d
   }
 }
 
+// --- The controller's buttons ---
+
+namespace {
+
+GlyphStyle g_glyph_style = GlyphStyle::kXbox;
+const char* g_view_label = "View";
+
+const char* GlyphText(PadButton button) {
+  int i = int(button);
+  switch (g_glyph_style) {
+    case GlyphStyle::kKeyboard: {
+      static constexpr const char* kKeys[] = {"Enter", "Esc", "F", "R", "Q", "E", "P"};
+      return kKeys[i];
+    }
+    case GlyphStyle::kPlayStation: {
+      static constexpr const char* kNames[] = {"", "", "", "", "L1", "R1", ""};
+      return button == PadButton::kView ? g_view_label : kNames[i];
+    }
+    case GlyphStyle::kNintendo: {
+      // By position: the bottom button is B on a Switch controller, the right one A.
+      static constexpr const char* kNames[] = {"B", "A", "Y", "X", "L", "R", "â"};
+      return kNames[i];
+    }
+    case GlyphStyle::kXbox:
+      break;
+  }
+  static constexpr const char* kNames[] = {"A", "B", "X", "Y", "LB", "RB", ""};
+  return button == PadButton::kView ? g_view_label : kNames[i];
+}
+
+bool IsFaceButton(PadButton button) { return button <= PadButton::kY; }
+
+Type GlyphType(float size) { return Type{Font::kBold, std::round(size * 0.46f)}; }
+
+}  // namespace
+
+void SetGlyphStyle(GlyphStyle style, const char* view) {
+  g_glyph_style = style;
+  g_view_label = view;
+}
+
+GlyphStyle CurrentGlyphStyle() { return g_glyph_style; }
+
+float GlyphWidth(PadButton button, float size) {
+  if (IsFaceButton(button) && g_glyph_style != GlyphStyle::kKeyboard) {
+    return Px(size);
+  }
+  return std::max(Px(size), MeasureText(GlyphType(size), GlyphText(button)).x + Px(size * 0.6f));
+}
+
+void DrawGlyph(PadButton button, ImVec2 pos, float size, bool on_accent) {
+  ImRect r(pos, ImVec2(pos.x + GlyphWidth(button, size), pos.y + Px(size)));
+  Type type = GlyphType(size);
+  const char* text = GlyphText(button);
+  auto label = [&](ImU32 color) {
+    DrawLabel(type, ImVec2(r.GetCenter().x - MeasureText(type, text).x * 0.5f, r.Min.y), color, text, r.GetHeight());
+  };
+  if (g_glyph_style == GlyphStyle::kKeyboard) {
+    // A key cap.
+    FillRect(r, on_accent ? col::kOnAccent : Hex(0xFFFFFF, 31), size * 0.25f);
+    StrokeRect(r, on_accent ? col::kOnAccent : Hex(0xFFFFFF, 77), size * 0.25f);
+    label(on_accent ? col::kAccent : col::kText);
+    return;
+  }
+  if (!IsFaceButton(button)) {
+    // A bumper or View: a pill.
+    FillRect(r, on_accent ? col::kOnAccent : col::kHintBumper, size * 0.5f);
+    label(on_accent ? col::kAccent : col::kOnHintBumper);
+    return;
+  }
+  int i = int(button);
+  ImVec2 center = r.GetCenter();
+  float radius = r.GetHeight() * 0.5f;
+  ImDrawList* draw = ImGui::GetWindowDrawList();
+  if (g_glyph_style == GlyphStyle::kPlayStation) {
+    // The symbol in its color on a dark disc.
+    static constexpr Icon kIcons[] = {Icon::kPsCross, Icon::kPsCircle, Icon::kPsSquare, Icon::kPsTriangle};
+    static constexpr ImU32 kColors[] = {Hex(0x7CB2E8), Hex(0xF07B6B), Hex(0xE6A4D7), Hex(0x5BC489)};
+    draw->AddCircleFilled(center, radius, on_accent ? col::kOnAccent : Hex(0x2E2E36), 32);
+    float icon = size * 0.52f;
+    DrawIcon(kIcons[i], ImVec2(center.x - Px(icon) * 0.5f, center.y - Px(icon) * 0.5f), icon, kColors[i],
+             size >= 24.0f ? 2.4f : 2.8f);
+    return;
+  }
+  if (g_glyph_style == GlyphStyle::kNintendo) {
+    draw->AddCircleFilled(center, radius, on_accent ? col::kOnAccent : Hex(0xE6E6EA), 32);
+    label(on_accent ? col::kAccent : Hex(0x1C1C21));
+    return;
+  }
+  // An Xbox controller's: the letter on its color; inside an accent button, the color on dark.
+  const ImU32 discs[] = {col::kGlyphA, col::kGlyphB, col::kGlyphX, col::kGlyphY};
+  const ImU32 letters[] = {col::kOnGlyphA, col::kOnGlyphB, col::kOnGlyphX, col::kOnGlyphY};
+  draw->AddCircleFilled(center, radius, on_accent ? col::kOnAccent : discs[i], 32);
+  label(on_accent ? discs[i] : letters[i]);
+}
+
+bool ButtonPressed(PadButton button) {
+  static constexpr ImGuiKey kPad[] = {ImGuiKey_GamepadFaceDown, ImGuiKey_GamepadFaceRight, ImGuiKey_GamepadFaceLeft,
+                                      ImGuiKey_GamepadFaceUp,   ImGuiKey_GamepadL1,        ImGuiKey_GamepadR1,
+                                      ImGuiKey_GamepadBack};
+  static constexpr ImGuiKey kKeys[] = {ImGuiKey_Enter, ImGuiKey_Escape, ImGuiKey_F, ImGuiKey_R,
+                                       ImGuiKey_Q,     ImGuiKey_E,      ImGuiKey_P};
+  int i = int(button);
+  if (ImGui::IsKeyPressed(kPad[i], false)) {
+    return true;
+  }
+  if (ImGui::GetIO().WantTextInput && button != PadButton::kB) {
+    return false;
+  }
+  return ImGui::IsKeyPressed(kKeys[i], false);
+}
+
 // --- Widgets ---
 
 namespace {
@@ -786,16 +954,10 @@ ButtonColors ColorsOf(ButtonKind kind) {
   switch (kind) {
     case ButtonKind::kPrimary:
       return {col::kAccent, 0, col::kOnAccent, col::kOnAccent};
-    case ButtonKind::kHero:
-      return {col::kHeroButton, col::kHeroButtonBorder, col::kText, col::kTextSecondary};
-    case ButtonKind::kOutline:
-      return {col::kCard, col::kOutline, col::kText, col::kTextMuted};
     case ButtonKind::kGhost:
       return {0, col::kOutline, col::kText, col::kTextMuted};
     case ButtonKind::kDanger:
       return {0, Fade(col::kError, 0.55f), col::kError, col::kError};
-    case ButtonKind::kLight:
-      return {col::kText, 0, col::kBackground, col::kBackground};
     case ButtonKind::kDonate:
       return {col::kDonate, 0, col::kOnDonate, col::kOnDonate};
     case ButtonKind::kDisabled:
@@ -851,66 +1013,6 @@ bool Button(const char* id, ImVec2 pos, const ButtonSpec& spec, std::string_view
   return state.pressed;
 }
 
-namespace {
-
-constexpr Type kSegmentType{Font::kSemiBold, 14};
-
-float SegmentWidth(const SegmentedSpec& spec, const std::string& label) {
-  return std::max(Px(spec.min_width), MeasureText(kSegmentType, label).x + Px(spec.padding) * 2.0f);
-}
-
-}  // namespace
-
-ImVec2 SegmentedSize(const SegmentedSpec& spec, std::span<const std::string> labels) {
-  float width = Px(4.0f) * 2.0f + Px(4.0f) * float(std::max<size_t>(labels.size(), 1) - 1);
-  for (const std::string& label : labels) {
-    width += SegmentWidth(spec, label);
-  }
-  return {width, Px(spec.height) + Px(4.0f) * 2.0f};
-}
-
-bool Segmented(const char* id, ImVec2 pos, const SegmentedSpec& spec, std::span<const std::string> labels,
-               int* selected, bool enabled) {
-  ImVec2 size = SegmentedSize(spec, labels);
-  FillRect(ImRect(pos, ImVec2(pos.x + size.x, pos.y + size.y)), enabled ? spec.background : Fade(spec.background, 0.6f),
-           10.0f);
-  bool changed = false;
-  ImGui::PushID(id);
-  float x = pos.x + Px(4.0f);
-  for (int i = 0; i < int(labels.size()); ++i) {
-    float width = SegmentWidth(spec, labels[i]);
-    ImRect rect(ImVec2(x, pos.y + Px(4.0f)), ImVec2(x + width, pos.y + Px(4.0f) + Px(spec.height)));
-    ItemState state = Item(ImGui::GetID(i), rect, enabled);
-    if (state.pressed && *selected != i) {
-      *selected = i;
-      changed = true;
-    }
-    bool on = *selected == i;
-    ImU32 background = on ? col::kAccent : 0;
-    ImU32 text = on ? col::kOnAccent : col::kTextSoft;
-    if (state.hovered) {
-      background = background ? Brighten(background) : 0;
-      text = Brighten(text);
-    }
-    if (!enabled) {
-      background = background ? col::kDashed : 0;
-      text = Fade(on ? col::kTextSoft : col::kTextDim, 0.8f);
-    }
-    if (background) {
-      FillRect(rect, background, 7.0f);
-    }
-    float text_width = MeasureText(kSegmentType, labels[i]).x;
-    DrawLabel(kSegmentType, ImVec2(rect.Min.x + (width - text_width) * 0.5f, rect.Min.y), text, labels[i],
-             rect.GetHeight());
-    if (state.focused) {
-      FocusRing(rect, 7.0f);
-    }
-    x += width + Px(4.0f);
-  }
-  ImGui::PopID();
-  return changed;
-}
-
 bool Toggle(const char* id, ImVec2 pos, bool* value, bool enabled) {
   ImRect rect(pos, ImVec2(pos.x + Px(52.0f), pos.y + Px(30.0f)));
   ItemState state = Item(id, rect, enabled);
@@ -936,131 +1038,6 @@ bool Toggle(const char* id, ImVec2 pos, bool* value, bool enabled) {
   return state.pressed;
 }
 
-bool Combo(const char* id, const ImRect& rect, std::span<const std::string> items, int* selected, bool enabled) {
-  constexpr Type kType{Font::kMedium, 14};
-  ImGuiID item_id = ImGui::GetID(id);
-  ItemState state = Item(item_id, rect, enabled);
-  ImU32 background = enabled ? col::kField : col::kFieldDisabled;
-  ImU32 border = enabled ? col::kFieldBorder : col::kSidebarBorder;
-  ImU32 text = enabled ? col::kText : col::kLabel;
-  ImU32 chevron = enabled ? col::kTextMuted : col::kTextDim;
-  if (state.hovered) {
-    background = Brighten(background);
-    border = Brighten(border);
-    text = Brighten(text);
-  }
-  FillRect(rect, background, 8.0f);
-  StrokeRect(rect, border, 8.0f);
-  std::string current = *selected >= 0 && *selected < int(items.size()) ? items[*selected] : std::string();
-  float text_width = rect.GetWidth() - Px(14.0f) - Px(40.0f);
-  DrawLabel(kType, ImVec2(rect.Min.x + Px(14.0f), rect.Min.y), text, Ellipsize(kType, current, text_width),
-           rect.GetHeight());
-  DrawIcon(Icon::kChevronDown, ImVec2(rect.Max.x - Px(30.0f), rect.Min.y + (rect.GetHeight() - Px(16.0f)) * 0.5f),
-           16.0f, chevron, 2.0f);
-  if (state.focused) {
-    FocusRing(rect, 8.0f);
-  }
-
-  char popup[64];
-  std::snprintf(popup, sizeof(popup), "##popup%08X", item_id);
-  if (state.pressed) {
-    ImGui::OpenPopup(popup);
-  }
-  bool changed = false;
-  float item_height = Px(40.0f);
-  float padding = Px(4.0f);
-  float wanted = item_height * float(items.size()) + padding * 2.0f;
-  float visible = std::min(wanted, item_height * 8.0f + padding * 2.0f);
-  ImVec2 at(rect.Min.x, rect.Max.y + Px(4.0f));
-  ImVec2 viewport_max = ImGui::GetMainViewport()->WorkPos + ImGui::GetMainViewport()->WorkSize;
-  if (at.y + visible > viewport_max.y && rect.Min.y - Px(4.0f) - visible > 0.0f) {
-    at.y = rect.Min.y - Px(4.0f) - visible;
-  }
-  ImGui::SetNextWindowPos(at);
-  ImGui::SetNextWindowSize(ImVec2(rect.GetWidth(), visible));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
-  ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, Px(8.0f));
-  ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 1.0f);
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-  ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGui::ColorConvertU32ToFloat4(col::kCardRaised));
-  ImGui::PushStyleColor(ImGuiCol_Border, ImGui::ColorConvertU32ToFloat4(col::kFieldBorder));
-  if (ImGui::BeginPopup(popup, ImGuiWindowFlags_NoMove)) {
-    float width = ImGui::GetContentRegionAvail().x;
-    for (int i = 0; i < int(items.size()); ++i) {
-      ImVec2 p = ImGui::GetCursorScreenPos();
-      ImRect row(p, ImVec2(p.x + width, p.y + item_height));
-      ImGui::PushID(i);
-      ItemState row_state = Item("##item", row, true);
-      ImGui::PopID();
-      bool on = i == *selected;
-      if (row_state.hovered || row_state.focused) {
-        FillRect(row, col::kTrack, 6.0f);
-      }
-      ImU32 row_text = on ? col::kAccentLight : col::kText;
-      DrawLabel(kType, ImVec2(row.Min.x + Px(10.0f), row.Min.y), row_text,
-               Ellipsize(kType, items[i], width - Px(44.0f)), row.GetHeight());
-      if (on) {
-        DrawIcon(Icon::kCheck, ImVec2(row.Max.x - Px(28.0f), row.Min.y + (row.GetHeight() - Px(16.0f)) * 0.5f), 16.0f,
-                 col::kAccent, 2.4f);
-        ImGui::SetItemDefaultFocus();
-        if (ImGui::IsWindowAppearing()) {
-          ImGui::SetScrollHereY(0.5f);
-        }
-      }
-      ImGui::Dummy(ImVec2(width, item_height));
-      if (row_state.pressed) {
-        changed = *selected != i;
-        *selected = i;
-        ImGui::CloseCurrentPopup();
-      }
-    }
-    ImGui::EndPopup();
-  }
-  ImGui::PopStyleColor(2);
-  ImGui::PopStyleVar(4);
-  return changed;
-}
-
-bool Slider(const char* id, const ImRect& rect, float* value, float min, float max, float step, bool enabled) {
-  ImGuiID item_id = ImGui::GetID(id);
-  ItemState state = Item(item_id, rect, enabled);
-  float before = *value;
-  ImGuiContext& g = *GImGui;
-  // Left and right step the value instead of moving the focus.
-  if (enabled && g.NavId == item_id && g.NavMoveSubmitted &&
-      (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right)) {
-    *value = std::clamp(*value, min, max) + (g.NavMoveDir == ImGuiDir_Left ? -step : step);
-    ImGui::NavMoveRequestCancel();
-  }
-  float knob = Px(18.0f);
-  float left = rect.Min.x + knob * 0.5f;
-  float right = rect.Max.x - knob * 0.5f;
-  if (state.held && right > left) {
-    float t = std::clamp((ImGui::GetIO().MousePos.x - left) / (right - left), 0.0f, 1.0f);
-    *value = min + t * (max - min);
-    if (step > 0.0f) {
-      *value = min + std::round((*value - min) / step) * step;
-    }
-  }
-  // A value outside the range (an options file edited by hand) stays as it is until the slider moves.
-  if (*value != before) {
-    *value = std::clamp(*value, min, max);
-  }
-  float t = max > min ? std::clamp((*value - min) / (max - min), 0.0f, 1.0f) : 0.0f;
-  float cy = rect.GetCenter().y;
-  ImRect track(ImVec2(left, cy - Px(3.0f)), ImVec2(right, cy + Px(3.0f)));
-  float alpha = enabled ? 1.0f : 0.45f;
-  FillRect(track, Fade(col::kTrack, alpha), 3.0f);
-  FillRect(ImRect(track.Min, ImVec2(left + (right - left) * t, track.Max.y)), Fade(col::kAccent, alpha), 3.0f);
-  ImVec2 center(left + (right - left) * t, cy);
-  ImU32 knob_color = state.hovered || state.held ? Brighten(col::kText) : col::kText;
-  List()->AddCircleFilled(center, knob * 0.5f, Fade(knob_color, alpha), 24);
-  if (state.focused) {
-    FocusRing(ImRect(ImVec2(rect.Min.x, cy - knob * 0.5f), ImVec2(rect.Max.x, cy + knob * 0.5f)), 9.0f);
-  }
-  return *value != before;
-}
-
 bool Link(const char* id, ImVec2 pos, std::string_view label, float size) {
   Type type{Font::kSemiBold, size};
   ImVec2 text = MeasureText(type, label);
@@ -1075,19 +1052,6 @@ bool Link(const char* id, ImVec2 pos, std::string_view label, float size) {
     FocusRing(rect, 4.0f);
   }
   return state.pressed;
-}
-
-ImVec2 BadgeSize(std::string_view label, float size) {
-  Type type{Font::kBold, size, 0.06f};
-  ImVec2 text = MeasureText(type, label);
-  return {text.x + Px(16.0f), text.y + Px(6.0f)};
-}
-
-void Badge(ImVec2 pos, std::string_view label, ImU32 background, ImU32 color, float size) {
-  Type type{Font::kBold, size, 0.06f};
-  ImVec2 badge = BadgeSize(label, size);
-  FillRect(ImRect(pos, ImVec2(pos.x + badge.x, pos.y + badge.y)), background, 5.0f);
-  DrawLabel(type, ImVec2(pos.x + Px(8.0f), pos.y + Px(3.0f)), color, label);
 }
 
 void Progress(const ImRect& rect, float fraction, ImU32 track, ImU32 fill) {

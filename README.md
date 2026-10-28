@@ -23,7 +23,7 @@ belongs to one game stays in its own repository.
 | `launcher/game.h` | The game's profile in `namespace launcher::game`: names, files, disc, look, options, languages, keyboard defaults, which pages it has (the types are `game_types.h`'s). |
 | `launcher/game.cpp` | Its texts in the launcher's five languages (`GameTextsFor`) and its controls in its own words (`GameControlsFor`). |
 | `launcher/palette.h` | Its colors (`namespace col`) and corner scale. |
-| `launcher/art/hero.svg`, `install.svg` | The Play page's art and the first run's. |
+| `launcher/art/background.svg` | The art under every page, 1280 x 760 (nanosvg: no `<use>`, no CSS). |
 | `res/launcher.rc` | The icon, the file properties, and the embedded fonts (`fonts/...`, from here) and art (`art/...`). |
 | `res/version.h` | The game's version: the releases', the one the updater compares. |
 | `src/project.h` | The names and options the game executable and the launcher share. |
@@ -57,7 +57,7 @@ copy of this repository in a game, configure the game with `-DRECOMP_LAUNCHER_DI
 
 ## Versions
 
-`launcher_version.h` holds the launcher's version, the same in every game, shown in the sidebar and on the Updates
+`launcher_version.h` holds the launcher's version, the same in every game, shown in the footer and on the Updates
 page beside the game's own. `CHANGELOG.md` lists what each version brought. A change here is committed and pushed
 first, then each game moves its submodule to it and is checked (recomp-tools' `Test-Games.ps1`).
 

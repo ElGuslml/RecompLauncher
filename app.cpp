@@ -1,4 +1,4 @@
-// The launcher's window contents (app.h): the sidebar, the pages' shared pieces and the
+// The launcher's window contents (app.h): the frame (the shell is shell.cpp's), the pages' shared pieces and the
 // controller's shortcuts.
 
 #include "app.h"
@@ -28,43 +28,6 @@ using namespace ui;
 
 const char* const kVersion = game::kVersion;
 const char* const kLauncherVersion = RECOMP_LAUNCHER_VERSION_STR;
-
-namespace {
-
-// Where the Donate button leads; the sidebar shows its card only when there is one (Gustavo, 2026-10-22:
-// pending).
-constexpr const char* kDonateUrl = "";
-
-// The sidebar's entries, top to bottom.
-struct NavEntry {
-  Page page;     // the page it opens
-  bool sub;      // a page under a group (smaller, indented, no icon)
-  bool group;    // a group's header: opens its first page
-  Icon icon;
-  float margin;  // above it, in dp
-};
-
-constexpr NavEntry kNav[] = {
-    {Page::kPlay, false, false, Icon::kPlay, 0},
-    {Page::kDlc, false, false, Icon::kPackage, 0},
-    {Page::kAchievements, false, false, Icon::kTrophy, 0},
-    {Page::kKeyboard, false, true, Icon::kGamepad, 10},
-    {Page::kKeyboard, true, false, Icon::kNone, 0},
-    {Page::kGamepad, true, false, Icon::kNone, 0},
-    {Page::kVideo, false, true, Icon::kSliders, 10},
-    {Page::kVideo, true, false, Icon::kNone, 0},
-    {Page::kGraphics, true, false, Icon::kNone, 0},
-    {Page::kGame, true, false, Icon::kNone, 0},
-    {Page::kUpdates, false, false, Icon::kRefresh, 10},
-};
-
-bool InGroup(Page group_first, Page page) {
-  if (group_first == Page::kKeyboard) return page == Page::kKeyboard || page == Page::kGamepad;
-  if (group_first == Page::kVideo) return page == Page::kVideo || page == Page::kGraphics || page == Page::kGame;
-  return false;
-}
-
-}  // namespace
 
 namespace {
 
@@ -130,7 +93,8 @@ bool App::Busy() const {
   Update::State update = update_.Get().state;
   bool updating = update == Update::State::kDownloading || update == Update::State::kVerifying ||
                   update == Update::State::kInstalling;
-  return listen_bind_ >= 0 || std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
+  return listen_bind_ >= 0 || pad_listen_ >= 0 || FocusRequested() || focus_page_ || controls_focus_mapping_ ||
+         std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
          profile_games_loading_.valid() ||
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
          dlc_install_.Get().state == DlcInstall::State::kRunning ||
@@ -318,15 +282,59 @@ void App::StartingOverlay(ImVec2 size) {
   ImGui::End();
 }
 
-void App::Navigate(Page page, bool focus_sidebar) {
+void App::Navigate(Page page, bool focus) {
   StopListening();
+  settings_editing_ = false;
   page_ = page;
-  if (focus_sidebar) {
-    focus_sidebar_ = true;
+  if (focus) {
+    focus_page_ = true;
+  }
+}
+
+void App::UseGlyphsOf(SDL_GamepadType type) {
+  glyphs_chosen_ = true;
+  switch (type) {
+    case SDL_GAMEPAD_TYPE_PS3:
+      glyph_style_ = ui::GlyphStyle::kPlayStation;
+      view_label_ = "Select";
+      break;
+    case SDL_GAMEPAD_TYPE_PS4:
+      glyph_style_ = ui::GlyphStyle::kPlayStation;
+      view_label_ = "Share";
+      break;
+    case SDL_GAMEPAD_TYPE_PS5:
+      glyph_style_ = ui::GlyphStyle::kPlayStation;
+      view_label_ = "Create";
+      break;
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
+      glyph_style_ = ui::GlyphStyle::kNintendo;
+      view_label_ = "\xE2\x88\x92";  // the Switch's minus
+      break;
+    default:
+      glyph_style_ = ui::GlyphStyle::kXbox;
+      view_label_ = type == SDL_GAMEPAD_TYPE_XBOXONE ? "View" : "Back";
+      break;
   }
 }
 
 void App::Frame(ImVec2 size) {
+  // ImGui's navigation must not take X (Square) held as its window switcher: the launcher's X is its own.
+  GImGui->ConfigNavWindowingWithGamepad = false;
+  if (!glyphs_chosen_) {
+    int count = 0;
+    SDL_JoystickID* pads = SDL_GetGamepads(&count);
+    if (pads && count > 0) {
+      UseGlyphsOf(SDL_GetGamepadTypeForID(pads[0]));
+      glyphs_chosen_ = false;  // a connected controller's until an input says which
+    } else {
+      glyph_style_ = ui::GlyphStyle::kKeyboard;
+    }
+    SDL_free(pads);
+  }
+  ui::SetGlyphStyle(glyph_style_, view_label_);
   PollAchievements();
   PollProfileGames();
   PollUpdates();
@@ -355,20 +363,15 @@ void App::Frame(ImVec2 size) {
   }
 
   ImVec2 origin = viewport->Pos;
-  float sidebar = Snap(Px(232.0f));
-  // The sidebar is a child window of its own, so ImGui's directional navigation does not mix its entries
-  // with the page's controls: its scoring prefers an item a pixel lower over one level with the focus, and
-  // the sidebar's rows won over the button next door. The controller crosses between the two below.
-  ImGui::SetCursorScreenPos(origin);
-  ImGui::BeginChild("##sidebar", ImVec2(sidebar, size.y), ImGuiChildFlags_None,
-                    ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-  ImGuiWindow* sidebar_window = ImGui::GetCurrentWindow();
-  Sidebar(ImRect(origin, ImVec2(origin.x + sidebar, origin.y + size.y)));
-  ImGui::EndChild();
-
-  ImRect main(ImVec2(origin.x + sidebar, origin.y), ImVec2(origin.x + size.x, origin.y + size.y));
+  // The art under the page, darkened under every page but Play's (the mockup's "oscurecer": ninguno, alto).
+  Background(size, page_ == Page::kPlay ? 0.0f : 0.9f);
+  float header_height = Snap(Px(72.0f));
+  float footer_height = Snap(Px(52.0f));
+  ImRect main(ImVec2(origin.x, origin.y + header_height), ImVec2(origin.x + size.x, origin.y + size.y - footer_height));
   page_focus_ = 0;
+  back_focus_ = 0;
   CaptureFirstItem();
+  const Page drawn = page_;
   switch (page_) {
     case Page::kPlay:
       PlayPage(main);
@@ -379,23 +382,19 @@ void App::Frame(ImVec2 size) {
     case Page::kAchievements:
       AchievementsPage(main);
       break;
-    case Page::kKeyboard:
-      KeyboardPage(main);
-      break;
-    case Page::kGamepad:
-      GamepadPage(main);
+    case Page::kControls:
+      ControlsPage(main);
       break;
     case Page::kVideo:
-      VideoPage(main);
-      break;
     case Page::kGraphics:
-      GraphicsPage(main);
-      break;
     case Page::kGame:
-      GamePage(main);
+      SettingsPage(main);
       break;
     case Page::kUpdates:
       UpdatesPage(main);
+      break;
+    case Page::kProfiles:
+      ProfilesPage(main);
       break;
     case Page::kProfile:
       ProfilePage(main);
@@ -415,20 +414,25 @@ void App::Frame(ImVec2 size) {
     page_focus_ = first;
   }
 
-  ImGuiContext& g = *GImGui;
-  // Left from the page lands on the sidebar as a whole (ImGui treats a child window as one item of its parent):
-  // into it, on the current page's entry. Right in the sidebar enters the page.
-  if (g.NavId == sidebar_window->ChildId) {
-    FocusSidebar();
-  } else if (g.NavWindow == sidebar_window && page_focus_ &&
-             (ImGui::IsKeyPressed(ImGuiKey_RightArrow) || ImGui::IsKeyPressed(ImGuiKey_GamepadDpadRight) ||
-              ImGui::IsKeyPressed(ImGuiKey_GamepadLStickRight))) {
-    ImGui::SetFocusID(page_focus_, ImGui::GetCurrentWindow());
-    ImGui::SetNavCursorVisible(true);
-  }
+  Chrome(size);
 
-  // The controller's shortcuts: LB/RB change the page, Start plays, B returns to the sidebar. Not while a
-  // list is open (B closes it) or a key is being assigned.
+  ImGuiContext& g = *GImGui;
+  // Up from the page's top (nothing above in the page) reaches the header, at its current tab; down from the header
+  // with nothing found goes back to the page's control. ImGui does not score the header's controls from the page's,
+  // nor the page's from the header's (sibling windows).
+  if (g.NavMoveScoringItems && g.NavMoveResultLocal.ID == 0 && g.NavMoveResultLocalVisible.ID == 0 &&
+      g.NavMoveResultOther.ID == 0) {
+    bool in_header = std::find(header_items_.begin(), header_items_.end(), g.NavId) != header_items_.end();
+    if (g.NavMoveDir == ImGuiDir_Up && !in_header && header_focus_) {
+      RequestFocus(header_focus_);
+      ImGui::NavMoveRequestCancel();
+    } else if (g.NavMoveDir == ImGuiDir_Down && in_header && page_focus_) {
+      RequestFocus(page_focus_);
+      ImGui::NavMoveRequestCancel();
+    }
+  }
+  // The controller's shortcuts: LB/RB change the tab, Start plays, B goes back to Play (on Play it quits), Y on Play
+  // opens Donate. Not while a list is open (B closes it) or a key is being assigned.
   static bool popup_was_open = false;
   bool popup = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
   // The controller's buttons are ImGui's state, not events: one just assigned on the Gamepad page still looks
@@ -437,40 +441,49 @@ void App::Frame(ImVec2 size) {
     pad_release_wait_ = false;
   }
   if (!popup && !popup_was_open && !Listening() && !pad_release_wait_) {
-    constexpr Page kOrder[] = {Page::kPlay,     Page::kDlc,      Page::kAchievements, Page::kKeyboard,
-                               Page::kGamepad,  Page::kVideo,    Page::kGraphics,     Page::kGame,
-                               Page::kUpdates};
-    int index = int(std::find(std::begin(kOrder), std::end(kOrder), page_) - std::begin(kOrder));
-    int count = int(std::size(kOrder));
-    // The next page in `step`'s direction that the game has.
-    auto next = [&](int step) {
-      int i = index;
-      do {
-        i = (i + count + step) % count;
-      } while ((kOrder[i] == Page::kGame && !game::kHasGamePage) || (kOrder[i] == Page::kDlc && !game::kHasDlcPage));
-      return kOrder[i];
-    };
-    if (ImGui::IsKeyPressed(ImGuiKey_GamepadL1)) {
-      Navigate(next(-1), true);
-    } else if (ImGui::IsKeyPressed(ImGuiKey_GamepadR1)) {
-      Navigate(next(1), true);
+    if (page_ == Page::kProfile && (ButtonPressed(PadButton::kLB) || ButtonPressed(PadButton::kRB))) {
+      profile_tab_ = 1 - profile_tab_;  // the profile's sections
+    } else if (ButtonPressed(PadButton::kLB)) {
+      NextTab(-1);
+    } else if (ButtonPressed(PadButton::kRB)) {
+      NextTab(1);
     } else if (ImGui::IsKeyPressed(ImGuiKey_GamepadStart, false)) {
       result_ = Result::kPlay;
+    } else if (ButtonPressed(PadButton::kView) && store_.Current()) {
+      // View (Back, Select): the profiles, as the header's avatar.
+      profiles_selected_ = store_.current;
+      Navigate(Page::kProfiles, true);
     } else if (page_ == Page::kPlay && !g.NavCursorVisible &&
                (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false))) {
       // PLAY is the page's default button: Enter plays while no control shows the focus (ImGui would not activate
       // it then).
       result_ = Result::kPlay;
-    } else if (ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
-      FocusSidebar();
+    } else if (page_ == Page::kPlay && ButtonPressed(PadButton::kY)) {
+      Donate();
+    } else if (ButtonPressed(PadButton::kB)) {
+      if (settings_editing_) {
+        settings_editing_ = false;  // B ends a Settings row's change
+      } else if (back_focus_ && g.NavId != back_focus_) {
+        // From a page's list back to its first column (the Settings tab's categories).
+        RequestFocus(back_focus_);
+        ImGui::SetNavCursorVisible(true);
+      } else if (page_ == Page::kPlay) {
+        result_ = Result::kQuit;
+      } else {
+        // A game's achievements go back to the games.
+        if (page_ == Page::kProfileGame) profile_tab_ = 1;
+        Navigate(BackPage(), true);
+      }
     }
   }
   popup_was_open = popup;
 
   // When the launcher opens and back from the game: PLAY has the focus, shown when a controller is connected, so
   // that A (or Enter) plays at once (ImGui activates only an item whose focus is shown).
-  if (focus_page_ && page_focus_) {
-    ImGui::SetFocusID(page_focus_, ImGui::GetCurrentWindow());
+  // The page drawn this frame's: after a tab changed in it, the next frame's page gives it.
+  if (focus_page_ && page_focus_ && drawn == page_) {
+    // Shown when a controller is connected or was used (the page opened with the mouse shows none).
+    RequestFocus(page_focus_, gamepad_used_ || SDL_HasGamepad());
     ImGui::SetNavCursorVisible(gamepad_used_ || SDL_HasGamepad());
     focus_page_ = false;
   }
@@ -493,12 +506,21 @@ bool App::OnEvent(const SDL_Event& event) {
       if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ||
           std::abs(int(event.gaxis.value)) > 16000) {
         gamepad_used_ = true;
+        // The glyphs of the controller pressed.
+        UseGlyphsOf(SDL_GetGamepadTypeForID(event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ? event.gbutton.which
+                                                                                          : event.gaxis.which));
       }
       break;
     case SDL_EVENT_MOUSE_MOTION:
+      gamepad_used_ = false;
+      break;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_WHEEL:
     case SDL_EVENT_KEY_DOWN:
       gamepad_used_ = false;
+      // The keyboard's keys (not on mouse motion alone: a nudged mouse does not change them).
+      glyph_style_ = ui::GlyphStyle::kKeyboard;
+      glyphs_chosen_ = true;
       break;
     case SDL_EVENT_DROP_FILE:
       // An ISO dropped on the window, on the first run's ISO step.
@@ -514,247 +536,6 @@ bool App::OnEvent(const SDL_Event& event) {
       break;
   }
   return OnKeyCapture(event) || OnPadCapture(event);
-}
-
-// --- The sidebar ---
-
-void App::Sidebar(const ImRect& rect) {
-  FillRect(rect, col::kSidebar);
-  FillRect(ImRect(ImVec2(rect.Max.x - Snap(Px(1.0f)), rect.Min.y), rect.Max), col::kSidebarBorder);
-  float x = rect.Min.x + Px(16.0f);
-  float width = rect.GetWidth() - Px(32.0f) - Snap(Px(1.0f));
-  float y = rect.Min.y + Px(24.0f);
-
-  // The brand: the game's mark on accent, its name and "LAUNCHER" (game.h: kSidebarTitle, kSidebarSubtitle), the
-  // second line wrapped when it is too long, the mark centered on the two.
-  constexpr Type kBrandTitle{Font::kCondensedBold, 20};
-  constexpr Type kBrandSubtitle{Font::kBold, 11, 0.14f};
-  std::string brand_title = Title(game::kSidebarTitle ? game::kSidebarTitle : game::kArtTitle);
-  std::string brand_subtitle =
-      game::kSidebarSubtitle ? std::string(game::kSidebarSubtitle) + " \xC2\xB7 " + t_.brand : std::string(t_.brand);
-  if (game::kUppercaseTitles) {
-    brand_subtitle = Upper(brand_subtitle);
-  }
-  float text_x = x + Px(8.0f) + Px(40.0f) + Px(12.0f);
-  float text_width = x + width - text_x;
-  float subtitle_height = DrawParagraph(kBrandSubtitle, ImVec2(0, 0), text_width, 1.3f, 0, brand_subtitle, false);
-  float block = Px(20.0f) + Px(5.0f) + subtitle_height;
-  float brand_height = std::max(Px(40.0f), block);
-  ImRect logo(ImVec2(x + Px(8.0f), y + (brand_height - Px(40.0f)) * 0.5f),
-              ImVec2(x + Px(48.0f), y + (brand_height + Px(40.0f)) * 0.5f));
-  GameLogo(logo, 22.0f);
-  float text_y = y + (brand_height - block) * 0.5f;
-  DrawLabel(kBrandTitle, ImVec2(text_x, text_y), col::kText, brand_title, Px(20.0f));
-  DrawParagraph(kBrandSubtitle, ImVec2(text_x, text_y + Px(25.0f)), text_width, 1.3f, col::kLabel, brand_subtitle);
-  y += brand_height + Px(28.0f);
-
-  // The pages.
-  const game::GameTexts& own = game::GameTextsFor(language_);
-  const char* gamepad = own.gamepad_nav ? own.gamepad_nav : t_.nav_gamepad;
-  const char* labels[] = {t_.nav_play,     t_.nav_dlc,     t_.nav_achievements, t_.nav_controls,
-                          t_.nav_keyboard, gamepad,        t_.nav_settings,     t_.nav_video,
-                          t_.nav_graphics, t_.nav_game,    t_.nav_updates};
-  ImGuiID current_id = 0;
-  for (int i = 0; i < int(std::size(kNav)); ++i) {
-    const NavEntry& entry = kNav[i];
-    if ((entry.page == Page::kGame && !game::kHasGamePage) || (entry.page == Page::kDlc && !game::kHasDlcPage)) {
-      continue;
-    }
-    if (i > 0) {
-      y += Px(2.0f) + Px(entry.margin);
-    }
-    float height = Px(entry.sub ? 40.0f : 44.0f);
-    ImRect item(ImVec2(x, y), ImVec2(x + width, y + height));
-    ImGui::PushID(i);
-    ImGuiID id = ImGui::GetID("nav");
-    ItemState state = Item(id, item);
-    ImGui::PopID();
-    bool active = !entry.group && page_ == entry.page;
-    bool parent = entry.group && InGroup(entry.page, page_);
-    if (active) {
-      current_id = id;
-    }
-    ImU32 background = active ? col::kAccentTint : 0;
-    ImU32 text = active ? col::kAccentLight : parent ? col::kText : col::kTextSecondary;
-    ImU32 icon = active || parent ? col::kAccent : col::kTextDim;
-    if (state.hovered) {
-      background = background ? Brighten(background) : 0;
-      text = Brighten(text);
-      icon = Brighten(icon);
-    }
-    if (background) {
-      FillRect(item, background, 8.0f);
-    }
-    if (entry.sub) {
-      constexpr Type kSub{Font::kMedium, 14};
-      // A name too long for one line ("Instruments and gamepad") on two, in the same height.
-      float label_width = item.GetWidth() - Px(44.0f) - Px(12.0f);
-      if (MeasureText(kSub, labels[i]).x > label_width) {
-        float lines = DrawParagraph(kSub, ImVec2(0, 0), label_width, 1.3f, 0, labels[i], false);
-        DrawParagraph(kSub, ImVec2(item.Min.x + Px(44.0f), item.Min.y + (height - lines) * 0.5f), label_width, 1.3f,
-                      text, labels[i]);
-      } else {
-        DrawLabel(kSub, ImVec2(item.Min.x + Px(44.0f), item.Min.y), text, labels[i], height);
-      }
-      // The keyboard and mouse are experimental: a badge after its name.
-      if (entry.page == Page::kKeyboard) {
-        ImVec2 size = BadgeSize(t_.experimental_badge, 9);
-        float badge_x = item.Min.x + Px(44.0f) + MeasureText(kSub, labels[i]).x + Px(8.0f);
-        if (badge_x + size.x <= item.Max.x - Px(4.0f)) {
-          Badge(ImVec2(badge_x, item.Min.y + (height - size.y) * 0.5f), t_.experimental_badge, col::kAccentTint,
-                col::kAccentLight, 9);
-        }
-      }
-    } else {
-      DrawIcon(entry.icon, ImVec2(item.Min.x + Px(12.0f), item.Min.y + (height - Px(20.0f)) * 0.5f), 20.0f, icon,
-               1.8f);
-      DrawLabel(Type{Font::kSemiBold, 15}, ImVec2(item.Min.x + Px(44.0f), item.Min.y), text, labels[i], height);
-    }
-    // A new version: a dot on Updates.
-    if (entry.page == Page::kUpdates && !entry.group && updates_ && updates_->Newer(Version::Parse(kVersion))) {
-      float dot = Px(8.0f);
-      ImVec2 center(item.Max.x - Px(16.0f), item.GetCenter().y);
-      FillRect(ImRect(ImVec2(center.x - dot * 0.5f, center.y - dot * 0.5f), ImVec2(center.x + dot * 0.5f, center.y + dot * 0.5f)),
-               col::kAccent, 4.0f);
-    }
-    if (state.focused) {
-      FocusRing(item, 8.0f);
-    }
-    if (state.pressed) {
-      Navigate(entry.page, false);
-    }
-    y += height;
-  }
-  if (focus_sidebar_ && current_id) {
-    ImGui::SetFocusID(current_id, ImGui::GetCurrentWindow());
-    ImGui::SetNavCursorVisible(true);
-    focus_sidebar_ = false;
-  }
-
-  // From the bottom: the versions (the game's and the launcher's), the controller's hints, the donation card.
-  constexpr Type kVersionType{Font::kRegular, 12};
-  float bottom = rect.Max.y - Px(20.0f);
-  char version[96];
-  std::snprintf(version, sizeof(version), t_.version_launcher, kVersion, kLauncherVersion);
-  DrawLabel(kVersionType, ImVec2(x + Px(8.0f), bottom - LineHeight(kVersionType)), col::kTextDim,
-            Ellipsize(kVersionType, version, width - Px(8.0f)));
-  bottom -= LineHeight(kVersionType) + Px(14.0f);
-  // The profile's card (profile_view.cpp), then what fits above it.
-  if (store_.Current()) {
-    float card_height = Px(64.0f);
-    SidebarProfileCard(ImRect(ImVec2(x, bottom - card_height), ImVec2(x + width, bottom)));
-    bottom -= card_height + Px(12.0f);
-  }
-  float hints = Px(4.0f * 26.0f + 3.0f * 6.0f + 32.0f);
-  if (gamepad_used_ && bottom - hints >= y + Px(12.0f)) {
-    ControllerHints(ImVec2(x, bottom - hints), width);
-    bottom -= hints + Px(12.0f);
-  }
-  if (*kDonateUrl) {
-    constexpr Type kDonateText{Font::kRegular, 13};
-    float text_height = DrawParagraph(kDonateText, ImVec2(0, 0), width - Px(32.0f), 1.4f, 0, t_.donate_text, false);
-    float card_height = Px(16.0f) * 2.0f + text_height + Px(12.0f) + Px(44.0f);
-    ImRect card(ImVec2(x, bottom - card_height), ImVec2(x + width, bottom));
-    FillRect(card, col::kCardRaised, 10.0f);
-    DrawParagraph(kDonateText, ImVec2(card.Min.x + Px(16.0f), card.Min.y + Px(16.0f)), width - Px(32.0f), 1.4f,
-                    col::kTextSecondary, t_.donate_text);
-    ButtonSpec donate{ButtonKind::kDonate, Type{Font::kBold, 15}, 44, 12, 8, Icon::kHeart, 18, 0, true};
-    if (Button("donate", ImVec2(card.Min.x + Px(16.0f), card.Max.y - Px(16.0f) - Px(44.0f)), donate, t_.donate, true,
-               width - Px(32.0f))) {
-      OpenUrl(kDonateUrl);
-    }
-  }
-}
-
-// The controller's buttons for this window, while a controller is in use.
-void App::ControllerHints(ImVec2 pos, float width) {
-  float height = Px(4.0f * 26.0f + 3.0f * 6.0f + 32.0f);
-  FillRect(ImRect(pos, ImVec2(pos.x + width, pos.y + height)), col::kCardRaised, 10.0f);
-  constexpr Type kGlyph{Font::kBold, 11};
-  constexpr Type kLabel{Font::kMedium, 13};
-  struct Hint {
-    const char* glyphs[2];
-    ImU32 color;
-    const char* label;
-  };
-  const Hint hints[] = {{{"LB", "RB"}, col::kTextSoft, t_.hint_section},
-                        {{"A", nullptr}, col::kGlyphA, t_.hint_select},
-                        {{"B", nullptr}, col::kGlyphB, t_.hint_back},
-                        {{"START", nullptr}, col::kTextSoft, t_.hint_play}};
-  float y = pos.y + Px(16.0f);
-  for (const Hint& hint : hints) {
-    float x = pos.x + Px(16.0f);
-    for (const char* glyph : hint.glyphs) {
-      if (!glyph) continue;
-      float glyph_width = std::max(Px(26.0f), MeasureText(kGlyph, glyph).x + Px(14.0f));
-      ImRect pill(ImVec2(x, y), ImVec2(x + glyph_width, y + Px(26.0f)));
-      FillRect(pill, col::kGlyph, 13.0f);
-      DrawLabel(kGlyph, ImVec2(pill.Min.x + (glyph_width - MeasureText(kGlyph, glyph).x) * 0.5f, pill.Min.y),
-               hint.color, glyph, pill.GetHeight());
-      x += glyph_width + Px(4.0f);
-    }
-    DrawLabel(kLabel, ImVec2(pos.x + Px(80.0f), y), col::kTextSecondary, hint.label, Px(26.0f));
-    y += Px(26.0f) + Px(6.0f);
-  }
-}
-
-// --- Shared pieces ---
-
-float App::Header(ImVec2 pos, const char* kicker, const char* title, const char* subtitle, const char* badge) {
-  constexpr Type kKicker{Font::kSemiBold, 13};
-  constexpr Type kTitle{Font::kCondensedBold, 40};
-  constexpr Type kSubtitle{Font::kRegular, 14};
-  float y = pos.y;
-  if (kicker) {
-    DrawLabel(kKicker, ImVec2(pos.x, y), col::kLabel, kicker);
-    y += LineHeight(kKicker) + Px(4.0f);
-  }
-  std::string title_text = Title(title);
-  DrawLabel(kTitle, ImVec2(pos.x, y), col::kText, title_text, Px(40.0f));
-  if (badge) {
-    ImVec2 size = BadgeSize(badge, 12);
-    Badge(ImVec2(pos.x + MeasureText(kTitle, title_text).x + Px(14.0f), y + (Px(40.0f) - size.y) * 0.5f), badge,
-          col::kAccentTint, col::kAccentLight, 12);
-  }
-  y += Px(40.0f);
-  if (subtitle) {
-    y += Px(8.0f);
-    DrawLabel(kSubtitle, ImVec2(pos.x, y), col::kTextMuted, subtitle);
-    y += LineHeight(kSubtitle);
-  }
-  return y;
-}
-
-float App::Row(ImVec2 pos, float width, float padding_y, const char* title, const char* hint, float control_height,
-               bool last, ImVec2* control) {
-  constexpr Type kTitle{Font::kSemiBold, 15};
-  constexpr Type kHint{Font::kRegular, 13};
-  float label_height = LineHeight(kTitle) + Px(4.0f) + LineHeight(kHint);
-  float content = std::max(label_height, Px(control_height));
-  float top = pos.y + Px(padding_y);
-  float label_y = top + (content - label_height) * 0.5f;
-  float label_width = Px(300.0f);
-  DrawLabel(kTitle, ImVec2(pos.x + Px(28.0f), label_y), col::kText, Ellipsize(kTitle, title, label_width));
-  DrawLabel(kHint, ImVec2(pos.x + Px(28.0f), label_y + LineHeight(kTitle) + Px(4.0f)), col::kTextMuted,
-           Ellipsize(kHint, hint, label_width + Px(20.0f)));
-  *control = ImVec2(pos.x + Px(28.0f) + label_width + Px(24.0f), top + (content - Px(control_height)) * 0.5f);
-  float height = content + Px(padding_y) * 2.0f;
-  if (!last) {
-    FillRect(ImRect(ImVec2(pos.x, pos.y + height), ImVec2(pos.x + width, pos.y + height + Snap(Px(1.0f)))),
-             col::kDivider);
-    height += Snap(Px(1.0f));
-  }
-  return height;
-}
-
-bool App::Footer(const ImRect& rect, const char* reset_label) {
-  constexpr Type kNote{Font::kRegular, 13};
-  float top = rect.Max.y - Px(44.0f);
-  DrawIcon(Icon::kCheck, ImVec2(rect.Min.x, top + Px(14.0f)), 16.0f, col::kSuccess, 2.4f);
-  DrawLabel(kNote, ImVec2(rect.Min.x + Px(24.0f), top), col::kTextMuted, t_.autosave, Px(44.0f));
-  ButtonSpec spec;
-  float width = ButtonWidth(spec, reset_label);
-  return Button("reset", ImVec2(rect.Max.x - width, top), spec, reset_label);
 }
 
 }  // namespace launcher

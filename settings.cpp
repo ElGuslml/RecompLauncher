@@ -52,7 +52,7 @@ void ResetVideo(Options& o) {
   o.monitor = defaults.monitor;
   o.display = defaults.display;
   o.window = defaults.window;
-  o.native_fill = defaults.native_fill;
+  o.native_aspect = defaults.native_aspect;
   o.native_height = defaults.native_height;
   o.scale = defaults.scale;
 }
@@ -67,12 +67,20 @@ void ResetGraphics(Options& o) {
   o.native_aa_experimental = defaults.native_aa_experimental;
   o.anisotropic = defaults.anisotropic;
   o.shadow_quality = defaults.shadow_quality;
+  // The game's screen effects are in the Graphics category.
+  for (size_t i = 0; i < game::kToggles.size(); ++i) {
+    if (game::kToggles[i].group == game::ToggleGroup::kScreenEffects) {
+      o.toggles[i] = game::kToggles[i].default_value;
+    }
+  }
 }
 
 void ResetGame(Options& o) {
   o.language = SystemGameLanguage();
   for (size_t i = 0; i < game::kToggles.size(); ++i) {
-    o.toggles[i] = game::kToggles[i].default_value;
+    if (game::kToggles[i].group == game::ToggleGroup::kGame) {
+      o.toggles[i] = game::kToggles[i].default_value;
+    }
   }
 }
 
@@ -290,7 +298,11 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
     double shadow_scale = std::strtod(GetString(c, "native_x_renderer_shadow_scale").c_str(), nullptr);
     o.shadow_quality = shadow_scale >= 4.0 ? 2 : shadow_scale >= 2.0 ? 1 : 0;
   }
-  o.native_fill = GetBool(c, "native_x_renderer_fill_screen", true);
+  {
+    // The image format: 16:9 when the screen is not filled, else the ratio asked (0: the screen's).
+    double aspect = GetDouble(c, "native_x_renderer_aspect", 0.0);
+    o.native_aspect = !GetBool(c, "native_x_renderer_fill_screen", true) ? kAspect16x9 : aspect > 0.0 ? aspect : 0.0;
+  }
   double native_scale = std::strtod(GetString(c, "native_x_renderer_resolution_scale").c_str(), nullptr);
   o.native_height = native_scale > 0.0 ? int(std::lround(native_scale * kGuestHeight)) : 0;
   std::string native_aa = GetString(c, "native_x_renderer_antialiasing");
@@ -481,17 +493,41 @@ Size AutoScale(Size output) {
   return {axis(width, kGuestWidth), axis(height, kGuestHeight)};
 }
 
-// As the renderer computes it from its swap chain (native_x_renderer/src/renderer.cpp). The image fills an
-// output that is not 16:9 (`fill`, native_x_renderer_fill_screen: the height sets the scale, the width follows
-// from the output's aspect ratio), or is the 16:9 rectangle inside it. Its height is the output's (or the
-// rectangle's), or `height` when one is chosen (native_x_renderer_resolution_scale = height / 720); at least
-// the game's own 1280x720 on each axis.
-Size NativeRenderSize(Size output, bool fill, int height) {
+bool SameAspect(double a, double b) { return a > 0.0 && b > 0.0 && std::abs(a / b - 1.0) <= 0.02; }
+
+double ImageAspect(Size output, double chosen) {
+  if (chosen > 0.0) return chosen;
+  return output.second ? double(output.first) / output.second : kAspect16x9;
+}
+
+std::string AspectName(double aspect) {
+  struct Named {
+    const char* name;
+    double aspect;
+  };
+  static constexpr Named kNamed[] = {{"4:3", 4.0 / 3.0},   {"5:4", 5.0 / 4.0},    {"3:2", 3.0 / 2.0},
+                                     {"16:10", 16.0 / 10.0}, {"16:9", 16.0 / 9.0},  {"21:9", kAspect21x9},
+                                     {"32:10", 32.0 / 10.0}, {"32:9", 32.0 / 9.0}};
+  const Named* best = nullptr;
+  for (const Named& n : kNamed) {
+    if (!best || std::abs(n.aspect / aspect - 1.0) < std::abs(best->aspect / aspect - 1.0)) best = &n;
+  }
+  if (best && std::abs(best->aspect / aspect - 1.0) <= 0.04) return best->name;
+  char text[32];
+  std::snprintf(text, sizeof(text), "%.2f:1", aspect);
+  return text;
+}
+
+// As the renderer computes it from its swap chain (native_x_renderer/src/renderer.cpp). An image of another aspect
+// ratio than the game's 16:9 (the output's, native_x_renderer_fill_screen, or the one asked,
+// native_x_renderer_aspect) has a scale per axis, as large as fits the output; a 16:9 one is the 16:9 rectangle
+// inside it. Its height is that, or `height` when one is chosen (native_x_renderer_resolution_scale = height /
+// 720); at least the game's own 1280x720 on each axis.
+Size NativeRenderSize(Size output, double image_aspect, int height) {
   double guest_aspect = double(kGuestWidth) / kGuestHeight;
-  double output_aspect = output.second ? double(output.first) / output.second : guest_aspect;
-  fill = fill && std::abs(output_aspect / guest_aspect - 1.0) > 0.01;
-  double factor = fill ? output_aspect / guest_aspect : 1.0;
-  double fit = fill ? double(output.second) / kGuestHeight
+  bool fill = std::abs(image_aspect / guest_aspect - 1.0) > 0.01;
+  double factor = fill ? image_aspect / guest_aspect : 1.0;
+  double fit = fill ? std::min(double(output.second) / kGuestHeight, double(output.first) / (kGuestWidth * factor))
                     : std::min(double(output.first) / kGuestWidth, double(output.second) / kGuestHeight);
   double scale = std::max(height > 0 ? double(height) / kGuestHeight : fit, 1.0 / std::min(factor, 1.0));
   return {int(std::floor(kGuestWidth * scale * factor + 0.5)), int(std::floor(kGuestHeight * scale + 0.5))};
@@ -500,9 +536,9 @@ Size NativeRenderSize(Size output, bool fill, int height) {
 // 0 (automatic: the output's), then the usual heights below it, down to the lowest the image allows (720
 // lines; more for an output narrower than 16:9). `keep` (a height the options file named) is offered too if it
 // is in that range. Nothing above the output's: no supersampling.
-std::vector<int> NativeHeights(Size output, bool fill, int keep) {
-  int highest = NativeRenderSize(output, fill, 0).second;
-  int lowest = NativeRenderSize(output, fill, kGuestHeight).second;
+std::vector<int> NativeHeights(Size output, double image_aspect, int keep) {
+  int highest = NativeRenderSize(output, image_aspect, 0).second;
+  int lowest = NativeRenderSize(output, image_aspect, kGuestHeight).second;
   std::vector<int> heights;
   for (int height : {2160, 1800, 1440, 1080, 900, 720, lowest, keep}) {
     if (height >= lowest && height < highest && std::find(heights.begin(), heights.end(), height) == heights.end()) {
@@ -633,8 +669,9 @@ bool SaveOptions(const Settings& s) {
   if (*game::kUltrawideCvar) {
     // The image format for both renderers: the cameras widened (src/widescreen.cpp) and the Xenos path's image
     // stretched over a screen wider than 16:9, or 16:9 with bars.
-    f << game::kUltrawideCvar << " = " << boolean(o.native_fill) << "\n";
-    f << "present_letterbox = " << boolean(!o.native_fill) << "\n";
+    bool fill = !(o.native_aspect > 0.0 && SameAspect(o.native_aspect, kAspect16x9));
+    f << game::kUltrawideCvar << " = " << boolean(fill) << "\n";
+    f << "present_letterbox = " << boolean(!fill) << "\n";
   }
   if (!game::kLanguages.empty()) {
     // The game's language, and its version where it has two (each variant cvar written, set for the one chosen).
@@ -657,9 +694,17 @@ bool SaveOptions(const Settings& s) {
     f << "native_x_renderer = " << boolean(o.native) << "\n";
     // NativeXRenderer's image format and internal resolution (D54).
     f << "# native_x_renderer_fill_screen: NativeXRenderer fills a screen or window that is not 16:9 (true), or keeps\n"
-         "# 16:9 with bars (false). native_x_renderer_resolution_scale: its internal resolution, as a multiple of\n"
-         "# the game's frame height (2 = twice its lines); 0 = the screen's or the window's.\n";
-    f << "native_x_renderer_fill_screen = " << boolean(o.native_fill) << "\n";
+         "# 16:9 with bars (false). native_x_renderer_aspect: with it, the image's aspect ratio (0 = the screen's;\n"
+         "# 2.3889 = 21:9, 3.5556 = 32:9, with bars where the screen differs). native_x_renderer_resolution_scale: its\n"
+         "# internal resolution, as a multiple of the game's frame height (2 = twice its lines); 0 = the screen's or\n"
+         "# the window's.\n";
+    bool fill = !(o.native_aspect > 0.0 && SameAspect(o.native_aspect, kAspect16x9));
+    f << "native_x_renderer_fill_screen = " << boolean(fill) << "\n";
+    {
+      char text[32];
+      std::snprintf(text, sizeof(text), "%.4f", fill && o.native_aspect > 0.0 ? o.native_aspect : 0.0);
+      f << "native_x_renderer_aspect = " << text << "\n";
+    }
     {
       char text[32];
       std::snprintf(text, sizeof(text), "%.6f", o.native_height > 0 ? double(o.native_height) / kGuestHeight : 0.0);

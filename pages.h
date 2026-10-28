@@ -4,17 +4,11 @@
 
 #include <algorithm>
 #include <string>
+#include <string_view>
 
 #include "ui/ui.h"
 
 namespace launcher {
-
-// A page's content: the area right of the sidebar less the mockup's padding (32 40 24), at most 1240 dp wide.
-inline ImRect PageContent(const ImRect& rect) {
-  float width = std::min(rect.GetWidth() - ui::Px(80.0f), ui::Px(1240.0f));
-  return ImRect(ImVec2(rect.Min.x + ui::Px(40.0f), rect.Min.y + ui::Px(32.0f)),
-                ImVec2(rect.Min.x + ui::Px(40.0f) + width, rect.Max.y - ui::Px(24.0f)));
-}
 
 // A frame rate's label: "60 FPS", "120 FPS (experimental)".
 inline std::string FrameRateText(int fps, const char* experimental) {
@@ -26,6 +20,40 @@ inline std::string FrameRateText(int fps, const char* experimental) {
 // An achievement's icon in `box`: the game's own, dimmed with a lock while locked; a question mark for a secret one
 // still locked (page_achievements.cpp).
 void DrawAchievementIcon(ImTextureID texture, const ImRect& box, bool unlocked, bool secret);
+
+// The Controls tab's rows (page_controls.cpp; the keyboard's in page_keyboard.cpp): a function's swatch (a fret's
+// color, or 0 for an empty ring) and name, cut at `label_right`; on accent while its chip waits for a button or a key.
+void MappingRow(const ImRect& row, ImU32 swatch, std::string_view label, float label_right, bool listening);
+// A row's chip: what presses the function.
+struct ChipLook {
+  std::string text;
+  ui::Icon icon = ui::Icon::kNone;  // after the text: an arrow, a PlayStation symbol
+  ImU32 icon_color = ui::col::kText;
+  bool listening = false;  // waiting for a button or a key: on accent, pulsing
+  bool empty = false;      // nothing presses it: dashed
+  bool enabled = true;     // false: what cannot be moved (the D-pad, a stick), not focusable
+};
+ui::ItemState MappingChip(const char* id, const ImRect& rect, const ChipLook& look);
+// X on a controller, Delete or Backspace on the focused chip, or a right click on it: clear it.
+bool ClearPressed(const ui::ItemState& state);
+
+// The mockup's buttons with a controller key (shell.cpp): the main one on accent with the key in a dark disc and its
+// label in capitals (the caller's), the others dark with a thin border and the key in its color, or written in the
+// error color (Cancel). Disabled: grey, without its key, not focusable.
+enum class KeyLook { kPrimary, kGhost, kDanger };
+struct KeyButtonSpec {
+  KeyLook look = KeyLook::kGhost;
+  char key = 0;  // 'A', 'B', 'X', 'Y', or 0 for none
+  ui::Type type{ui::Font::kSemiBold, 16};
+  float height = 60;
+  float padding = 24;
+  float radius = 10;
+  float disc = 24;  // the key's disc
+  float gap = 10;
+};
+float KeyButtonWidth(const KeyButtonSpec& spec, std::string_view label);
+ui::ItemState KeyButton(const char* id, ImVec2 pos, const KeyButtonSpec& spec, std::string_view label,
+                        bool enabled = true);
 
 // A card whose height is known after its rows: its background goes under them through a draw list channel.
 class Card {

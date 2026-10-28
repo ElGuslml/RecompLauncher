@@ -1,5 +1,6 @@
-// The Keyboard page: playing with the keyboard and the mouse (the SDK's mnk driver), the keys of each
-// Xbox 360 control (keybind_*: a primary and a secondary key each) and the mouse's camera.
+// The Controls tab's keyboard (page_controls.cpp draws the tab): playing with the keyboard and the mouse (the SDK's
+// mnk driver), the keys of each of the game's functions or Xbox 360 controls (keybind_*: a primary and a secondary key
+// each) and the mouse's camera.
 //
 // The keys are the SDK's names (thirdparty/rexglue-sdk/src/ui/keybinds.cpp) of physical keys: the SDK maps
 // SDL scancodes, as on a US keyboard (src/ui/sdl_virtual_key.cpp). The page shows each with its label in the
@@ -9,6 +10,8 @@
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_mouse.h>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <map>
 #include <string>
@@ -195,97 +198,21 @@ std::string Join(const std::vector<std::string>& items) {
   return out;
 }
 
-// The pill left of each control: the Xbox 360 control it is.
-struct Glyph {
-  const char* text;
-  Icon icon;
-  ImU32 color;
-};
-
-Glyph GlyphOf(Bind bind) {
+// A, B, X and Y's colors for their rows' swatch; 0 (an empty ring) for the other controls.
+ImU32 SwatchOf(Bind bind) {
   switch (bind) {
-    case Bind::kLStickUp:
-    case Bind::kLStickDown:
-    case Bind::kLStickLeft:
-    case Bind::kLStickRight:
-    case Bind::kLStickPress:
-      return {"LS", Icon::kNone, col::kTextSoft};
-    case Bind::kRStickUp:
-    case Bind::kRStickDown:
-    case Bind::kRStickLeft:
-    case Bind::kRStickRight:
-    case Bind::kRStickPress:
-      return {"RS", Icon::kNone, col::kTextSoft};
     case Bind::kA:
-      return {"A", Icon::kNone, col::kGlyphA};
+      return col::kGlyphA;
     case Bind::kB:
-      return {"B", Icon::kNone, col::kGlyphB};
+      return col::kGlyphB;
     case Bind::kX:
-      return {"X", Icon::kNone, col::kGlyphX};
+      return col::kGlyphX;
     case Bind::kY:
-      return {"Y", Icon::kNone, col::kGlyphY};
-    case Bind::kLeftShoulder:
-      return {"LB", Icon::kNone, col::kTextSoft};
-    case Bind::kRightShoulder:
-      return {"RB", Icon::kNone, col::kTextSoft};
-    case Bind::kLeftTrigger:
-      return {"LT", Icon::kNone, col::kTextSoft};
-    case Bind::kRightTrigger:
-      return {"RT", Icon::kNone, col::kTextSoft};
-    case Bind::kDpadUp:
-      return {nullptr, Icon::kArrowUp, col::kTextSoft};
-    case Bind::kDpadDown:
-      return {nullptr, Icon::kArrowDown, col::kTextSoft};
-    case Bind::kDpadLeft:
-      return {nullptr, Icon::kArrowLeft, col::kTextSoft};
-    case Bind::kDpadRight:
-      return {nullptr, Icon::kArrowRight, col::kTextSoft};
-    case Bind::kStart:
-      return {"START", Icon::kNone, col::kTextSoft};
-    case Bind::kBack:
-      return {"BACK", Icon::kNone, col::kTextSoft};
-    case Bind::kCount:
-      break;
-  }
-  return {"", Icon::kNone, col::kTextSoft};
-}
-
-// The chip of one of the game's functions (game.h, GameControl): a square of a fret's color, or a short text on grey;
-// an arrow is drawn as an icon (Barlow has none).
-void DrawChip(ImVec2 pos, float row_height, const game::GameControl& control) {
-  constexpr Type kChipType{Font::kBold, 12};
-  bool up = std::string_view(control.chip) == "\xE2\x86\x91";
-  bool down = std::string_view(control.chip) == "\xE2\x86\x93";
-  bool text = *control.chip && !up && !down;
-  float width = text ? std::max(Px(44.0f), MeasureText(kChipType, control.chip).x + Px(16.0f)) : Px(44.0f);
-  ImRect chip(ImVec2(pos.x, pos.y + (row_height - Px(26.0f)) * 0.5f),
-              ImVec2(pos.x + width, pos.y + (row_height + Px(26.0f)) * 0.5f));
-  FillRect(chip, Hex(control.chip_color), 6.0f);
-  if (up || down) {
-    DrawIcon(up ? Icon::kArrowUp : Icon::kArrowDown,
-             ImVec2(chip.GetCenter().x - Px(7.0f), chip.GetCenter().y - Px(7.0f)), 14.0f, Hex(control.chip_text), 2.4f);
-  } else if (text) {
-    DrawLabel(kChipType, ImVec2(chip.Min.x + (width - MeasureText(kChipType, control.chip).x) * 0.5f, chip.Min.y),
-              Hex(control.chip_text), control.chip, chip.GetHeight());
+      return col::kGlyphY;
+    default:
+      return 0;
   }
 }
-
-void DrawGlyph(ImVec2 pos, float row_height, const Glyph& glyph) {
-  constexpr Type kGlyphType{Font::kBold, 13};
-  float width = glyph.text ? std::max(Px(40.0f), MeasureText(kGlyphType, glyph.text).x + Px(16.0f)) : Px(40.0f);
-  ImRect pill(ImVec2(pos.x, pos.y + (row_height - Px(28.0f)) * 0.5f),
-              ImVec2(pos.x + width, pos.y + (row_height + Px(28.0f)) * 0.5f));
-  FillRect(pill, col::kGlyph, 14.0f);
-  if (glyph.text) {
-    DrawLabel(kGlyphType, ImVec2(pill.Min.x + (width - MeasureText(kGlyphType, glyph.text).x) * 0.5f, pill.Min.y),
-             glyph.color, glyph.text, pill.GetHeight());
-  } else {
-    DrawIcon(glyph.icon, ImVec2(pill.Min.x + (width - Px(14.0f)) * 0.5f, pill.Min.y + Px(7.0f)), 14.0f, glyph.color,
-             2.4f);
-  }
-}
-
-constexpr Type kSlotType{Font::kSemiBold, 14};
 
 }  // namespace
 
@@ -381,241 +308,173 @@ bool App::OnKeyCapture(const SDL_Event& event) {
   }
 }
 
-void App::KeyboardPage(const ImRect& rect) {
+float App::KeyRows(ImVec2 origin, float width) {
   Options& o = settings_.o;
-  ImRect content = PageContent(rect);
-  bool notice = std::chrono::steady_clock::now() < notice_until_;
-  float y = Header(content.Min, t_.controls, t_.nav_keyboard, notice ? nullptr : t_.keyboard_subtitle,
-                   t_.experimental_badge);
-  if (notice) {
-    constexpr Type kNotice{Font::kSemiBold, 14};
-    DrawLabel(kNotice, ImVec2(content.Min.x, y + Px(8.0f)), col::kAccentLight, notice_);
-    y += Px(8.0f) + LineHeight(kNotice);
-  }
+  ImGuiContext& g = *GImGui;
   bool changed = false;
-  {
-    ButtonSpec reset;
-    reset.icon = Icon::kReset;
-    reset.icon_size = 16;
-    float width = ButtonWidth(reset, t_.reset_defaults);
-    if (Button("reset", ImVec2(content.Max.x - width, y - Px(44.0f)), reset, t_.reset_defaults)) {
-      StopListening();
-      ResetKeyboard(o);
+  float y = origin.y;
+  constexpr float kRow = 44.0f;
+  constexpr float kGap = 6.0f;
+  constexpr Type kGroup{Font::kBold, 12, 0.14f};
+  auto group = [&](const char* title) {
+    y += Px(10.0f);
+    DrawLabel(kGroup, ImVec2(origin.x + Px(14.0f), y), col::kAccent, Upper(title));
+    y += LineHeight(kGroup) + Px(8.0f);
+  };
+  // A switch: playing with the keyboard and the mouse at all, the game's own (game.h, kKeyboardTapTarget: the frets
+  // strum as they are pressed), the mouse's camera.
+  auto switch_row = [&](const char* id, const char* label, bool* value) {
+    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kRow)));
+    ImVec2 pos(r.Max.x - Px(6.0f) - Px(52.0f), r.GetCenter().y - Px(15.0f));
+    MappingRow(r, 0, label, pos.x - Px(14.0f), false);
+    if (Toggle(id, pos, value)) {
       changed = true;
     }
-  }
-  y += Px(20.0f);
-
-  // Playing with the keyboard and the mouse at all.
-  {
-    constexpr Type kTitle{Font::kSemiBold, 15};
-    constexpr Type kHint{Font::kRegular, 13};
-    float row = Px(20.0f) * 2.0f + LineHeight(kTitle) + Px(4.0f) + LineHeight(kHint);
-    // The game's own switch below it (game.h, kKeyboardTapTarget): the frets strum as they are pressed.
-    const game::GameTexts& own = game::GameTextsFor(language_);
-    bool tap = *game::kKeyboardTapTarget && own.keyboard_tap_title;
-    float height = tap ? row * 2.0f + Snap(Px(1.0f)) : row;
-    ImRect card(ImVec2(content.Min.x, y), ImVec2(content.Max.x, y + height));
-    FillRect(card, col::kCard, 12.0f);
-    auto line = [&](float top, const char* title, const char* hint, const char* id, bool* value) {
-      DrawLabel(kTitle, ImVec2(card.Min.x + Px(28.0f), top + Px(20.0f)), col::kText, title);
-      DrawLabel(kHint, ImVec2(card.Min.x + Px(28.0f), top + Px(20.0f) + LineHeight(kTitle) + Px(4.0f)), col::kTextMuted,
-               Ellipsize(kHint, hint ? hint : "", card.GetWidth() - Px(28.0f) * 3.0f - Px(52.0f)));
-      if (Toggle(id, ImVec2(card.Max.x - Px(28.0f) - Px(52.0f), top + (row - Px(30.0f)) * 0.5f), value)) {
-        changed = true;
-      }
-    };
-    line(card.Min.y, t_.mnk, t_.mnk_hint, "mnk", &o.mnk);
-    if (tap) {
-      FillRect(ImRect(ImVec2(card.Min.x + Px(28.0f), card.Min.y + row),
-                      ImVec2(card.Max.x - Px(28.0f), card.Min.y + row + Snap(Px(1.0f)))),
-               col::kDivider);
-      line(card.Min.y + row + Snap(Px(1.0f)), own.keyboard_tap_title, own.keyboard_tap_hint, "tap", &o.keyboard_tap);
+    if (!mapping_first_) {
+      mapping_first_ = ImGui::GetItemID();
     }
-    y += height + Px(20.0f);
+    mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
+    y += Px(kRow) + Px(kGap);
+  };
+  switch_row("mnk", t_.mnk, &o.mnk);
+  const game::GameTexts& own = game::GameTextsFor(language_);
+  if (*game::kKeyboardTapTarget && own.keyboard_tap_title) {
+    switch_row("tap", own.keyboard_tap_title, &o.keyboard_tap);
   }
 
-  // The table: each control's primary and secondary key, then the mouse.
-  ImRect table(ImVec2(content.Min.x, y), ImVec2(content.Max.x, content.Max.y));
-  FillRect(table, col::kCard, 12.0f);
-  constexpr Type kColumn{Font::kBold, 12, 0.1f};
-  float slot_width = Px(200.0f);
-  float gap = Px(16.0f);
-  float header_height = Px(14.0f) * 2.0f + LineHeight(kColumn);
-  {
-    float x = table.Min.x + Px(24.0f);
-    float right = table.Max.x - Px(24.0f);
-    float top = table.Min.y + Px(14.0f);
-    const char* functions_column = game::GameTextsFor(language_).functions_column;
-    DrawLabel(kColumn, ImVec2(x, top), col::kLabel,
-              !game::GameControlsFor(language_).empty() && functions_column ? Upper(functions_column)
-                                                                            : std::string(t_.column_control));
-    DrawLabel(kColumn, ImVec2(right - slot_width * 2.0f - gap, top), col::kLabel, t_.column_primary);
-    DrawLabel(kColumn, ImVec2(right - slot_width, top), col::kLabel, t_.column_secondary);
-    FillRect(ImRect(ImVec2(table.Min.x, table.Min.y + header_height),
-                    ImVec2(table.Max.x, table.Min.y + header_height + Snap(Px(1.0f)))),
-             col::kGlyph);
-  }
-  ImRect list(ImVec2(table.Min.x, table.Min.y + header_height + Snap(Px(1.0f))),
-              ImVec2(table.Max.x, table.Max.y - Px(6.0f)));
-  BeginScroll("keys", list);
-  {
-    ImVec2 origin = ImGui::GetCursorScreenPos();
-    float width = ImGui::GetContentRegionAvail().x;
-    float x = origin.x + Px(24.0f);
-    float right = origin.x + width - Px(24.0f);
-    float slots_x = right - slot_width * 2.0f - gap;
-    float y_list = origin.y + Px(4.0f);
-    constexpr Type kGroup{Font::kBold, 13};
-    constexpr Type kLabel{Font::kRegular, 15};
-    float row_height = Px(48.0f);
-    // The rows: the game's functions in its groups (game.h, GameControlsFor), then the controls no function is on;
-    // or the Xbox 360 controls in theirs.
-    struct Row {
-      int bind;
-      const game::GameControl* function;  // null: the Xbox 360 control itself
+  // The rows: the game's functions in its groups (game.h, GameControlsFor), then the controls no function is on; or
+  // the Xbox 360 controls in theirs. Each has a primary and a secondary key.
+  struct Row {
+    int bind;
+    const game::GameControl* function;  // null: the Xbox 360 control itself
+  };
+  struct Group {
+    const char* title;
+    std::vector<Row> rows;
+  };
+  std::vector<Group> groups;
+  const std::vector<game::GameControlGroup>& functions = game::GameControlsFor(language_);
+  if (functions.empty()) {
+    auto range = [](const char* title, Bind first, Bind last) {
+      Group group{title, {}};
+      for (int b = int(first); b <= int(last); ++b) group.rows.push_back({b, nullptr});
+      return group;
     };
-    struct Group {
-      const char* title;
-      std::vector<Row> rows;
-    };
-    std::vector<Group> groups;
-    const std::vector<game::GameControlGroup>& functions = game::GameControlsFor(language_);
-    if (functions.empty()) {
-      auto range = [](const char* title, Bind first, Bind last) {
-        Group group{title, {}};
-        for (int b = int(first); b <= int(last); ++b) group.rows.push_back({b, nullptr});
-        return group;
-      };
-      groups.push_back(range(t_.group_movement, Bind::kLStickUp, Bind::kLStickPress));
-      groups.push_back(range(t_.group_camera, Bind::kRStickUp, Bind::kRStickPress));
-      groups.push_back(range(t_.group_buttons, Bind::kA, Bind::kRightTrigger));
-      groups.push_back(range(t_.group_dpad, Bind::kDpadUp, Bind::kBack));
-    } else {
-      bool used[int(Bind::kCount)] = {};
-      for (const game::GameControlGroup& g : functions) {
-        Group group{g.title, {}};
-        for (const game::GameControl& control : g.controls) {
-          group.rows.push_back({control.bind, &control});
-          used[control.bind] = true;
-        }
-        groups.push_back(std::move(group));
+    groups.push_back(range(t_.group_movement, Bind::kLStickUp, Bind::kLStickPress));
+    groups.push_back(range(t_.group_camera, Bind::kRStickUp, Bind::kRStickPress));
+    groups.push_back(range(t_.group_buttons, Bind::kA, Bind::kRightTrigger));
+    groups.push_back(range(t_.group_dpad, Bind::kDpadUp, Bind::kBack));
+  } else {
+    bool used[int(Bind::kCount)] = {};
+    for (const game::GameControlGroup& g_group : functions) {
+      Group group{g_group.title, {}};
+      for (const game::GameControl& control : g_group.controls) {
+        group.rows.push_back({control.bind, &control});
+        used[control.bind] = true;
       }
-      Group other{t_.group_other, {}};
-      for (int b = 0; b < int(Bind::kCount); ++b) {
-        if (!used[b]) other.rows.push_back({b, nullptr});
-      }
-      if (!other.rows.empty()) groups.push_back(std::move(other));
+      groups.push_back(std::move(group));
     }
-    for (const Group& group : groups) {
-      DrawLabel(kGroup, ImVec2(x, y_list + Px(16.0f)), col::kAccent, Title(group.title));
-      y_list += Px(16.0f) + LineHeight(kGroup) + Px(6.0f);
-      for (const Row& row : group.rows) {
-        int b = row.bind;
-        if (row.function) {
-          DrawChip(ImVec2(x, y_list), row_height, *row.function);
+    Group other{t_.group_other, {}};
+    for (int b = 0; b < int(Bind::kCount); ++b) {
+      if (!used[b]) other.rows.push_back({b, nullptr});
+    }
+    if (!other.rows.empty()) groups.push_back(std::move(other));
+  }
+  constexpr float kSlot = 150.0f;
+  for (const Group& group_rows : groups) {
+    group(group_rows.title);
+    for (const Row& row : group_rows.rows) {
+      int b = row.bind;
+      ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kRow)));
+      ImRect slots[2];
+      slots[1] = ImRect(ImVec2(r.Max.x - Px(6.0f) - Px(kSlot), r.Min.y + Px(4.0f)),
+                        ImVec2(r.Max.x - Px(6.0f), r.Max.y - Px(4.0f)));
+      slots[0] = ImRect(ImVec2(slots[1].Min.x - Px(6.0f) - Px(kSlot), slots[1].Min.y),
+                        ImVec2(slots[1].Min.x - Px(6.0f), slots[1].Max.y));
+      ImU32 swatch = row.function ? (*row.function->chip ? 0 : Hex(row.function->chip_color)) : SwatchOf(Bind(b));
+      MappingRow(r, swatch, row.function ? row.function->name : t_.binds[b], slots[0].Min.x - Px(14.0f),
+                 listen_bind_ == b);
+      std::vector<std::string> alternatives = Alternatives(o.binds[size_t(b)]);
+      std::array<ImGuiID, 2> keys{};
+      for (int slot = 0; slot < 2; ++slot) {
+        std::string token = slot < int(alternatives.size()) ? alternatives[size_t(slot)] : std::string();
+        bool listening = listen_bind_ == b && listen_slot_ == slot;
+        ChipLook look;
+        if (listening) {
+          // With Shift, Ctrl or Alt held: "Shift + …", waiting for the key.
+          std::string text;
+          if (held_modifiers_ & kShift) text += std::string(t_.key_shift) + " + ";
+          if (held_modifiers_ & kCtrl) text += std::string(t_.key_ctrl) + " + ";
+          if (held_modifiers_ & kAlt) text += std::string(t_.key_alt) + " + ";
+          look.text = held_modifiers_ ? text + "\xE2\x80\xA6" : std::string(t_.press_key);
+          look.listening = true;
+        } else if (token.empty()) {
+          look.text = t_.unbound;
+          look.empty = true;
         } else {
-          DrawGlyph(ImVec2(x, y_list), row_height, GlyphOf(Bind(b)));
+          KeyLabel label = LabelOf(token, t_);
+          look.text = label.text;
+          look.icon = label.icon;
         }
-        float label_x = x + (row.function ? Px(58.0f) : Px(52.0f));
-        DrawLabel(kLabel, ImVec2(label_x, y_list), col::kText,
-                 Ellipsize(kLabel, row.function ? row.function->name : t_.binds[b], slots_x - gap - label_x),
-                 row_height);
-        std::vector<std::string> alternatives = Alternatives(o.binds[size_t(b)]);
-        for (int slot = 0; slot < 2; ++slot) {
-          std::string token = slot < int(alternatives.size()) ? alternatives[size_t(slot)] : std::string();
-          ImRect r(ImVec2(slots_x + float(slot) * (slot_width + gap), y_list + Px(5.0f)),
-                   ImVec2(slots_x + float(slot) * (slot_width + gap) + slot_width, y_list + Px(43.0f)));
-          ImGui::PushID(b * 2 + slot);
-          ItemState state = Item("slot", r);
-          ImGui::PopID();
-          bool listening = listen_bind_ == b && listen_slot_ == slot;
-          if (state.pressed) {
-            if (listening) {
-              StopListening();
-            } else {
-              StartListening(b, slot);
-              listening = true;
-            }
-          }
-          // Delete, Backspace, X on a controller or a right click clear a slot.
-          if (!listening && !token.empty() &&
-              ((state.focused && (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace) ||
-                                  ImGui::IsKeyPressed(ImGuiKey_GamepadFaceLeft))) ||
-               (state.hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)))) {
-            alternatives.resize(std::max<size_t>(alternatives.size(), 2));
-            alternatives[size_t(slot)].clear();
-            o.binds[size_t(b)] = Join(alternatives);
-            changed = true;
-            token.clear();
-          }
+        ImGui::PushID(b * 2 + slot);
+        ItemState state = MappingChip("##slot", slots[slot], look);
+        ImGui::PopID();
+        keys[size_t(slot)] = ImGui::GetItemID();
+        if (state.pressed) {
           if (listening) {
-            FillRect(r, col::kAccentTint, 8.0f);
-            StrokeRect(r, col::kAccent, 8.0f, 2.0f);
-            // With Shift, Ctrl or Alt held: "Shift + …", waiting for the key.
-            std::string text;
-            if (held_modifiers_ & kShift) text += std::string(t_.key_shift) + " + ";
-            if (held_modifiers_ & kCtrl) text += std::string(t_.key_ctrl) + " + ";
-            if (held_modifiers_ & kAlt) text += std::string(t_.key_alt) + " + ";
-            DrawLabel(kSlotType, ImVec2(r.Min.x + Px(14.0f), r.Min.y), col::kAccentLight,
-                     held_modifiers_ ? text + "\xE2\x80\xA6" : std::string(t_.press_key), r.GetHeight());
-          } else if (token.empty()) {
-            DashedRect(r, state.hovered ? Brighten(col::kDashed) : col::kDashed, 8.0f);
-            DrawLabel(kSlotType, ImVec2(r.Min.x + Px(14.0f), r.Min.y), col::kLabel, t_.unbound, r.GetHeight());
+            StopListening();
           } else {
-            FillRect(r, state.hovered ? Brighten(col::kField) : col::kField, 8.0f);
-            StrokeRect(r, col::kFieldBorder, 8.0f);
-            KeyLabel label = LabelOf(token, t_);
-            float text_width = MeasureText(kSlotType, label.text).x;
-            DrawLabel(kSlotType, ImVec2(r.Min.x + Px(14.0f), r.Min.y), col::kText,
-                     Ellipsize(kSlotType, label.text, slot_width - Px(28.0f) - (label.icon != Icon::kNone ? Px(18.0f) : 0)),
-                     r.GetHeight());
-            if (label.icon != Icon::kNone) {
-              DrawIcon(label.icon, ImVec2(r.Min.x + Px(14.0f) + text_width, r.Min.y + (r.GetHeight() - Px(16.0f)) * 0.5f),
-                       16.0f, col::kText, 2.2f);
-            }
+            StartListening(b, slot);
           }
-          if (state.focused) {
-            FocusRing(r, 8.0f);
-          }
+        } else if (!listening && !token.empty() && ClearPressed(state)) {
+          alternatives.resize(std::max<size_t>(alternatives.size(), 2));
+          alternatives[size_t(slot)].clear();
+          o.binds[size_t(b)] = Join(alternatives);
+          changed = true;
         }
-        y_list += row_height;
       }
+      mapping_rows_.push_back(keys);
+      y += Px(kRow) + Px(kGap);
     }
+  }
 
-    // The mouse.
-    DrawLabel(kGroup, ImVec2(x, y_list + Px(16.0f)), col::kAccent, t_.group_mouse);
-    y_list += Px(16.0f) + LineHeight(kGroup) + Px(6.0f);
-    Glyph mouse{nullptr, Icon::kMouse, col::kTextSoft};
-    DrawGlyph(ImVec2(x, y_list), row_height, mouse);
-    DrawLabel(kLabel, ImVec2(x + Px(52.0f), y_list), col::kText, t_.mouse_camera, row_height);
-    if (Toggle("mouse", ImVec2(slots_x, y_list + (row_height - Px(30.0f)) * 0.5f), &o.mnk_mouse)) {
-      changed = true;
-    }
-    DrawLabel(Type{Font::kRegular, 13}, ImVec2(slots_x + Px(52.0f) + Px(14.0f), y_list), col::kTextMuted,
-             Ellipsize(Type{Font::kRegular, 13}, t_.mouse_camera_hint, slot_width * 2.0f + gap - Px(66.0f)),
-             row_height);
-    y_list += row_height;
-    DrawGlyph(ImVec2(x, y_list), row_height, mouse);
-    DrawLabel(kLabel, ImVec2(x + Px(52.0f), y_list), col::kText, t_.mouse_sensitivity, row_height);
-    float sensitivity = o.mnk_sensitivity;
-    if (Slider("sensitivity", ImRect(ImVec2(slots_x, y_list + Px(5.0f)), ImVec2(slots_x + slot_width, y_list + Px(43.0f))),
-               &sensitivity, 0.1f, 5.0f, 0.1f, o.mnk_mouse)) {
-      o.mnk_sensitivity = sensitivity;
-      changed = true;
-    }
+  // The mouse: its camera, and how fast it turns (a chip stepped with left and right, or clicked on either half).
+  group(t_.group_mouse);
+  switch_row("mouse", t_.mouse_camera, &o.mnk_mouse);
+  {
+    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kRow)));
+    ImRect chip(ImVec2(r.Max.x - Px(6.0f) - Px(190.0f), r.Min.y + Px(4.0f)), ImVec2(r.Max.x - Px(6.0f), r.Max.y - Px(4.0f)));
+    MappingRow(r, 0, t_.mouse_sensitivity, chip.Min.x - Px(14.0f), false);
     char value[32];
     std::snprintf(value, sizeof(value), "%.1f×", double(o.mnk_sensitivity));
-    DrawLabel(kSlotType, ImVec2(slots_x + slot_width + gap, y_list), o.mnk_mouse ? col::kText : col::kTextDim, value,
-             row_height);
-    y_list += row_height + Px(12.0f);
-    ImGui::Dummy(ImVec2(width, y_list - origin.y));
+    ChipLook look;
+    look.text = value;
+    look.enabled = o.mnk_mouse;
+    ItemState state = MappingChip("##sensitivity", chip, look);
+    ImGuiID id = o.mnk_mouse ? ImGui::GetItemID() : 0;
+    if (id) mapping_rows_.push_back({id, id});
+    auto step = [&](float delta) {
+      o.mnk_sensitivity = std::clamp(std::round((o.mnk_sensitivity + delta) * 10.0f) / 10.0f, 0.1f, 5.0f);
+      changed = true;
+    };
+    if (id && g.NavId == id && g.NavMoveSubmitted && (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right)) {
+      step(g.NavMoveDir == ImGuiDir_Left ? -0.1f : 0.1f);
+      ImGui::NavMoveRequestCancel();
+    }
+    if (state.pressed) {
+      bool down = !PressedByNav() && ImGui::GetIO().MousePos.x < chip.GetCenter().x;
+      step(down ? -0.1f : 0.1f);
+    }
+    ImU32 arrows = o.mnk_mouse ? col::kTextSoft : col::kTextDim;
+    DrawIcon(Icon::kChevronLeft, ImVec2(chip.Min.x + Px(8.0f), chip.GetCenter().y - Px(8.0f)), 16.0f, arrows, 2.2f);
+    DrawIcon(Icon::kChevronRight, ImVec2(chip.Max.x - Px(24.0f), chip.GetCenter().y - Px(8.0f)), 16.0f, arrows, 2.2f);
+    y += Px(kRow);
   }
-  EndScroll();
 
   if (changed) {
     Changed();
   }
+  return y - origin.y;
 }
 
 }  // namespace launcher

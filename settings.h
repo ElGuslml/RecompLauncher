@@ -97,14 +97,17 @@ struct Options {
   // the options file named (native_aa_experimental, an index of kExperimentalAntialiasing; -1: none).
   int native_aa = kSmaa;
   int native_aa_experimental = -1;
-  bool native_fill = true;  // native_x_renderer_fill_screen: fill an output that is not 16:9, or 16:9 with bars
+  // The image's aspect ratio (native_x_renderer_fill_screen and native_x_renderer_aspect, game::kUltrawideCvar): 0 = the
+  // screen's, which it fills; kAspect16x9 = the game's own (bars on a wider screen); another (kAspect21x9,
+  // kAspect32x9) with NativeXRenderer only, with bars where the screen is narrower or wider.
+  double native_aspect = 0.0;
   int native_height = 0;    // native_x_renderer_resolution_scale × the frame's height: the internal resolution's
                             // height; 0 = automatic
   // native_x_renderer_shadow_scale (NativeXRenderer's D92): 0 = the shadow maps like everything else, 1 = at least
   // twice the game's resolution (2), 2 = at least four times (4).
   int shadow_quality = 0;
   // The game's own options (game.h): its language (an index of game::kLanguages: user_language and its variant
-  // cvar) and its switches. game::kUltrawideCvar follows native_fill (the image format).
+  // cvar) and its switches. game::kUltrawideCvar follows native_aspect (the image format).
   int language = 0;
   std::array<bool, game::kToggles.size()> toggles{};
 
@@ -175,11 +178,26 @@ bool Is16x9(Size size);
 // the output (the presenter letterboxes other aspect ratios).
 Size AutoScale(Size output);
 
-// NativeXRenderer's render size (D37, D43, D54), as the renderer computes it from its swap chain.
-Size NativeRenderSize(Size output, bool fill, int height);
+// The image formats the Format row offers: the game's own, the usual ultrawide screen's (3440x1440), the super
+// ultrawide one's (5120x1440). The wide ones as the options file writes them (4 decimals), so that the render size
+// computed here is the renderer's, before and after the file is read again.
+inline constexpr double kAspect16x9 = 16.0 / 9.0;
+inline constexpr double kAspect21x9 = 2.3889;
+inline constexpr double kAspect32x9 = 3.5556;
+
+// Two aspect ratios within 2 % (2560x1080 is 21:9 as 3440x1440 is).
+bool SameAspect(double a, double b);
+// The image's aspect ratio on `output` for Options::native_aspect: the output's for 0.
+double ImageAspect(Size output, double chosen);
+// An aspect ratio's usual name: "16:9", "21:9", "16:10"... (the nearest within 4 %), or "2.10:1".
+std::string AspectName(double aspect);
+
+// NativeXRenderer's render size (D37, D43, D54, D104), as the renderer computes it from its swap chain, for an image
+// of `image_aspect` (ImageAspect).
+Size NativeRenderSize(Size output, double image_aspect, int height);
 
 // The internal resolutions NativeXRenderer offers, as heights (D54): 0 (automatic), then lower ones.
-std::vector<int> NativeHeights(Size output, bool fill, int keep);
+std::vector<int> NativeHeights(Size output, double image_aspect, int keep);
 
 // --- The settings being edited ---
 

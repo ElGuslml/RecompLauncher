@@ -39,10 +39,13 @@ inline ImVec2 Snap(ImVec2 p) { return {Snap(p.x), Snap(p.y)}; }
 
 // --- Type ---
 
-enum class Font : int { kRegular, kMedium, kSemiBold, kBold, kCondensedSemiBold, kCondensedBold, kCount };
+// The text in Source Sans 3 (400, 500, 600, 700), the titles in Oswald (the display fonts: 500, 600, 700).
+enum class Font : int {
+  kRegular, kMedium, kSemiBold, kBold, kDisplayMedium, kDisplaySemiBold, kDisplayBold, kCount
+};
 
-// Barlow 400/500/600/700 and Barlow Condensed 600/700 (SIL OFL 1.1, launcher/fonts), embedded in the
-// executable. Sizes are em sizes, as in CSS. False if a font is missing.
+// Source Sans 3 and Oswald (SIL OFL 1.1, recomp_launcher/fonts), embedded in the executable. Sizes are em sizes, as in
+// CSS. False if a font is missing.
 bool LoadFonts();
 
 struct Type {
@@ -51,7 +54,8 @@ struct Type {
   float tracking = 0;   // letter spacing, in em
 };
 
-// The height of one line at "line-height: normal" (Barlow: 1.2 em), in pixels.
+// The height of one line at "line-height: normal" (Source Sans 3: 1.424 em, Oswald: 1.482 em, as the mockup's browser
+// lays them out), in pixels.
 float LineHeight(const Type& type);
 // The size of one line of text, in pixels.
 ImVec2 MeasureText(const Type& type, std::string_view text);
@@ -114,6 +118,8 @@ enum class Icon : int {
   kPlus,
   kClock,
   kFlame,  // a streak
+  kChevronRight,
+  kChevronLeft,
   kCount
 };
 
@@ -121,7 +127,7 @@ enum class Icon : int {
 void DrawIcon(Icon icon, ImVec2 pos, float size, ImU32 color, float stroke = 1.8f, bool filled = false);
 
 // The mockup's art (launcher/art), in the executable's resources.
-enum class Art : int { kHero, kInstall, kCount };
+enum class Art : int { kBackground, kCount };
 // The art covering `rect` (CSS "slice"), cropped around `anchor` (0..1 per axis), with rounded corners.
 void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding = 0, ImDrawFlags corners = 0);
 
@@ -148,25 +154,49 @@ ItemState Item(ImGuiID id, const ImRect& rect, bool enabled = true);
 void FocusRing(const ImRect& rect, float rounding);
 // A controller button is held (ImGui's gamepad keys).
 bool AnyGamepadButtonDown();
-// The first interactive item registered between the two calls (a page's first control).
+// The first interactive item registered between the two calls (a page's first control; not a mouse-only one).
 void CaptureFirstItem();
 ImGuiID CapturedFirstItem();
+// Gives the controller's focus to an item when it is next registered (Item): in whatever window it is, from its own
+// rectangle, scrolled into view; `show` shows the focus outline (a move made with the controller or the keyboard,
+// which ImGui shows itself only for its own moves).
+void RequestFocus(ImGuiID id, bool show = true);
+// A focus asked for and not given yet: the next frame gives it.
+bool FocusRequested();
+// An item pressed this frame was pressed with the keyboard or a controller (A, Enter), not the mouse.
+bool PressedByNav();
+
+// --- The controller's buttons as the player sees them ---
+
+// A button of the launcher's controller layout, by position (A is the bottom face button, as on an Xbox controller).
+enum class PadButton { kA, kB, kX, kY, kLB, kRB, kView };
+// How the buttons are drawn: as on the controller in use (an Xbox controller's letters on their colors, a PlayStation
+// controller's symbols, a Switch controller's letters by position) or as the keyboard's keys that do the same (Enter,
+// Esc, F, R, Q, E, P).
+enum class GlyphStyle { kXbox, kPlayStation, kNintendo, kKeyboard };
+// `view` names the View button on that controller ("Create", "Share", "View").
+void SetGlyphStyle(GlyphStyle style, const char* view = "View");
+GlyphStyle CurrentGlyphStyle();
+// A button's glyph, `size` dp high: a disc (a face button), a pill (a bumper, View) or a key cap; its width in pixels.
+// `on_accent`: inside an accent button, dark.
+float GlyphWidth(PadButton button, float size);
+void DrawGlyph(PadButton button, ImVec2 pos, float size, bool on_accent = false);
+// The button pressed this frame: on a controller, or its key on the keyboard (not while text is being typed; Esc
+// always).
+bool ButtonPressed(PadButton button);
 
 // --- Widgets ---
 
 enum class ButtonKind {
   kPrimary,    // accent
-  kHero,       // the Play page's dark secondary button
-  kOutline,    // card background, outlined
   kGhost,      // transparent, outlined
   kDanger,     // transparent, outlined and written in the error color (Delete profile)
-  kLight,      // light background
   kDonate,     // coral
   kDisabled,   // the mockup's disabled primary (Continue, Extract before a valid ISO)
 };
 
 struct ButtonSpec {
-  ButtonKind kind = ButtonKind::kOutline;
+  ButtonKind kind = ButtonKind::kGhost;
   Type type{Font::kSemiBold, 14};
   float height = 44;
   float padding = 18;
@@ -184,35 +214,11 @@ float ButtonWidth(const ButtonSpec& spec, std::string_view label);
 bool Button(const char* id, ImVec2 pos, const ButtonSpec& spec, std::string_view label, bool enabled = true,
             float width = 0);
 
-struct SegmentedSpec {
-  float height = 40;
-  float padding = 18;    // per option, each side
-  float min_width = 0;   // per option
-  ImU32 background = col::kSegment;
-};
-
-// The mockup's segmented buttons: one option highlighted in accent. Returns true when `selected` changed.
-ImVec2 SegmentedSize(const SegmentedSpec& spec, std::span<const std::string> labels);
-bool Segmented(const char* id, ImVec2 pos, const SegmentedSpec& spec, std::span<const std::string> labels,
-               int* selected, bool enabled = true);
-
 // The mockup's switch, 52 x 30 dp. True when toggled.
 bool Toggle(const char* id, ImVec2 pos, bool* value, bool enabled = true);
 
-// A drop-down list in the mockup's select style. True when `selected` changed.
-bool Combo(const char* id, const ImRect& rect, std::span<const std::string> items, int* selected,
-           bool enabled = true);
-
-// A slider (accent track and knob); left/right step it with the keyboard or a controller. True on change.
-bool Slider(const char* id, const ImRect& rect, float* value, float min, float max, float step,
-            bool enabled = true);
-
 // An accent link with an arrow ("Ver logros →"). True when pressed.
 bool Link(const char* id, ImVec2 pos, std::string_view label, float size = 14);
-
-// A rounded label ("RECOMENDADO", "PRÓXIMAMENTE").
-ImVec2 BadgeSize(std::string_view label, float size = 11);
-void Badge(ImVec2 pos, std::string_view label, ImU32 background, ImU32 color, float size = 11);
 
 // A progress bar.
 void Progress(const ImRect& rect, float fraction, ImU32 track = col::kTrack, ImU32 fill = col::kAccent);
