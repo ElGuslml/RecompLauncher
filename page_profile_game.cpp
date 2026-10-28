@@ -74,7 +74,7 @@ void App::ProfileGamePage(const ImRect& rect) {
     float height = Px(108.0f);
     ImRect card(ImVec2(x, y), ImVec2(x + width, y + height));
     FillRect(card, col::kCard, 14.0f);
-    GameTile(ImVec2(card.Min.x + Px(22.0f), card.Min.y + (height - Px(72.0f)) * 0.5f), 72.0f, game.info);
+    GameTile(ImVec2(card.Min.x + Px(22.0f), card.Min.y + (height - Px(72.0f)) * 0.5f), 72.0f, game);
     // The ring, right; the numbers left of it.
     int percent = list && list->total_gamerscore
                       ? int(std::lround(double(list->gamerscore) * 100.0 / double(list->total_gamerscore)))

@@ -7,7 +7,8 @@
 //   profiles\<id>\               the profile's folder, the game's profile_root (SDK change 47): the saves
 //                                (B13EBABEBABEBABE\<title>\...), the settings in each game (<title>\profile\), the
 //                                achievement unlocks (achievements\<title>.toml), the playtime (games\<title>.toml)
-//   games\<title>\               a game whose launcher ran: game.toml, a copy of its achievement list
+//   games\<title>\               a game whose launcher ran: game.toml, its icon (icon.png), a copy of its
+//                                achievement list
 //   backups\                     what a migration replaced
 //
 // A launcher keeps the store; a game only reads which profile it runs with (ForGame). The saves made before the
@@ -55,6 +56,7 @@ struct GameInfo {
   std::string name;                // "Guitar Hero: Metallica"
   uint32_t accent = 0;             // its launcher's accent, 0xRRGGBB
   std::string icon;                // its mark: SVG elements in a 24-unit box, stroked (game.h's kBrandIcon)
+  std::filesystem::path picture;   // games\<TITLEID>\icon.png, the game's own icon (SaveGameIcon); empty: none yet
   std::filesystem::path launcher;  // its launcher's executable, where it was last seen
   std::string version;             // the game's version there
   int64_t seen = 0;                // Unix time: its launcher last ran
@@ -92,6 +94,9 @@ bool Delete(Store& store, std::string_view id, std::string_view writer);
 // The games whose launcher ran (games\*\game.toml), and this one's entry written (each launcher at its start).
 std::vector<GameInfo> Games(const Store& store);
 bool RegisterGame(const Store& store, const GameInfo& game);
+// The game's own icon for the other launchers (games\<TITLEID>\icon.png): the PNG its launcher found in the game's
+// files (achievements.h's FindGameIcon), written when it changed. Launchers before 2.5.0 draw the mark only.
+bool SaveGameIcon(const Store& store, uint32_t title_id, const std::vector<uint8_t>& png);
 // The game's achievements list for the other launchers (games\<TITLEID>\achievements\: <TITLEID>.info.toml and the
 // icons, as the game writes them in its user data folder): copied from `from` when newer.
 std::filesystem::path GameAchievementsFolder(const Store& store, uint32_t title_id);

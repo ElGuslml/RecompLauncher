@@ -232,6 +232,8 @@ void DrawIconSvg(std::string_view key, std::string_view body, ImVec2 pos, float 
 void Ring(ImVec2 center, float radius_dp, float thickness_dp, float fraction, ImU32 track, ImU32 fill);
 // A texture (a photo) drawn into `rect`, in a circle when `circle`.
 void DrawTexture(ImTextureID texture, const ImRect& rect, bool circle);
+// A texture (a game's icon) drawn into `rect` with rounded corners, as FillRect rounds them.
+void DrawRoundedTexture(ImTextureID texture, const ImRect& rect, float rounding_dp);
 
 // A one-line text field: `value` (UTF-8) edited in place, at most `max_chars` characters, `hint` while empty. True
 // when the text changed.

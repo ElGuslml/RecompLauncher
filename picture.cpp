@@ -31,7 +31,65 @@ void Free(T*& object) {
   }
 }
 
+// The decoder's first frame as RGBA pixels.
+std::optional<Rgba> Decode(IWICBitmapDecoder* decoder) {
+  IWICBitmapFrameDecode* frame = nullptr;
+  IWICBitmapSource* converted = nullptr;
+  std::optional<Rgba> result;
+  UINT width = 0, height = 0;
+  if (SUCCEEDED(decoder->GetFrame(0, &frame)) &&
+      SUCCEEDED(WICConvertBitmapSource(GUID_WICPixelFormat32bppRGBA, frame, &converted)) &&
+      SUCCEEDED(converted->GetSize(&width, &height)) && width > 0 && height > 0 && width <= 1024 && height <= 1024) {
+    Rgba picture;
+    picture.width = int(width);
+    picture.height = int(height);
+    picture.pixels.resize(size_t(width) * height * 4);
+    if (SUCCEEDED(converted->CopyPixels(nullptr, width * 4, UINT(picture.pixels.size()), picture.pixels.data()))) {
+      result = std::move(picture);
+    }
+  }
+  Free(converted);
+  Free(frame);
+  return result;
+}
+
 }  // namespace
+
+std::optional<Rgba> DecodePicture(const std::vector<uint8_t>& file) {
+  if (file.empty()) {
+    return std::nullopt;
+  }
+  Com com;
+  IWICImagingFactory* factory = nullptr;
+  IWICStream* stream = nullptr;
+  IWICBitmapDecoder* decoder = nullptr;
+  std::optional<Rgba> result;
+  if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))) &&
+      SUCCEEDED(factory->CreateStream(&stream)) &&
+      SUCCEEDED(stream->InitializeFromMemory(const_cast<BYTE*>(file.data()), DWORD(file.size()))) &&
+      SUCCEEDED(factory->CreateDecoderFromStream(stream, nullptr, WICDecodeMetadataCacheOnDemand, &decoder))) {
+    result = Decode(decoder);
+  }
+  Free(decoder);
+  Free(stream);
+  Free(factory);
+  return result;
+}
+
+std::optional<Rgba> LoadPicture(const std::filesystem::path& path) {
+  Com com;
+  IWICImagingFactory* factory = nullptr;
+  IWICBitmapDecoder* decoder = nullptr;
+  std::optional<Rgba> result;
+  if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))) &&
+      SUCCEEDED(factory->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand,
+                                                   &decoder))) {
+    result = Decode(decoder);
+  }
+  Free(decoder);
+  Free(factory);
+  return result;
+}
 
 std::optional<Rgba> LoadSquarePicture(const std::filesystem::path& path, int size) {
   Com com;

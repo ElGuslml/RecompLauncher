@@ -1,4 +1,5 @@
-// Pictures from files for the profiles (Windows Imaging Component): a photo cropped to a square, and PNG files.
+// Pictures from files for the profiles (Windows Imaging Component): a photo cropped to a square, PNG files, and the
+// games' icons.
 
 #pragma once
 
@@ -21,5 +22,8 @@ struct Rgba {
 std::optional<Rgba> LoadSquarePicture(const std::filesystem::path& path, int size);
 // The picture as a PNG file, written whole.
 bool SavePng(const std::filesystem::path& path, const Rgba& picture);
+// An image file in memory (a PNG), or a file, as it is (at most 1024 x 1024); nullopt if it cannot be read.
+std::optional<Rgba> DecodePicture(const std::vector<uint8_t>& file);
+std::optional<Rgba> LoadPicture(const std::filesystem::path& path);
 
 }  // namespace launcher

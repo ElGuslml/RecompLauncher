@@ -35,6 +35,10 @@ struct InstalledDlc {
   uint64_t bytes = 0;
 };
 
+// A package's picture of its game: its header's title thumbnail, else its thumbnail; a PNG as the package has it,
+// empty when it has none or is not a package. The disc's nxeart package is the dashboard's art for the game.
+std::vector<uint8_t> PackageTitleThumbnail(const std::filesystem::path& path);
+
 // The game's user data folder: userdata\ next to the game when it can be written there, else
 // Documents\<game::kDocumentsFolder> (src/startup.cpp, ConfigureUserData).
 std::filesystem::path GameUserDataFolder(const std::filesystem::path& exe_dir);

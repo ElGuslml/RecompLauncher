@@ -64,18 +64,23 @@ struct Handle {
 
 }  // namespace
 
-bool GameInstalled(const std::filesystem::path& exe_dir) {
+std::filesystem::path GameFilesFolder(const std::filesystem::path& exe_dir) {
   std::error_code ec;
-  if (std::filesystem::exists(exe_dir / "assets" / game::kDiscExecutable, ec)) return true;
+  if (std::filesystem::exists(exe_dir / "assets" / game::kDiscExecutable, ec)) return exe_dir / "assets";
 #ifdef LAUNCHER_DEFAULT_GAME_ROOT
   // A development build run from the repository: the game falls back to the repository's assets\ (src/startup.cpp,
   // DefaultGameRoot). A package or an installation asks for the ISO, even on the machine that built it.
   std::filesystem::path repository(LAUNCHER_DEFAULT_GAME_ROOT);
   if (InsideRepository(exe_dir, repository) && std::filesystem::exists(repository / game::kDiscExecutable, ec)) {
-    return true;
+    return repository;
   }
 #endif
-  return std::wstring(GetCommandLineW()).find(L"--game_data_root") != std::wstring::npos;
+  return {};
+}
+
+bool GameInstalled(const std::filesystem::path& exe_dir) {
+  return !GameFilesFolder(exe_dir).empty() ||
+         std::wstring(GetCommandLineW()).find(L"--game_data_root") != std::wstring::npos;
 }
 
 IsoCheck CheckIso(const std::filesystem::path& path) {

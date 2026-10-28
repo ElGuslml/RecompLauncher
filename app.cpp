@@ -141,12 +141,17 @@ void App::LoadAchievements() {
   achievements_requested_ = true;
   std::filesystem::path exe_dir = exe_dir_;
   uint32_t language = language_;
-  achievements_loading_ = std::async(std::launch::async, [exe_dir, language] {
-    std::optional<Achievements> list = launcher::LoadAchievements(exe_dir, language);
-    if (!list && WriteAchievementList(exe_dir)) {
-      list = launcher::LoadAchievements(exe_dir, language);
+  bool ask_icon = !game_icon_asked_ && game_icon_ == ImTextureID_Invalid;
+  game_icon_asked_ = true;
+  achievements_loading_ = std::async(std::launch::async, [exe_dir, language, ask_icon] {
+    AchievementsRead read;
+    read.list = launcher::LoadAchievements(exe_dir, language);
+    read.icon = FindGameIcon(exe_dir);
+    if ((!read.list || (!read.icon && ask_icon)) && WriteAchievementList(exe_dir)) {
+      read.list = launcher::LoadAchievements(exe_dir, language);
+      read.icon = FindGameIcon(exe_dir);
     }
-    return list;
+    return read;
   });
 }
 
@@ -155,9 +160,12 @@ void App::PollAchievements() {
       achievements_loading_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
     return;
   }
-  std::optional<Achievements> list = achievements_loading_.get();
-  if (list) {
-    ReleaseTextures();
+  AchievementsRead read = achievements_loading_.get();
+  if (read.icon) {
+    SetGameIcon(std::move(*read.icon));
+  }
+  if (std::optional<Achievements>& list = read.list) {
+    ReleaseAchievementIcons();
     achievements_ = std::move(list);
     achievement_icons_.assign(achievements_->items.size(), ImTextureID_Invalid);
     // The list for the other launchers, maybe just written by the game.
@@ -181,11 +189,44 @@ ImTextureID App::AchievementIcon(size_t index) {
   return achievement_icons_[index];
 }
 
-void App::ReleaseTextures() {
+void App::ReleaseAchievementIcons() {
   for (ImTextureID& texture : achievement_icons_) {
     ui::gfx::DestroyTexture(texture);
     texture = ImTextureID_Invalid;
   }
+}
+
+void App::ReleaseTextures() {
+  ReleaseAchievementIcons();
+  ui::gfx::DestroyTexture(game_icon_);
+  game_icon_ = ImTextureID_Invalid;
+  for (ProfileGame& game : profile_games_) {
+    ui::gfx::DestroyTexture(game.picture);
+    game.picture = ImTextureID_Invalid;
+  }
+}
+
+void App::SetGameIcon(GameIcon icon) {
+  if (game_icon_ == ImTextureID_Invalid) {
+    game_icon_ = ui::gfx::CreateTexture(icon.picture.pixels.data(), icon.picture.width, icon.picture.height);
+  }
+  game_icon_png_ = std::move(icon.png);
+  // For the other launchers (once there is a store: RegisterThisGame writes it when the first profile makes one).
+  if (store_.found && !store_.read_only) {
+    profiles::SaveGameIcon(store_, game::kTitleId, game_icon_png_);
+  }
+}
+
+void App::GameLogo(const ImRect& rect, float mark_size) {
+  float rounding = game::kBrandRound ? 20.0f : 8.0f;
+  if (game_icon_ != ImTextureID_Invalid) {
+    DrawRoundedTexture(game_icon_, rect, rounding);
+    StrokeRect(rect, Fade(col::kText, 0.08f), rounding);
+    return;
+  }
+  FillRect(rect, col::kAccent, rounding);
+  DrawIcon(Icon::kBrand, ImVec2(rect.GetCenter().x - Px(mark_size) * 0.5f, rect.GetCenter().y - Px(mark_size) * 0.5f),
+           mark_size, col::kOnAccent, 2.0f);
 }
 
 void App::Changed() {
@@ -501,8 +542,7 @@ void App::Sidebar(const ImRect& rect) {
   float brand_height = std::max(Px(40.0f), block);
   ImRect logo(ImVec2(x + Px(8.0f), y + (brand_height - Px(40.0f)) * 0.5f),
               ImVec2(x + Px(48.0f), y + (brand_height + Px(40.0f)) * 0.5f));
-  FillRect(logo, col::kAccent, game::kBrandRound ? 20.0f : 8.0f);
-  DrawIcon(Icon::kBrand, ImVec2(logo.Min.x + Px(9.0f), logo.Min.y + Px(9.0f)), 22.0f, col::kOnAccent, 2.0f);
+  GameLogo(logo, 22.0f);
   float text_y = y + (brand_height - block) * 0.5f;
   DrawLabel(kBrandTitle, ImVec2(text_x, text_y), col::kText, brand_title, Px(20.0f));
   DrawParagraph(kBrandSubtitle, ImVec2(text_x, text_y + Px(25.0f)), text_width, 1.3f, col::kLabel, brand_subtitle);

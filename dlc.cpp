@@ -12,6 +12,7 @@
 #include <cstring>
 #include <cwchar>
 #include <fstream>
+#include <utility>
 
 #include "game.h"
 
@@ -27,6 +28,11 @@ constexpr size_t kDisplayNameOffset = 0x411;  // 18 languages of 0x80 bytes, UTF
 constexpr size_t kTitleNameOffset = 0x1691;   // 0x80 bytes, UTF-16
 constexpr size_t kNameBytes = 0x80;
 constexpr size_t kHeaderBytes = kTitleNameOffset + kNameBytes;
+// The thumbnails' sizes, then the thumbnail and the title thumbnail (PNG, at most 0x4000 bytes each).
+constexpr size_t kThumbnailSizesOffset = 0x1712;
+constexpr size_t kThumbnailOffset = 0x171A;
+constexpr size_t kTitleThumbnailOffset = 0x571A;
+constexpr size_t kThumbnailBytes = 0x4000;
 constexpr size_t kLanguages = 18;
 // A folder is searched this deep, and this many entries at most (a drive chosen by mistake).
 constexpr int kMaxDepth = 5;
@@ -57,6 +63,10 @@ std::string Utf16BeToUtf8(const uint8_t* p, size_t bytes) {
   return Utf8(wide);
 }
 
+bool IsPackage(const uint8_t* magic) {
+  return !std::memcmp(magic, "LIVE", 4) || !std::memcmp(magic, "PIRS", 4) || !std::memcmp(magic, "CON ", 4);
+}
+
 bool ReadPackage(const std::filesystem::path& path, DlcPackage& out) {
   std::error_code ec;
   if (!std::filesystem::is_regular_file(path, ec) || std::filesystem::file_size(path, ec) < kHeaderBytes) {
@@ -69,8 +79,7 @@ bool ReadPackage(const std::filesystem::path& path, DlcPackage& out) {
       return false;
     }
   }
-  if (std::memcmp(header.data(), "LIVE", 4) && std::memcmp(header.data(), "PIRS", 4) &&
-      std::memcmp(header.data(), "CON ", 4)) {
+  if (!IsPackage(header.data())) {
     return false;
   }
   out.path = path;
@@ -109,6 +118,27 @@ std::filesystem::path HeaderPath(const std::filesystem::path& exe_dir, const std
 }
 
 }  // namespace
+
+std::vector<uint8_t> PackageTitleThumbnail(const std::filesystem::path& path) {
+  std::vector<uint8_t> header(kTitleThumbnailOffset + kThumbnailBytes);
+  {
+    std::ifstream file(path, std::ios::binary);
+    if (!file.read(reinterpret_cast<char*>(header.data()), std::streamsize(header.size())) ||
+        !IsPackage(header.data())) {
+      return {};
+    }
+  }
+  static constexpr uint8_t kPng[] = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+  uint32_t thumbnail = ReadU32(&header[kThumbnailSizesOffset]);
+  uint32_t title_thumbnail = ReadU32(&header[kThumbnailSizesOffset + 4]);
+  for (auto [offset, size] : {std::pair<size_t, uint32_t>{kTitleThumbnailOffset, title_thumbnail},
+                              std::pair<size_t, uint32_t>{kThumbnailOffset, thumbnail}}) {
+    if (size > sizeof(kPng) && size <= kThumbnailBytes && !std::memcmp(&header[offset], kPng, sizeof(kPng))) {
+      return std::vector<uint8_t>(header.begin() + ptrdiff_t(offset), header.begin() + ptrdiff_t(offset + size));
+    }
+  }
+  return {};
+}
 
 std::filesystem::path GameUserDataFolder(const std::filesystem::path& exe_dir) {
   std::filesystem::path portable = exe_dir / L"userdata";

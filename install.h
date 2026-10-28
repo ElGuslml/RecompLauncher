@@ -17,6 +17,9 @@ namespace launcher {
 // The game's files are installed: assets\default.xex next to the launcher, the repository's assets\ of a
 // development build (the path the game itself falls back to), or a --game_data_root on the command line.
 bool GameInstalled(const std::filesystem::path& exe_dir);
+// The folder of the game's files: assets\ next to the launcher, or the repository's of a development build; empty if
+// neither has them.
+std::filesystem::path GameFilesFolder(const std::filesystem::path& exe_dir);
 
 struct IsoCheck {
   enum class Result {

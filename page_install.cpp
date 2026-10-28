@@ -165,10 +165,7 @@ void App::InstallArt(const ImRect& rect) {
     width = inner;
   }
   ImRect logo(ImVec2(x, y), ImVec2(x + logo_size, y + logo_size));
-  FillRect(logo, col::kAccent, game::kBrandRound ? 20.0f : 8.0f);
-  float icon_size = kBar ? 20.0f : 22.0f;
-  DrawIcon(Icon::kBrand, ImVec2(logo.GetCenter().x - Px(icon_size) * 0.5f, logo.GetCenter().y - Px(icon_size) * 0.5f),
-           icon_size, col::kOnAccent, 2.0f);
+  GameLogo(logo, kBar ? 20.0f : 22.0f);
   DrawLabel(kBrand, ImVec2(logo.Max.x + Px(12.0f), y), col::kTextMuted, t_.brand, logo_size);
   y += logo_size + (game::kInstallTitleCard ? logo_gap : Px(28.0f));
   DrawLabel(kKicker, ImVec2(x, y), col::kAccent, game::kArtKicker);

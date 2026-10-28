@@ -272,7 +272,7 @@ void App::ProfileSummary(ImVec2 pos, float width) {
       FillRect(card, col::kCard, 12.0f);
       float px = card.Min.x + Px(18.0f);
       float py = card.Min.y + Px(18.0f);
-      GameTile(ImVec2(px, py), 44.0f, game.info);
+      GameTile(ImVec2(px, py), 44.0f, game);
       // The completion ring, right.
       ImU32 accent = Accent(game.info);
       int percent = game.achievements ? Percent(*game.achievements) : 0;
@@ -466,7 +466,7 @@ void App::ProfileSummary(ImVec2 pos, float width) {
       if (n) {
         FillRect(ImRect(ImVec2(row.Min.x, row.Min.y), ImVec2(row.Max.x, row.Min.y + Px(1.0f))), col::kDivider);
       }
-      GameTile(ImVec2(row.Min.x, row.Min.y + Px(14.0f)), 36.0f, game.info);
+      GameTile(ImVec2(row.Min.x, row.Min.y + Px(14.0f)), 36.0f, game);
       std::string score = std::to_string(a.gamerscore) + " G";
       float score_width = MeasureText(kRowScore, score).x;
       DrawLabel(kRowScore, ImVec2(row.Max.x - score_width, row.Min.y), Accent(game.info), score, row_height);
@@ -537,7 +537,7 @@ void App::ProfileGames(ImVec2 pos, float width) {
     ProfileGame& game = profile_games_[n];
     ImRect card(ImVec2(x, y), ImVec2(x + width, y + row_height));
     FillRect(card, col::kCard, 12.0f);
-    GameTile(ImVec2(card.Min.x + Px(20.0f), card.Min.y + (row_height - Px(68.0f)) * 0.5f), 68.0f, game.info);
+    GameTile(ImVec2(card.Min.x + Px(20.0f), card.Min.y + (row_height - Px(68.0f)) * 0.5f), 68.0f, game);
     float tx = card.Min.x + Px(20.0f + 68.0f + 20.0f);
     // The buttons, right: Continue on the game played last, Play on the others whose launcher is there; then the
     // ring and the progress left of them.

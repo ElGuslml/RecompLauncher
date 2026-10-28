@@ -2,6 +2,17 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 2.5.0
+
+- The game's own icon, the one the Xbox 360 dashboard shows, in place of its mark: the sidebar's logo, the first
+  run's, and the game's tile in the profile pages. It is read from the player's files once the game is installed,
+  never carried by the launcher: the disc's `nxeart` package (its header's title thumbnail), else the one the game
+  writes with its achievements (`achievements\<title ID>\title.png`, the SDK's change 52, for discs without
+  `nxeart`). A list written before the game wrote its icon has the game asked once to write it again. Until then,
+  or for a game with neither, the mark on accent as before.
+- The icon goes to the store (`games\<title ID>\icon.png`), so that the other launchers show it on that game's tiles;
+  a game whose launcher has not left one there keeps its mark.
+
 ## 2.4.0
 
 - Playtime: the time from Play to the game's exit goes to the profile (`profiles\<id>\games\<title ID>.toml`: the

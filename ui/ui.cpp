@@ -571,6 +571,14 @@ void DrawTexture(ImTextureID texture, const ImRect& rect, bool circle) {
   }
 }
 
+void DrawRoundedTexture(ImTextureID texture, const ImRect& rect, float rounding_dp) {
+  if (texture == ImTextureID_Invalid) {
+    return;
+  }
+  List()->AddImageRounded(texture, Snap(rect.Min), Snap(rect.Max), ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE,
+                          Radius(rounding_dp));
+}
+
 namespace {
 
 struct FieldLimit {

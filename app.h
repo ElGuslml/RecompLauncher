@@ -75,7 +75,7 @@ class App {
   // The window, for the file dialog.
   void SetWindow(SDL_Window* window) { window_ = window; }
   const Texts& texts() const { return t_; }
-  // Before the graphics device goes: the achievement icons' textures.
+  // Before the graphics device goes: the achievement icons' and the games' icons' textures.
   void ReleaseTextures();
 
   // Play started the game (main.cpp): until its window shows, the launcher draws "Starting the game…" over its
@@ -168,17 +168,32 @@ class App {
   int achievement_filter_ = 0;
 
   // The achievements (achievements.h): read on a thread when the launcher opens, and once the first run has
-  // extracted the game; the game is asked to write their list when it is missing.
+  // extracted the game; the game is asked to write their list when it is missing. The game's icon with them.
+  struct AchievementsRead {
+    std::optional<Achievements> list;
+    std::optional<GameIcon> icon;
+  };
   void LoadAchievements();
   void PollAchievements();
+  void ReleaseAchievementIcons();
   // The icon of achievements_->items[index], made into a texture the first time it is drawn.
   ImTextureID AchievementIcon(size_t index);
   void AchievementsCard(const ImRect& rect, float link_y);
   uint32_t language_;
-  std::future<std::optional<Achievements>> achievements_loading_;
+  std::future<AchievementsRead> achievements_loading_;
   std::optional<Achievements> achievements_;
   std::vector<ImTextureID> achievement_icons_;
   bool achievements_requested_ = false;
+
+  // The game's icon (achievements.h's FindGameIcon): the sidebar's and the first run's logo, and the game's picture
+  // in the profile pages; until it is found, the game's mark on accent. A list the game wrote before it wrote its
+  // icon (an SDK before change 52) has the game asked once to write it again.
+  void SetGameIcon(GameIcon icon);
+  // The logo in `rect`: the icon, or the mark (`mark_size` dp) on accent.
+  void GameLogo(const ImRect& rect, float mark_size);
+  ImTextureID game_icon_ = ImTextureID_Invalid;
+  std::vector<uint8_t> game_icon_png_;  // for the profiles' store
+  bool game_icon_asked_ = false;
 
   // Updates (updater.h): checked on a thread when the launcher opens (if allowed) and on request.
   void CheckForUpdatesNow();
@@ -263,6 +278,8 @@ class App {
     std::optional<Achievements> achievements;  // nullopt: its list was not copied yet
     profiles::Playtime playtime;               // the current profile's
     std::vector<ImTextureID> icons;            // made the first time each is drawn
+    std::optional<Rgba> picture_pixels;        // the game's icon (info.picture), until it is made a texture
+    ImTextureID picture = ImTextureID_Invalid;
     bool current = false;                      // this launcher's game
     bool installed = false;                    // its launcher is where it last ran
     // When it was last played with this profile, or else when its launcher last ran.
@@ -309,8 +326,8 @@ class App {
   void SwitchProfile(const std::string& id);
   std::string UsedText(int64_t unix_time) const;    // "Usado ayer"
   std::string WhenText(int64_t unix_time) const;    // "hoy", "ayer", a date
-  // A game's mark on its accent, in a `size` dp square at `pos`.
-  void GameTile(ImVec2 pos, float size, const profiles::GameInfo& info);
+  // A game's icon, else its mark on its accent, in a `size` dp square at `pos`.
+  void GameTile(ImVec2 pos, float size, const ProfileGame& game);
   void SidebarProfileCard(const ImRect& rect);
   void ProfileMenu();
   void ProfilePage(const ImRect& rect);

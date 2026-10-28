@@ -4,7 +4,7 @@
 // time it starts (the SDK's achievement cache, rex/system/achievement_cache.h), next to the unlocks, in its user
 // data folder (userdata\ next to it, or Documents\<game::kDocumentsFolder> when that cannot be written):
 // - achievements\<TITLEID>.info.toml: every achievement in every language the game has, and its icon;
-// - achievements\<TITLEID>\<image id>.png: the icons, the game's own;
+// - achievements\<TITLEID>\<image id>.png: the icons, the game's own, and title.png, the game's (FindGameIcon);
 // - achievements\<TITLEID>.toml: the unlocks, with their times.
 // When the list is missing (the game has not run with this version yet, or was just installed), the game is asked
 // to write it and quit (--achievements_cache_only): about a second, with no window.
@@ -16,6 +16,8 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "picture.h"
 
 namespace launcher {
 
@@ -56,6 +58,20 @@ std::filesystem::path AchievementsFolder(const std::filesystem::path& exe_dir);
 
 // Starts the game to write the list, without a window, and waits for it (at most 30 s). False if it could not run.
 bool WriteAchievementList(const std::filesystem::path& exe_dir);
+
+// The game's own icon, the one the console's dashboard shows: the launcher's logo, and the game's picture in the
+// other launchers (the profiles' store keeps a copy, profile_store.h). The launcher does not carry it; it is read
+// from the player's files once the game is installed:
+// - the disc's nxeart package (the dashboard's art for the game): its header's title thumbnail;
+// - else the one the game writes with the list (the SDK's achievement cache: achievements\<TITLEID>\title.png, the
+//   XDBF's title image), for a disc without nxeart.
+// Until then, or for a game with neither, the launcher draws the game's mark (game.h's kBrandIcon).
+struct GameIcon {
+  std::vector<uint8_t> png;  // the file, as the game has it
+  Rgba picture;
+};
+// nullopt when neither is there (or cannot be read). Reads files: for a thread.
+std::optional<GameIcon> FindGameIcon(const std::filesystem::path& exe_dir);
 
 // A FILETIME as a date in local time, in the language's order ("15/10/2026", "10/15/2026", "15.10.2026").
 std::string FormatDate(uint64_t filetime, uint32_t language);

@@ -413,6 +413,9 @@ std::vector<GameInfo> Games(const Store& store) {
     game.version = (*table)["version"].value_or<std::string>("");
     game.seen = (*table)["seen"].value_or<int64_t>(0);
     game.folder = it->path();
+    if (fs::is_regular_file(game.folder / L"icon.png", ec)) {
+      game.picture = game.folder / L"icon.png";
+    }
     games.push_back(std::move(game));
   }
   return games;
@@ -432,6 +435,22 @@ bool RegisterGame(const Store& store, const GameInfo& game) {
                         "version = " + Quote(game.version) + "\n" +
                         "seen = " + std::to_string(game.seen) + "\n";
   return WriteWhole(store.root / L"games" / FromUtf8(title) / L"game.toml", content);
+}
+
+bool SaveGameIcon(const Store& store, uint32_t title_id, const std::vector<uint8_t>& png) {
+  if (store.read_only || store.root.empty() || !title_id || png.empty()) {
+    return false;
+  }
+  wchar_t title[16];
+  std::swprintf(title, std::size(title), L"%08X", title_id);
+  fs::path path = store.root / L"games" / title / L"icon.png";
+  std::string_view content(reinterpret_cast<const char*>(png.data()), png.size());
+  std::string existing;
+  {
+    std::ifstream file(path, std::ios::binary);
+    existing.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+  }
+  return existing == content || WriteWhole(path, content);
 }
 
 fs::path GameAchievementsFolder(const Store& store, uint32_t title_id) {

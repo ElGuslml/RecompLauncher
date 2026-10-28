@@ -139,6 +139,7 @@ void App::RegisterThisGame() {
   info.version = kVersion;
   info.seen = Now();
   profiles::RegisterGame(store_, info);
+  profiles::SaveGameIcon(store_, game::kTitleId, game_icon_png_);
   profiles::CopyAchievementList(store_, game::kTitleId, AchievementsFolder(exe_dir_));
 }
 
@@ -157,6 +158,9 @@ void App::LoadProfileGames() {
       game.achievements = LoadAchievementsFrom(profiles::GameAchievementsFolder(store, info.title_id), info.title_id,
                                                profiles::UnlocksFile(*profile, info.title_id), language);
       game.playtime = profiles::ReadPlaytime(profiles::PlaytimeFile(profile->folder, info.title_id));
+      if (!info.picture.empty()) {
+        game.picture_pixels = LoadPicture(info.picture);
+      }
       std::error_code ec;
       game.installed = !info.launcher.empty() && std::filesystem::is_regular_file(info.launcher, ec);
       game.info = std::move(info);
@@ -179,10 +183,16 @@ void App::PollProfileGames() {
     for (ImTextureID& icon : game.icons) {
       gfx::DestroyTexture(icon);
     }
+    gfx::DestroyTexture(game.picture);
   }
   profile_games_ = profile_games_loading_.get();
   for (ProfileGame& game : profile_games_) {
     game.icons.assign(game.achievements ? game.achievements->items.size() : 0, ImTextureID_Invalid);
+    if (game.picture_pixels) {
+      game.picture = gfx::CreateTexture(game.picture_pixels->pixels.data(), game.picture_pixels->width,
+                                        game.picture_pixels->height);
+      game.picture_pixels.reset();
+    }
   }
   if (profile_game_ >= profile_games_.size()) {
     profile_game_ = 0;
@@ -407,9 +417,17 @@ std::string App::UsedText(int64_t unix_time) const {
   return text;
 }
 
-void App::GameTile(ImVec2 pos, float size, const profiles::GameInfo& info) {
-  ImU32 accent = info.accent ? Rgb(info.accent) : col::kAccent;
+void App::GameTile(ImVec2 pos, float size, const ProfileGame& game) {
+  const profiles::GameInfo& info = game.info;
   ImRect tile(pos, ImVec2(pos.x + Px(size), pos.y + Px(size)));
+  // This launcher's own icon (found in this session), else the copy its launcher left in the store.
+  ImTextureID picture = game.current && game_icon_ != ImTextureID_Invalid ? game_icon_ : game.picture;
+  if (picture != ImTextureID_Invalid) {
+    DrawRoundedTexture(picture, tile, size * 0.22f);
+    StrokeRect(tile, Fade(col::kText, 0.08f), size * 0.22f);
+    return;
+  }
+  ImU32 accent = info.accent ? Rgb(info.accent) : col::kAccent;
   FillRect(tile, Mix(accent, col::kCard, 0.14f), size * 0.22f);
   float icon = size * 0.52f;
   ImVec2 at(pos.x + Px((size - icon) * 0.5f), pos.y + Px((size - icon) * 0.5f));

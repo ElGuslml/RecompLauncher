@@ -20,6 +20,8 @@
 
 #include "dlc.h"
 #include "game.h"
+#include "install.h"
+#include "picture.h"
 #include "profile_store.h"
 
 namespace launcher {
@@ -200,6 +202,25 @@ std::optional<Achievements> LoadAchievementsFrom(const std::filesystem::path& fo
     CoUninitialize();
   }
   return result;
+}
+
+std::optional<GameIcon> FindGameIcon(const std::filesystem::path& exe_dir) {
+  GameIcon icon;
+  if (std::filesystem::path game_files = GameFilesFolder(exe_dir); !game_files.empty()) {
+    icon.png = PackageTitleThumbnail(game_files / L"nxeart");
+  }
+  if (icon.png.empty()) {
+    wchar_t title[16];
+    std::swprintf(title, std::size(title), L"%08X", game::kTitleId);
+    std::ifstream file(AchievementsFolder(exe_dir) / title / L"title.png", std::ios::binary);
+    icon.png.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+  }
+  std::optional<Rgba> picture = DecodePicture(icon.png);
+  if (!picture) {
+    return std::nullopt;
+  }
+  icon.picture = std::move(*picture);
+  return icon;
 }
 
 bool WriteAchievementList(const std::filesystem::path& exe_dir) {
