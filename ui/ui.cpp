@@ -889,14 +889,14 @@ void DrawGlyph(PadButton button, ImVec2 pos, float size, bool on_accent) {
   };
   if (g_glyph_style == GlyphStyle::kKeyboard) {
     // A key cap.
-    FillRect(r, on_accent ? col::kOnAccent : Hex(0xFFFFFF, 31), size * 0.25f);
-    StrokeRect(r, on_accent ? col::kOnAccent : Hex(0xFFFFFF, 77), size * 0.25f);
+    FillRect(r, on_accent ? col::kGlyphOnAccent : Hex(0xFFFFFF, 31), size * 0.25f);
+    StrokeRect(r, on_accent ? col::kGlyphOnAccent : Hex(0xFFFFFF, 77), size * 0.25f);
     label(on_accent ? col::kAccent : col::kText);
     return;
   }
   if (!IsFaceButton(button)) {
     // A bumper or View: a pill.
-    FillRect(r, on_accent ? col::kOnAccent : col::kHintBumper, size * 0.5f);
+    FillRect(r, on_accent ? col::kGlyphOnAccent : col::kHintBumper, size * 0.5f);
     label(on_accent ? col::kAccent : col::kOnHintBumper);
     return;
   }
@@ -908,21 +908,21 @@ void DrawGlyph(PadButton button, ImVec2 pos, float size, bool on_accent) {
     // The symbol in its color on a dark disc.
     static constexpr Icon kIcons[] = {Icon::kPsCross, Icon::kPsCircle, Icon::kPsSquare, Icon::kPsTriangle};
     static constexpr ImU32 kColors[] = {Hex(0x7CB2E8), Hex(0xF07B6B), Hex(0xE6A4D7), Hex(0x5BC489)};
-    draw->AddCircleFilled(center, radius, on_accent ? col::kOnAccent : Hex(0x2E2E36), 32);
+    draw->AddCircleFilled(center, radius, on_accent ? col::kGlyphOnAccent : Hex(0x2E2E36), 32);
     float icon = size * 0.52f;
     DrawIcon(kIcons[i], ImVec2(center.x - Px(icon) * 0.5f, center.y - Px(icon) * 0.5f), icon, kColors[i],
              size >= 24.0f ? 2.4f : 2.8f);
     return;
   }
   if (g_glyph_style == GlyphStyle::kNintendo) {
-    draw->AddCircleFilled(center, radius, on_accent ? col::kOnAccent : Hex(0xE6E6EA), 32);
+    draw->AddCircleFilled(center, radius, on_accent ? col::kGlyphOnAccent : Hex(0xE6E6EA), 32);
     label(on_accent ? col::kAccent : Hex(0x1C1C21));
     return;
   }
   // An Xbox controller's: the letter on its color; inside an accent button, the color on dark.
   const ImU32 discs[] = {col::kGlyphA, col::kGlyphB, col::kGlyphX, col::kGlyphY};
   const ImU32 letters[] = {col::kOnGlyphA, col::kOnGlyphB, col::kOnGlyphX, col::kOnGlyphY};
-  draw->AddCircleFilled(center, radius, on_accent ? col::kOnAccent : discs[i], 32);
+  draw->AddCircleFilled(center, radius, on_accent ? col::kGlyphOnAccent : discs[i], 32);
   label(on_accent ? discs[i] : letters[i]);
 }
 
@@ -962,7 +962,7 @@ ButtonColors ColorsOf(ButtonKind kind) {
     case ButtonKind::kDanger:
       return {0, Fade(col::kError, 0.55f), col::kError, col::kError};
     case ButtonKind::kDonate:
-      return {col::kDonate, 0, col::kOnDonate, col::kOnDonate};
+      return {col::kDonate, 0, col::kOnDonate, col::kDonateIcon};
     case ButtonKind::kDisabled:
       return {col::kTrack, 0, col::kLabel, col::kLabel};
   }

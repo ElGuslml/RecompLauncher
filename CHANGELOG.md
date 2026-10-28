@@ -2,6 +2,16 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.2.0
+
+Two colors more in each game's palette (`launcher/palette.h`; every game's defines them), for a design whose accent
+buttons are written in white (GH Van Halen's mockup, "GHVanHalen Launcher"):
+
+- `col::kGlyphOnAccent`: the controller button's disc inside an accent button (PLAY, Choose a folder, Check for
+  updates), and the key cap or pill there. It was `kOnAccent`, the button's text; a game whose text on the accent is
+  dark sets it to `kOnAccent` and looks the same.
+- `col::kDonateIcon`: Donate's heart. It was `kOnDonate`, the button's text; likewise.
+
 ## 3.1.1
 
 - Settings: a click on a row's arrow steps its value at once; the mouse no longer needs the row started with A or

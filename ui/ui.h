@@ -179,7 +179,7 @@ enum class GlyphStyle { kXbox, kPlayStation, kNintendo, kKeyboard };
 void SetGlyphStyle(GlyphStyle style, const char* view = "View");
 GlyphStyle CurrentGlyphStyle();
 // A button's glyph, `size` dp high: a disc (a face button), a pill (a bumper, View) or a key cap; its width in pixels.
-// `on_accent`: inside an accent button, dark.
+// `on_accent`: inside an accent button, on col::kGlyphOnAccent.
 float GlyphWidth(PadButton button, float size);
 void DrawGlyph(PadButton button, ImVec2 pos, float size, bool on_accent = false);
 // The button pressed this frame: on a controller, or its key on the keyboard (not while text is being typed; Esc
@@ -192,7 +192,7 @@ enum class ButtonKind {
   kPrimary,    // accent
   kGhost,      // transparent, outlined
   kDanger,     // transparent, outlined and written in the error color (Delete profile)
-  kDonate,     // coral
+  kDonate,     // col::kDonate, written in kOnDonate, its icon in kDonateIcon
   kDisabled,   // the mockup's disabled primary (Continue, Extract before a valid ISO)
 };
 
