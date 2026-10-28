@@ -2,6 +2,11 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.1.1
+
+- Settings: a click on a row's arrow steps its value at once; the mouse no longer needs the row started with A or
+  Enter first (the row took the click: its arrows are drawn over it, and ImGui gave the click to the row).
+
 ## 3.1.0
 
 Singing, for a game that sets `game::kHasMicrophones` (Guitar Hero: Metallica; every game's `game.h` defines it,

@@ -501,6 +501,8 @@ void App::SettingsPage(const ImRect& rect) {
     }
     ImRect r(ImVec2(row_left, y), ImVec2(row_right, y + Px(68.0f)));
     ImGui::PushID(row.id.c_str());
+    // The row's arrows are drawn over it: a click on one steps the value at once (the mouse needs no A first).
+    ImGui::SetNextItemAllowOverlap();
     ItemState state = Item("##row", r);
     ImGuiID row_id = ImGui::GetItemID();
     bool focused = g.NavId == row_id && g.NavWindow == ImGui::GetCurrentWindow();
