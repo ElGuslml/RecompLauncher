@@ -479,6 +479,8 @@ struct Texts {
   const char* microphone_gain;
   const char* help_vocals_title;
   const char* help_vocals_text;
+  // Launcher 3.3: a controller's switch for its frets' strum (game::kKeyboardTapTarget).
+  const char* help_tip_gamepad_tap;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

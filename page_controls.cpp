@@ -549,6 +549,23 @@ float App::PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_Joystic
     }
     y += Px(6.0f);
   }
+  // Its frets strum as they are pressed (game.h's kKeyboardTapTarget, the SDK's gamepad_tap_target): one switch for
+  // every controller playing guitar, as the keyboard's on its page.
+  const game::GameTexts& own = game::GameTextsFor(language_);
+  if (*game::kKeyboardTapTarget && own.keyboard_tap_title && kind != SDL_JOYSTICK_TYPE_GUITAR &&
+      kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
+    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(44.0f)));
+    ImVec2 pos(r.Max.x - Px(6.0f) - Px(52.0f), r.GetCenter().y - Px(15.0f));
+    MappingRow(r, 0, own.keyboard_tap_title, pos.x - Px(14.0f), false);
+    ImGui::PushID("gamepad_tap");
+    if (Toggle("##toggle", pos, &settings_.o.gamepad_tap)) {
+      Changed();
+    }
+    ImGui::PopID();
+    if (!mapping_first_) mapping_first_ = ImGui::GetItemID();
+    mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
+    y += Px(44.0f) + Px(6.0f);
+  }
   for (int i = 0; i < int(rows.size()); ++i) {
     const Row& row = rows[size_t(i)];
     ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(44.0f)));
@@ -860,6 +877,7 @@ void App::ControlsPage(const ImRect& rect) {
       tips = {t_.help_tip_part};
     } else if (pad) {
       if (game::kHasMicrophones && !guitar && !drums) tips.push_back(t_.help_tip_part);
+      if (*game::kKeyboardTapTarget && !guitar && !drums) tips.push_back(t_.help_tip_gamepad_tap);
       // gamepad_remap keeps one layout per SDL type: a guitar and a drum kit are Xbox 360 controllers to it.
       tips.push_back(type == SDL_GAMEPAD_TYPE_XBOX360 ? t_.help_tip_shared_360 : t_.help_tip_same_type);
       tips.push_back(t_.help_tip_fixed);

@@ -363,6 +363,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
     o.binds[i] = it != c.end() ? it->second : DefaultKeys(i);
   }
   o.keyboard_tap = *game::kKeyboardTapTarget && !GetString(c, "mnk_tap_target").empty();
+  o.gamepad_tap = *game::kKeyboardTapTarget && !GetString(c, "gamepad_tap_target").empty();
 
   o.gamepad_remap = GetString(c, "gamepad_remap");
   if (game::kHasMicrophones) {
@@ -770,6 +771,7 @@ bool SaveOptions(const Settings& s) {
   f << "mnk_mouse = " << boolean(o.mnk_mouse) << "\n";
   if (*game::kKeyboardTapTarget) {
     f << "mnk_tap_target = \"" << (o.keyboard_tap ? game::kKeyboardTapTarget : "") << "\"\n";
+    f << "gamepad_tap_target = \"" << (o.gamepad_tap ? game::kKeyboardTapTarget : "") << "\"\n";
   }
   {
     char text[32];

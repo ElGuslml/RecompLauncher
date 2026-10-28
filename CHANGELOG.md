@@ -2,6 +2,12 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.3.0
+
+- Controls: a controller (not a guitar or a drum kit) has the keyboard's strum switch too, for a game with
+  `game::kKeyboardTapTarget`: its frets strum as they are pressed, one switch for every controller playing guitar
+  (the SDK's `gamepad_tap_target`, recomp change 57), with its tip in the help.
+
 ## 3.2.0
 
 Two colors more in each game's palette (`launcher/palette.h`; every game's defines them), for a design whose accent

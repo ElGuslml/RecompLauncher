@@ -464,6 +464,7 @@ const Texts kEnglish = {
     .microphone_gain = "Gain",
     .help_vocals_title = "The singer's controller",
     .help_vocals_text = "This controller sings: it moves through the menus and the pauses, and the microphone does the rest. Change its instrument to play with it again.",
+    .help_tip_gamepad_tap = "The strum switch makes each fret button strum as you press it, on every controller that plays guitar.",
 };
 
 const Texts kGerman = {
@@ -920,6 +921,7 @@ const Texts kGerman = {
     .microphone_gain = "Verstärkung",
     .help_vocals_title = "Der Controller des Sängers",
     .help_vocals_text = "Dieser Controller singt: Mit ihm bewegst du dich durch die Menüs und Pausen, das Mikrofon macht den Rest. Ändere sein Instrument, um wieder mit ihm zu spielen.",
+    .help_tip_gamepad_tap = "Der Anschlag-Schalter lässt jede Bundtaste beim Drücken anschlagen, bei jedem Controller, der Gitarre spielt.",
 };
 
 const Texts kFrench = {
@@ -1376,6 +1378,7 @@ const Texts kFrench = {
     .microphone_gain = "Gain",
     .help_vocals_title = "La manette du chanteur",
     .help_vocals_text = "Cette manette chante : elle sert aux menus et aux pauses, et le micro fait le reste. Change son instrument pour rejouer avec elle.",
+    .help_tip_gamepad_tap = "L'interrupteur de grattage fait gratter chaque bouton de frette quand tu l'appuies, sur chaque manette qui joue de la guitare.",
 };
 
 const Texts kSpanish = {
@@ -1832,6 +1835,7 @@ const Texts kSpanish = {
     .microphone_gain = "Ganancia",
     .help_vocals_title = "El control del cantante",
     .help_vocals_text = "Este control canta: con él te mueves por los menús y las pausas, y el micrófono hace el resto. Cambia su instrumento para volver a tocar con él.",
+    .help_tip_gamepad_tap = "El interruptor de rasgueo hace que cada botón de traste rasguee al presionarlo, en todos los controles que tocan guitarra.",
 };
 
 const Texts kItalian = {
@@ -2288,6 +2292,7 @@ const Texts kItalian = {
     .microphone_gain = "Guadagno",
     .help_vocals_title = "Il controller di chi canta",
     .help_vocals_text = "Questo controller canta: con esso ti muovi nei menu e nelle pause, e il microfono fa il resto. Cambia il suo strumento per tornare a suonare con esso.",
+    .help_tip_gamepad_tap = "L'interruttore della plettrata fa plettrare ogni tasto della chitarra quando lo premi, su ogni controller che suona la chitarra.",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.
