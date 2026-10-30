@@ -2,6 +2,13 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.5.0
+
+- Settings > Graphics > V-Sync on also writes the SDK's `vblank_follows_display` (recomp change 61): the game's
+  vertical blank follows the monitor's, so the game never runs ahead of the display; NativeXRenderer's "vsync" is FIFO
+  (D107). Measured in GH Metallica at 160 FPS on a 160 Hz display: 4 ms from present to display, no frame dropped,
+  where NVIDIA's MAILBOX queued three frames (16-19 ms). Its help text says the game runs in step with the screen.
+
 ## 3.4.0
 
 Every game's `game.h` defines `game::kHasWhammy` (`false` where the game has no whammy bar).

@@ -695,15 +695,17 @@ bool SaveOptions(const Settings& s) {
   f << "draw_resolution_scale_x = " << scale.first << "\n";
   f << "draw_resolution_scale_y = " << scale.second << "\n";
   f << "gpu_backend = \"" << (o.vulkan ? "vulkan" : "d3d12") << "\"\n";
-  // V-Sync: no tearing (NativeXRenderer's MAILBOX, else FIFO; the SDK's Direct3D 12 presenter without its tearing
-  // flag, its Vulkan one without IMMEDIATE and FIFO_RELAXED), or each frame shown as it is ready (tearing; a G-Sync or
-  // FreeSync monitor follows the game).
+  // V-Sync: each frame shown once, never torn (NativeXRenderer's FIFO, D107; the SDK's Direct3D 12 presenter without
+  // its tearing flag, its Vulkan one without IMMEDIATE and FIFO_RELAXED), the game's vertical blank following the
+  // monitor's (the SDK's vblank_follows_display, recomp change 61: the game never runs ahead of the display and its
+  // frames do not queue); or each frame shown as it is ready (tearing; a G-Sync or FreeSync monitor follows the game).
   if (game::kHasNativeXRenderer) {
     f << "native_x_renderer_present_mode = \"" << (o.vsync ? "vsync" : "immediate") << "\"\n";
   }
   f << "d3d12_allow_variable_refresh_rate_and_tearing = " << boolean(!o.vsync) << "\n";
   f << "vulkan_allow_present_mode_immediate = " << boolean(!o.vsync) << "\n";
   f << "vulkan_allow_present_mode_fifo_relaxed = " << boolean(!o.vsync) << "\n";
+  f << "vblank_follows_display = " << boolean(o.vsync) << "\n";
   // The game's own options (game.h).
   if (*game::kFrameRateCvar) {
     // 60 FPS (src/framerate.cpp), or the emulated vblank's rate the game follows.

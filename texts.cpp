@@ -86,7 +86,7 @@ const Texts kEnglish = {
     .api_hint = "Vulkan has been tested less than DirectX 12 with Xenos.",
     .vsync = "V-Sync",
     .vsync_hint = "No tearing in the image.",
-    .vsync_help = "On: the image never tears; each refresh of the screen shows the newest finished frame. Off: each frame appears as soon as it is ready, which can tear the image; for G-Sync or FreeSync monitors.",
+    .vsync_help = "On: the image never tears and the game runs in step with your screen, each frame shown once. Off: each frame appears as soon as it is ready, which can tear the image; for G-Sync or FreeSync monitors.",
 
     .mnk = "Play with keyboard and mouse",
     .mnk_hint = "They work as player 1's controller, together with a connected one.",
@@ -554,7 +554,7 @@ const Texts kGerman = {
     .api_hint = "Vulkan ist mit Xenos weniger getestet als DirectX 12.",
     .vsync = "V-Sync",
     .vsync_hint = "Kein Tearing im Bild.",
-    .vsync_help = "Ein: Das Bild zerreißt nie; jede Bildwiederholung zeigt das neueste fertige Bild. Aus: Jedes Bild erscheint, sobald es fertig ist, was das Bild zerreißen kann; für Monitore mit G-Sync oder FreeSync.",
+    .vsync_help = "Ein: Das Bild zerreißt nie und das Spiel läuft im Takt deines Bildschirms, jedes Bild wird einmal gezeigt. Aus: Jedes Bild erscheint, sobald es fertig ist, was das Bild zerreißen kann; für Monitore mit G-Sync oder FreeSync.",
 
     .mnk = "Mit Tastatur und Maus spielen",
     .mnk_hint = "Sie dienen als Controller von Spieler 1, zusammen mit einem angeschlossenen.",
@@ -1022,7 +1022,7 @@ const Texts kFrench = {
     .api_hint = "Vulkan a été moins testé que DirectX 12 avec Xenos.",
     .vsync = "V-Sync",
     .vsync_hint = "Pas de déchirement de l'image.",
-    .vsync_help = "Activé : l'image ne se déchire jamais ; chaque rafraîchissement de l'écran affiche la dernière image terminée. Désactivé : chaque image s'affiche dès qu'elle est prête, ce qui peut déchirer l'image ; pour les écrans G-Sync ou FreeSync.",
+    .vsync_help = "Activé : l'image ne se déchire jamais et le jeu suit le rythme de votre écran, chaque image affichée une fois. Désactivé : chaque image s'affiche dès qu'elle est prête, ce qui peut déchirer l'image ; pour les écrans G-Sync ou FreeSync.",
 
     .mnk = "Jouer au clavier et à la souris",
     .mnk_hint = "Ils servent de manette au joueur 1, avec une manette branchée.",
@@ -1490,7 +1490,7 @@ const Texts kSpanish = {
     .api_hint = "Vulkan está menos probado que DirectX 12 con Xenos.",
     .vsync = "V-Sync",
     .vsync_hint = "Sin cortes (tearing) en la imagen.",
-    .vsync_help = "Activado: la imagen nunca se corta; en cada refresco de la pantalla se ve el último cuadro terminado. Desactivado: cada cuadro aparece en cuanto está listo, lo que puede cortar la imagen; para monitores con G-Sync o FreeSync.",
+    .vsync_help = "Activado: la imagen nunca se corta y el juego va al ritmo de tu pantalla, cada cuadro se muestra una vez. Desactivado: cada cuadro aparece en cuanto está listo, lo que puede cortar la imagen; para monitores con G-Sync o FreeSync.",
 
     .mnk = "Jugar con teclado y ratón",
     .mnk_hint = "Hacen de mando del jugador 1, junto con un mando conectado.",
@@ -1958,7 +1958,7 @@ const Texts kItalian = {
     .api_hint = "Vulkan è meno collaudato di DirectX 12 con Xenos.",
     .vsync = "V-Sync",
     .vsync_hint = "Nessuno strappo nell'immagine.",
-    .vsync_help = "Attivato: l'immagine non si strappa mai; a ogni aggiornamento dello schermo si vede l'ultimo fotogramma finito. Disattivato: ogni fotogramma appare appena è pronto, il che può strappare l'immagine; per monitor G-Sync o FreeSync.",
+    .vsync_help = "Attivato: l'immagine non si strappa mai e il gioco segue il ritmo del tuo schermo, ogni fotogramma mostrato una volta. Disattivato: ogni fotogramma appare appena è pronto, il che può strappare l'immagine; per monitor G-Sync o FreeSync.",
 
     .mnk = "Gioca con tastiera e mouse",
     .mnk_hint = "Fanno da controller del giocatore 1, insieme a un controller collegato.",

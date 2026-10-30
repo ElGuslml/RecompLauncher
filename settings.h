@@ -92,8 +92,9 @@ struct Options {
   bool no_msaa = false;                    // game::kNoMsaaCvar (src/msaa.cpp)
   int anisotropic = 5;                     // anisotropic_override (SDK): 5 = 16x, 4 = 8x, 3 = 4x, 2 = 2x, 0 = off
   bool vulkan = false;                     // gpu_backend = "vulkan" (otherwise "d3d12")
-  // V-Sync: frames never torn (NativeXRenderer's present mode "vsync", D106: MAILBOX, else FIFO; the SDK's presenters
-  // without their tearing modes), or each shown as it is ready ("immediate": IMMEDIATE, tearing).
+  // V-Sync: frames shown once, never torn (NativeXRenderer's present mode "vsync", D107: FIFO; the SDK's presenters
+  // without their tearing modes; the game's vertical blank following the monitor's, vblank_follows_display), or each
+  // shown as it is ready ("immediate": IMMEDIATE, tearing).
   bool vsync = true;
   bool native = game::kHasNativeXRenderer && game::kNativeXRendererDefault;  // native_x_renderer: NativeXRenderer draws
   // native_x_renderer_antialiasing: a NativeAntialiasing, or kNativeAntialiasingCount for the experimental mode
