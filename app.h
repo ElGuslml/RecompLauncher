@@ -72,7 +72,7 @@ class App {
   // Something is changing on screen (a key being assigned, a message): keep drawing.
   bool Busy() const;
   // A key is being assigned: the controller does not navigate meanwhile (B cancels).
-  bool Listening() const { return listen_bind_ >= 0 || pad_listen_ >= 0; }
+  bool Listening() const { return listen_bind_ >= 0 || pad_listen_ >= 0 || WhammyCalibrating(); }
   // A controller button was just assigned: the controller does nothing until its buttons are up.
   bool GamepadLocked() const { return pad_release_wait_; }
   Settings& settings() { return settings_; }
@@ -136,8 +136,15 @@ class App {
   // scrolling region at `origin` (pixels), `width` wide: a controller's (page_controls.cpp) or the keyboard's
   // (page_keyboard.cpp). Each returns their height.
   void ControlsPage(const ImRect& rect);
-  // `part_key`: the controller's identity in gamepad_device_subtypes (PadKey), for its part's row.
-  float PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_JoystickType kind, const std::string& part_key);
+  // The controller `id`'s rows: its layout is its own (gamepad_device_remap, by its PadKey); `with_part`: its part's
+  // row too (singing).
+  float PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadType type, SDL_JoystickType kind,
+                bool with_part);
+  // The whammy bar's row (game::kHasWhammy): how far the game reads it, and its calibration.
+  float WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickType kind);
+  bool WhammyCalibrating() const {
+    return whammy_cal_.step == WhammyCalibration::kHold || whammy_cal_.step == WhammyCalibration::kRelease;
+  }
   float KeyRows(ImVec2 origin, float width);
   // Singing (game::kHasMicrophones, page_microphone.cpp): the microphone's rows, a controller's part row (`key`: its
   // PadKey, or "keyboard"), the microphone's status in the devices list (with its dot's color), who sings (the
@@ -147,7 +154,8 @@ class App {
   std::string MicStatus(ImU32* dot);
   std::string SingersText();
   bool Sings(const std::string& key) const;
-  // A controller's identity in gamepad_device_subtypes, as the SDK's: its serial number, else its GUID.
+  // A controller's identity in gamepad_device_subtypes and gamepad_device_remap, as the SDK's: its serial number, else
+  // its GUID.
   const std::string& PadKey(SDL_JoystickID id);
   void UpdateMicMeter();
   void CloseMicMeter();
@@ -212,8 +220,34 @@ class App {
   // The Controls tab's controllers.
   SDL_JoystickID selected_device_ = 0;  // the controller picked; while it is not connected, the first one
   bool keyboard_selected_ = false;      // the keyboard was picked instead
-  SDL_GamepadType pad_type_ = SDL_GAMEPAD_TYPE_UNKNOWN;  // the chosen controller's type: its layout is edited
+  SDL_GamepadType pad_type_ = SDL_GAMEPAD_TYPE_UNKNOWN;  // the chosen controller's type
   int pad_listen_ = -1;  // the control waiting for a button, or -1
+  SDL_JoystickID pad_listen_id_ = 0;  // the controller it waits on
+  // Each trigger (left, right) was released when the wait began: only then can it be the button pressed.
+  std::array<bool, 2> pad_trigger_free_{};
+  // The whammy bar's calibration (page_controls.cpp): pushed all the way and held (the axis that moved and stayed, its
+  // value there), then let go (its value at rest); the result shown for a moment. SDL's six axes, each one's value where
+  // the step began and where it has stayed since `still_since`.
+  struct WhammyCalibration {
+    enum Step { kOff, kHold, kRelease, kDone, kFailed } step = kOff;
+    SDL_JoystickID id = 0;
+    std::chrono::steady_clock::time_point since;
+    std::array<int, 6> start{};
+    std::array<int, 6> still{};
+    std::array<std::chrono::steady_clock::time_point, 6> still_since{};
+    int axis = -1;
+    int full = 0;
+  };
+  WhammyCalibration whammy_cal_;
+  // Where each controller's right stick's X rests, as the SDK judges it (change 60): 1 a stick (its middle), 2 a whammy
+  // bar (-32768: a guitar that reports itself as a gamepad), 0 not known yet.
+  struct RightXRest {
+    int still = 0;
+    std::chrono::steady_clock::time_point since;
+    int kind = 0;
+    bool moved = false;  // it has read other than 0 (an Xbox 360 guitar's bar reads 0 until it first moves)
+  };
+  std::map<SDL_JoystickID, RightXRest> right_x_rest_;
   bool pad_release_wait_ = false;
   std::map<SDL_JoystickID, std::string> pad_keys_;  // PadKey's, by controller
 

@@ -3,10 +3,11 @@
 // game's functions, or each Xbox 360 control, and what presses it; the microphone's device) and its help on the right,
 // with Reset. Every change is saved at once.
 //
-// A controller's mapping is the SDK's gamepad_remap (recomp change 36,
-// thirdparty/rexglue-sdk/src/input/sdl/sdl_input_driver.cpp): one layout per type of controller, kept in the options
-// file, applied by the game to every controller of that type. The names, the standard layout and the order sections
-// apply in are the SDK's, repeated here. The keyboard's rows are page_keyboard.cpp's.
+// A controller's mapping is its own: the SDK's gamepad_device_remap (recomp change 59,
+// thirdparty/rexglue-sdk/src/input/sdl/sdl_input_driver.cpp), a section per controller named by its serial number or
+// GUID (PadKey), applied after gamepad_remap's sections for its type (change 36: one layout per type of controller,
+// as launchers before 3.4 kept them, still read). The names, the standard layout and the order sections apply in are
+// the SDK's, repeated here. The keyboard's rows are page_keyboard.cpp's.
 
 #include <SDL3/SDL_gamepad.h>
 #include <SDL3/SDL_joystick.h>
@@ -16,8 +17,10 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -124,7 +127,26 @@ std::string_view SectionType(std::string_view section) {
   return colon == std::string_view::npos ? std::string_view() : Trim(section.substr(0, colon));
 }
 
-// The sources of each control for `type`: the standard layout, then the '*' sections, then (with
+// Moves the controls a section lists ("control=input|input,...") onto their inputs.
+void ApplyEntries(std::string_view entries, Sources& sources) {
+  ForEachPiece(entries, ',', [&](std::string_view entry) {
+    size_t equals = entry.find('=');
+    if (equals == std::string_view::npos) return;
+    std::string_view control = Trim(entry.substr(0, equals));
+    auto c = std::find_if(std::begin(kControlNames), std::end(kControlNames),
+                          [&](const char* name) { return EqualsCI(control, name); });
+    if (c == std::end(kControlNames)) return;
+    uint64_t mask = 0;
+    ForEachPiece(entry.substr(equals + 1), '|', [&](std::string_view input) {
+      auto i = std::find_if(std::begin(kInputNames), std::end(kInputNames),
+                            [&](const InputName& n) { return EqualsCI(input, n.name); });
+      if (i != std::end(kInputNames)) mask |= Bit(i->input);
+    });
+    sources[size_t(c - std::begin(kControlNames))] = mask;
+  });
+}
+
+// The sources of each control for `type`: the standard layout, then gamepad_remap's '*' sections, then (with
 // `with_type`) the sections of `type`.
 Sources SourcesFor(std::string_view text, std::string_view type, bool with_type) {
   Sources sources = kDefaultSources;
@@ -134,29 +156,14 @@ Sources SourcesFor(std::string_view text, std::string_view type, bool with_type)
       if (section_type.empty() || !(pass == 0 ? section_type == "*" : EqualsCI(section_type, type))) {
         return;
       }
-      ForEachPiece(section.substr(section.find(':') + 1), ',', [&](std::string_view entry) {
-        size_t equals = entry.find('=');
-        if (equals == std::string_view::npos) return;
-        std::string_view control = Trim(entry.substr(0, equals));
-        auto c = std::find_if(std::begin(kControlNames), std::end(kControlNames),
-                              [&](const char* name) { return EqualsCI(control, name); });
-        if (c == std::end(kControlNames)) return;
-        uint64_t mask = 0;
-        ForEachPiece(entry.substr(equals + 1), '|', [&](std::string_view input) {
-          auto i = std::find_if(std::begin(kInputNames), std::end(kInputNames),
-                                [&](const InputName& n) { return EqualsCI(input, n.name); });
-          if (i != std::end(kInputNames)) mask |= Bit(i->input);
-        });
-        sources[size_t(c - std::begin(kControlNames))] = mask;
-      });
+      ApplyEntries(section.substr(section.find(':') + 1), sources);
     });
   }
   return sources;
 }
 
-// gamepad_remap with `type`'s sections replaced by one holding what `sources` changes from the rest.
-std::string WithLayout(std::string_view text, std::string_view type, const Sources& sources) {
-  Sources base = SourcesFor(text, type, false);
+// The entries that give `sources` from `base`: "control=input|input,...".
+std::string EntriesFrom(const Sources& sources, const Sources& base) {
   std::string entries;
   for (int c = 0; c < kControls; ++c) {
     if (sources[size_t(c)] == base[size_t(c)]) continue;
@@ -166,13 +173,89 @@ std::string WithLayout(std::string_view text, std::string_view type, const Sourc
     }
     entries += (entries.empty() ? "" : ",") + std::string(kControlNames[c]) + "=" + inputs;
   }
+  return entries;
+}
+
+// gamepad_device_remap's section of the controller `key`: its name is cut at the section's last ':' (the entries
+// have none; a serial number may).
+bool IsSectionOf(std::string_view section, std::string_view key) {
+  size_t colon = section.rfind(':');
+  return colon != std::string_view::npos && EqualsCI(Trim(section.substr(0, colon)), key);
+}
+
+// A controller's layout: its type's (gamepad_remap), then its own section of gamepad_device_remap (`device_text`).
+Sources DeviceSources(std::string_view text, std::string_view device_text, std::string_view type,
+                      std::string_view key) {
+  Sources sources = SourcesFor(text, type, true);
+  ForEachPiece(device_text, ';', [&](std::string_view section) {
+    if (IsSectionOf(section, key)) ApplyEntries(section.substr(section.rfind(':') + 1), sources);
+  });
+  return sources;
+}
+
+// gamepad_device_remap with the controller `key`'s section replaced by one holding what `sources` changes from `base`
+// (its type's layout); none when nothing does.
+std::string WithDeviceLayout(std::string_view device_text, std::string_view key, const Sources& sources,
+                             const Sources& base) {
+  std::string entries = EntriesFrom(sources, base);
   std::string out;
-  ForEachPiece(text, ';', [&](std::string_view section) {
-    if (section.empty() || EqualsCI(SectionType(section), type)) return;
+  ForEachPiece(device_text, ';', [&](std::string_view section) {
+    if (section.empty() || IsSectionOf(section, key)) return;
     out += (out.empty() ? "" : ";") + std::string(section);
   });
   if (!entries.empty()) {
-    out += (out.empty() ? "" : ";") + std::string(type) + ":" + entries;
+    out += (out.empty() ? "" : ";") + std::string(key) + ":" + entries;
+  }
+  return out;
+}
+
+// A trigger is the input pressed only from released (under 10 %) to nearly all the way (over 90 %).
+constexpr Sint16 kTriggerFree = 3277;
+constexpr Sint16 kTriggerPressed = 29491;
+
+// --- The whammy bar (game::kHasWhammy): the SDK's gamepad_whammy_calibration (recomp change 60) ---
+
+constexpr const char* kAxisNames[] = {"lx", "ly", "rx", "ry", "lt", "rt"};  // SDL_GamepadAxis's order, the SDK's names
+
+// An axis's span of values: a stick's -32768 to 32767, a trigger's 0 to 32767.
+double AxisSpan(int axis) { return axis < SDL_GAMEPAD_AXIS_LEFT_TRIGGER ? 65535.0 : 32767.0; }
+
+struct WhammyEntry {
+  int axis = -1;  // -1: not calibrated
+  int rest = 0;
+  int full = 0;
+};
+
+// gamepad_whammy_calibration's entry for the controller `key` ("key=axis:rest:full"; the key is cut at the entry's
+// last '=').
+WhammyEntry WhammyEntryOf(std::string_view text, std::string_view key) {
+  WhammyEntry found;
+  ForEachPiece(text, ',', [&](std::string_view entry) {
+    size_t equals = entry.rfind('=');
+    if (equals == std::string_view::npos || !EqualsCI(Trim(entry.substr(0, equals)), key)) return;
+    std::string value(Trim(entry.substr(equals + 1)));
+    char axis[3] = {};
+    WhammyEntry e;
+    if (std::sscanf(value.c_str(), "%2[a-z]:%d:%d", axis, &e.rest, &e.full) != 3 || e.rest == e.full) return;
+    for (int i = 0; i < int(std::size(kAxisNames)); ++i) {
+      if (std::string_view(axis) == kAxisNames[i]) e.axis = i;
+    }
+    if (e.axis >= 0) found = e;
+  });
+  return found;
+}
+
+// gamepad_whammy_calibration with the controller `key`'s entry replaced by `value` ("axis:rest:full"), or without it
+// when `value` is empty.
+std::string WithWhammyEntry(std::string_view text, std::string_view key, const std::string& value) {
+  std::string out;
+  ForEachPiece(text, ',', [&](std::string_view entry) {
+    size_t equals = entry.rfind('=');
+    if (entry.empty() || (equals != std::string_view::npos && EqualsCI(Trim(entry.substr(0, equals)), key))) return;
+    out += (out.empty() ? "" : ",") + std::string(entry);
+  });
+  if (!value.empty()) {
+    out += (out.empty() ? "" : ",") + std::string(key) + "=" + value;
   }
   return out;
 }
@@ -453,22 +536,53 @@ bool ClearPressed(const ItemState& state) {
          (state.hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right));
 }
 bool App::OnPadCapture(const SDL_Event& event) {
+  // The whammy bar's calibration: Esc, B or a click cancels it; no other key, button or click is taken meanwhile.
+  if (WhammyCalibrating()) {
+    switch (event.type) {
+      case SDL_EVENT_KEY_DOWN:
+        if (event.key.scancode == SDL_SCANCODE_ESCAPE) whammy_cal_.step = WhammyCalibration::kOff;
+        return true;
+      case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        if (event.gbutton.button == SDL_GAMEPAD_BUTTON_EAST) {
+          whammy_cal_.step = WhammyCalibration::kOff;
+          pad_release_wait_ = true;  // B, still held, must not go back a page
+        }
+        return true;
+      case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        whammy_cal_.step = WhammyCalibration::kOff;
+        return true;
+      case SDL_EVENT_GAMEPAD_BUTTON_UP:
+      case SDL_EVENT_KEY_UP:
+      case SDL_EVENT_TEXT_INPUT:
+      case SDL_EVENT_MOUSE_BUTTON_UP:
+        return true;
+      default:
+        return false;
+    }
+  }
   if (pad_listen_ < 0) {
     return false;
   }
   switch (event.type) {
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
-      // Only a controller of the type being edited.
-      if (SDL_GetGamepadTypeForID(event.gbutton.which) == pad_type_) {
+      // Only the controller being edited.
+      if (event.gbutton.which == pad_listen_id_) {
         AssignPad(event.gbutton.button);
       }
       return true;
-    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
-      if ((event.gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || event.gaxis.axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) &&
-          event.gaxis.value > 16000 && SDL_GetGamepadTypeForID(event.gaxis.which) == pad_type_) {
-        AssignPad(event.gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER ? kInputLeftTrigger : kInputRightTrigger);
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
+      // A trigger counts when it was released as the wait began and is then pressed nearly all the way: an Xbox 360
+      // Guitar Hero guitar's accelerometer is on its triggers, at half when still and at either end as the guitar
+      // turns, and a trigger that rests pressed only ever leaves the end.
+      int trigger = event.gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER    ? 0
+                    : event.gaxis.axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER ? 1
+                                                                         : -1;
+      if (trigger >= 0 && event.gaxis.which == pad_listen_id_ && pad_trigger_free_[size_t(trigger)] &&
+          event.gaxis.value > kTriggerPressed) {
+        AssignPad(trigger == 0 ? kInputLeftTrigger : kInputRightTrigger);
       }
       return true;
+    }
     case SDL_EVENT_KEY_DOWN:
       if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
         StopListening();
@@ -490,9 +604,10 @@ bool App::OnPadCapture(const SDL_Event& event) {
 // The input pressed for the control being assigned. A button another control had moves over to it: the two
 // swap, so every control stays on some button.
 void App::AssignPad(int input) {
-  std::string type = TypeKey(pad_type_);
-  std::string& remap = settings_.o.gamepad_remap;
-  Sources sources = SourcesFor(remap, type, true);
+  std::string type = TypeKey(SDL_GetGamepadTypeForID(pad_listen_id_));
+  const std::string key = PadKey(pad_listen_id_);
+  const std::string& remap = settings_.o.gamepad_remap;
+  Sources sources = DeviceSources(remap, settings_.o.device_remap, type, key);
   int control = pad_listen_;
   int old = PrimaryInput(sources[size_t(control)]);
   if (sources[size_t(control)] != Bit(input)) {
@@ -509,18 +624,19 @@ void App::AssignPad(int input) {
         sources[size_t(c)] = base[size_t(c)];
       }
     }
-    remap = WithLayout(remap, type, sources);
+    settings_.o.device_remap = WithDeviceLayout(settings_.o.device_remap, key, sources, SourcesFor(remap, type, true));
     Changed();
   }
   StopListening();
   pad_release_wait_ = true;
 }
 
-float App::PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_JoystickType kind,
-                   const std::string& part_key) {
+float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadType type, SDL_JoystickType kind,
+                   bool with_part) {
   std::string type_key = TypeKey(type);
-  std::string& remap = settings_.o.gamepad_remap;
-  Sources sources = SourcesFor(remap, type_key, true);
+  const std::string key = PadKey(id);
+  const std::string& remap = settings_.o.gamepad_remap;
+  Sources sources = DeviceSources(remap, settings_.o.device_remap, type_key, key);
   // The game's functions (game.h) on any controller but a drum kit, whose pads are other functions; else the Xbox 360
   // controller's buttons.
   const std::vector<game::GameControlGroup>& functions = game::GameControlsFor(language_);
@@ -541,10 +657,10 @@ float App::PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_Joystic
   constexpr ImU32 kGlyphColors[] = {col::kGlyphA, col::kGlyphB, col::kGlyphX, col::kGlyphY};
   float y = origin.y;
   // What it plays (page_microphone.cpp): a gamepad can sing; a guitar and a drum kit play their own.
-  if (!part_key.empty() && kind != SDL_JOYSTICK_TYPE_GUITAR && kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
-    y += PartRow(ImVec2(origin.x, y), width, part_key);
+  if (with_part && kind != SDL_JOYSTICK_TYPE_GUITAR && kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
+    y += PartRow(ImVec2(origin.x, y), width, key);
     // A controller that sings has no frets to assign.
-    if (Sings(part_key)) {
+    if (Sings(key)) {
       return y - origin.y;
     }
     y += Px(6.0f);
@@ -565,6 +681,10 @@ float App::PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_Joystic
     if (!mapping_first_) mapping_first_ = ImGui::GetItemID();
     mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
     y += Px(44.0f) + Px(6.0f);
+  }
+  // The whammy bar: a guitar's, or that of a controller playing guitar (a drum kit has none).
+  if (game::kHasWhammy && kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
+    y += WhammyRow(ImVec2(origin.x, y), width, id, kind);
   }
   for (int i = 0; i < int(rows.size()); ++i) {
     const Row& row = rows[size_t(i)];
@@ -606,16 +726,146 @@ float App::PadRows(ImVec2 origin, float width, SDL_GamepadType type, SDL_Joystic
       StopListening();
       if (!listening) {
         pad_listen_ = row.control;
+        pad_listen_id_ = id;
+        SDL_Gamepad* gamepad = SDL_GetGamepadFromID(id);
+        pad_trigger_free_ = {gamepad && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) < kTriggerFree,
+                             gamepad && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) < kTriggerFree};
       }
     } else if (row.control >= 0 && !listening && input >= 0 && ClearPressed(state)) {
       // Cleared: no button presses it.
       sources[size_t(row.control)] = 0;
-      remap = WithLayout(remap, type_key, sources);
+      settings_.o.device_remap =
+          WithDeviceLayout(settings_.o.device_remap, key, sources, SourcesFor(remap, type_key, true));
       Changed();
     }
     y += Px(44.0f) + Px(6.0f);
   }
   return y - Px(6.0f) - origin.y;
+}
+
+float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickType kind) {
+  using Clock = std::chrono::steady_clock;
+  using namespace std::chrono_literals;
+  const Clock::time_point now = Clock::now();
+  const std::string key = PadKey(id);
+  SDL_Gamepad* gamepad = SDL_GetGamepadFromID(id);
+  std::array<int, 6> axes{};
+  for (int a = 0; a < 6; ++a) {
+    axes[size_t(a)] = gamepad ? SDL_GetGamepadAxis(gamepad, SDL_GamepadAxis(a)) : 0;
+  }
+
+  // The calibration: pushed all the way and held, then let go. Where each axis has stayed, and since when.
+  WhammyCalibration& cal = whammy_cal_;
+  const bool mine = cal.id == id && cal.step != WhammyCalibration::kOff;
+  if (mine && WhammyCalibrating()) {
+    for (size_t a = 0; a < 6; ++a) {
+      if (std::abs(axes[a] - cal.still[a]) > 1024) {
+        cal.still[a] = axes[a];
+        cal.still_since[a] = now;
+      }
+    }
+    if (cal.step == WhammyCalibration::kHold) {
+      // All the way: an axis 40 % of its span from where it began, still for 0.8 s. The right stick's X first: a
+      // guitar's tilt, on another axis, may move with the bar.
+      double best = 0.0;
+      for (size_t a = 0; a < 6; ++a) {
+        double moved = std::abs(cal.still[a] - cal.start[a]) / AxisSpan(int(a));
+        double rank = moved + (a == SDL_GAMEPAD_AXIS_RIGHTX ? 1.0 : 0.0);
+        if (moved >= 0.4 && now - cal.still_since[a] >= 800ms && rank > best) {
+          best = rank;
+          cal.axis = int(a);
+        }
+      }
+      if (cal.axis >= 0) {
+        cal.full = cal.still[size_t(cal.axis)];
+        cal.step = WhammyCalibration::kRelease;
+        cal.since = now;
+      }
+    } else {
+      // Let go: the axis 40 % of its span from all the way, still for 0.6 s, is at rest.
+      size_t a = size_t(cal.axis);
+      if (std::abs(cal.still[a] - cal.full) / AxisSpan(cal.axis) >= 0.4 && now - cal.still_since[a] >= 600ms) {
+        settings_.o.whammy_calibration =
+            WithWhammyEntry(settings_.o.whammy_calibration, key,
+                            std::string(kAxisNames[a]) + ":" + std::to_string(cal.still[a]) + ":" + std::to_string(cal.full));
+        Changed();
+        cal.step = WhammyCalibration::kDone;
+        cal.since = now;
+      }
+    }
+    if (WhammyCalibrating() && now - cal.since >= 10s) {
+      cal.step = WhammyCalibration::kFailed;
+      cal.since = now;
+    }
+  } else if (mine && now - cal.since >= 2500ms) {
+    cal.step = WhammyCalibration::kOff;
+  }
+
+  // How far the game reads the bar: calibrated, or as the SDK does by itself: a guitar's right stick's X from -32768
+  // (0 until it first moves: at rest), a controller's folded at its middle unless it rests at -32768 for a second (a
+  // guitar that reports itself as a gamepad).
+  WhammyEntry entry = WhammyEntryOf(settings_.o.whammy_calibration, key);
+  double position = 0.0;
+  if (entry.axis >= 0) {
+    position = std::clamp(double(axes[size_t(entry.axis)] - entry.rest) / double(entry.full - entry.rest), 0.0, 1.0);
+  } else {
+    int x = axes[SDL_GAMEPAD_AXIS_RIGHTX];
+    RightXRest& rest = right_x_rest_[id];
+    rest.moved = rest.moved || x != 0;
+    if (rest.kind == 0) {
+      if (rest.since == Clock::time_point{} || std::abs(x - rest.still) > 1024) {
+        rest.still = x;
+        rest.since = now;
+      } else if (now - rest.since >= 1s) {
+        rest.kind = rest.still <= -32768 + 3277 ? 2 : std::abs(rest.still) <= 3277 ? 1 : 0;
+      }
+    }
+    if (kind == SDL_JOYSTICK_TYPE_GUITAR || rest.kind == 2) {
+      position = rest.moved ? (x + 32768) / 65535.0 : 0.0;
+    } else {
+      position = std::max(0, std::abs(x) - 3277) / double(32767 - 3277);
+    }
+  }
+
+  // The row: what it is (or the step), the bar's position, the calibration's chip.
+  ImRect r(origin, ImVec2(origin.x + width, origin.y + Px(44.0f)));
+  ImRect chip(ImVec2(r.Max.x - Px(6.0f) - Px(190.0f), r.Min.y + Px(4.0f)), ImVec2(r.Max.x - Px(6.0f), r.Max.y - Px(4.0f)));
+  ImRect meter(ImVec2(chip.Min.x - Px(14.0f) - Px(120.0f), r.GetCenter().y - Px(4.0f)),
+               ImVec2(chip.Min.x - Px(14.0f), r.GetCenter().y + Px(4.0f)));
+  const bool active = mine && WhammyCalibrating();
+  std::string label = active ? (cal.step == WhammyCalibration::kHold ? t_.whammy_step_hold : t_.whammy_step_release)
+                      : mine && cal.step == WhammyCalibration::kFailed
+                          ? t_.whammy_failed
+                          : std::string(t_.whammy_bar) + " \xC2\xB7 " +
+                                (entry.axis >= 0 ? t_.whammy_calibrated : t_.whammy_automatic);
+  MappingRow(r, 0, label, meter.Min.x - Px(14.0f), active);
+  FillRect(meter, Hex(0xFFFFFF, 26), 4.0f);
+  if (position > 0.0) {
+    FillRect(ImRect(meter.Min, ImVec2(meter.Min.x + float(position) * meter.GetWidth(), meter.Max.y)), col::kAccent, 4.0f);
+  }
+  ChipLook look;
+  look.text = active ? "..." : entry.axis >= 0 ? t_.whammy_calibrate_again : t_.whammy_calibrate;
+  look.listening = active;
+  ImGui::PushID("whammy");
+  ItemState state = MappingChip("##chip", chip, look);
+  ImGui::PopID();
+  if (!mapping_first_) mapping_first_ = ImGui::GetItemID();
+  mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
+  if (state.pressed && !active) {
+    StopListening();
+    cal = WhammyCalibration{};
+    cal.step = WhammyCalibration::kHold;
+    cal.id = id;
+    cal.since = now;
+    cal.start = axes;
+    cal.still = axes;
+    cal.still_since.fill(now);
+  } else if (!active && entry.axis >= 0 && ClearPressed(state)) {
+    // Cleared: the SDK's own judgment again.
+    settings_.o.whammy_calibration = WithWhammyEntry(settings_.o.whammy_calibration, key, "");
+    Changed();
+  }
+  return Px(44.0f) + Px(6.0f);
 }
 
 void App::ControlsPage(const ImRect& rect) {
@@ -830,8 +1080,7 @@ void App::ControlsPage(const ImRect& rect) {
     float rows_width = list.GetWidth() - Px(6.0f) - (ImGui::GetCurrentWindow()->ScrollbarY ? Px(12.0f) : 0.0f);
     ImVec2 rows_origin(origin.x + Px(3.0f), origin.y + Px(3.0f));
     float height = microphone ? MicRows(rows_origin, rows_width)
-                   : pad      ? PadRows(rows_origin, rows_width, pad->type, pad->kind,
-                                        game::kHasMicrophones ? PadKey(pad->id) : std::string())
+                   : pad      ? PadRows(rows_origin, rows_width, pad->id, pad->type, pad->kind, game::kHasMicrophones)
                               : KeyRows(rows_origin, rows_width);
     ImGui::SetCursorScreenPos(origin);
     ImGui::Dummy(ImVec2(list.GetWidth(), height + Px(6.0f)));
@@ -878,8 +1127,8 @@ void App::ControlsPage(const ImRect& rect) {
     } else if (pad) {
       if (game::kHasMicrophones && !guitar && !drums) tips.push_back(t_.help_tip_part);
       if (*game::kKeyboardTapTarget && !guitar && !drums) tips.push_back(t_.help_tip_gamepad_tap);
-      // gamepad_remap keeps one layout per SDL type: a guitar and a drum kit are Xbox 360 controllers to it.
-      tips.push_back(type == SDL_GAMEPAD_TYPE_XBOX360 ? t_.help_tip_shared_360 : t_.help_tip_same_type);
+      if (game::kHasWhammy && !drums) tips.push_back(t_.help_tip_whammy);
+      tips.push_back(t_.help_tip_this_controller);
       tips.push_back(t_.help_tip_fixed);
     } else {
       if (game::kHasMicrophones) tips.push_back(t_.help_tip_part);
@@ -930,10 +1179,12 @@ void App::ControlsPage(const ImRect& rect) {
         settings_.o.microphone_channels = {};
         settings_.o.microphone_gains = {game::kMicrophoneGainDefault, game::kMicrophoneGainDefault};
       } else if (pad) {
-        // Back to the standard layout, for this type of controller.
+        // Back to the standard layout, for this controller, and its whammy bar to the SDK's own judgment.
+        settings_.o.whammy_calibration = WithWhammyEntry(settings_.o.whammy_calibration, PadKey(pad->id), "");
         std::string type_key = TypeKey(type);
-        settings_.o.gamepad_remap = WithLayout(settings_.o.gamepad_remap, type_key,
-                                               SourcesFor(settings_.o.gamepad_remap, type_key, false));
+        settings_.o.device_remap =
+            WithDeviceLayout(settings_.o.device_remap, PadKey(pad->id), SourcesFor(settings_.o.gamepad_remap, type_key, false),
+                             SourcesFor(settings_.o.gamepad_remap, type_key, true));
       } else {
         ResetKeyboard(settings_.o);
       }

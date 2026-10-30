@@ -314,6 +314,18 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o, rates](int index) { o.frame_rate = rates[size_t(index)].value; };
       rows.push_back(std::move(row));
     }
+    // V-Sync: frames never torn, or each shown as it is ready (settings.h).
+    {
+      OptionRow row;
+      row.id = "vsync";
+      row.title = t_.vsync;
+      row.sub = t_.vsync_hint;
+      row.help = t_.vsync_help;
+      row.values = {t_.on, t_.off};
+      row.index = o.vsync ? 0 : 1;
+      row.apply = [&o](int index) { o.vsync = index == 0; };
+      rows.push_back(std::move(row));
+    }
     // Antialiasing: NativeXRenderer's (an experimental DLSS mode the options file named, last), or the game's MSAA.
     if (o.native) {
       constexpr int kOrder[] = {kSmaa, kFxaa, kDlaa, kAaOff};

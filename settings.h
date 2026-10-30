@@ -92,6 +92,9 @@ struct Options {
   bool no_msaa = false;                    // game::kNoMsaaCvar (src/msaa.cpp)
   int anisotropic = 5;                     // anisotropic_override (SDK): 5 = 16x, 4 = 8x, 3 = 4x, 2 = 2x, 0 = off
   bool vulkan = false;                     // gpu_backend = "vulkan" (otherwise "d3d12")
+  // V-Sync: frames never torn (NativeXRenderer's present mode "vsync", D106: MAILBOX, else FIFO; the SDK's presenters
+  // without their tearing modes), or each shown as it is ready ("immediate": IMMEDIATE, tearing).
+  bool vsync = true;
   bool native = game::kHasNativeXRenderer && game::kNativeXRendererDefault;  // native_x_renderer: NativeXRenderer draws
   // native_x_renderer_antialiasing: a NativeAntialiasing, or kNativeAntialiasingCount for the experimental mode
   // the options file named (native_aa_experimental, an index of kExperimentalAntialiasing; -1: none).
@@ -121,9 +124,15 @@ struct Options {
   float mnk_sensitivity = 1.0f;
   std::array<std::string, int(Bind::kCount)> binds;
 
-  // The controllers' buttons moved to other Xbox 360 controls: the SDK's gamepad_remap (recomp change 36),
-  // edited by the Gamepad page (page_gamepad.cpp).
+  // The controllers' buttons moved to other Xbox 360 controls: the SDK's gamepad_remap (recomp change 36: one layout
+  // per type of controller, as launchers before 3.4 wrote them) and gamepad_device_remap (change 59: one per
+  // controller, by its serial number or GUID, applied after the type's), edited by the Controls tab
+  // (page_controls.cpp).
   std::string gamepad_remap;
+  std::string device_remap;
+  // The whammy bars calibrated on the Controls tab (game::kHasWhammy): the SDK's gamepad_whammy_calibration (change
+  // 60), "controller=axis:rest:full" comma-separated, a controller by its serial number or GUID.
+  std::string whammy_calibration;
 
   // Singing (game::kHasMicrophones, the Controls tab): the recording device of each of the game's USB microphones
   // (the SDK's usb_microphone_1 and _2, recomp change 55: a device's name, kSystemMicrophone for the system's default,

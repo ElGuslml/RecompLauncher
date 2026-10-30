@@ -93,7 +93,8 @@ bool App::Busy() const {
   Update::State update = update_.Get().state;
   bool updating = update == Update::State::kDownloading || update == Update::State::kVerifying ||
                   update == Update::State::kInstalling;
-  return listen_bind_ >= 0 || pad_listen_ >= 0 || FocusRequested() || focus_page_ || controls_focus_mapping_ ||
+  return listen_bind_ >= 0 || pad_listen_ >= 0 || whammy_cal_.step != WhammyCalibration::kOff || FocusRequested() ||
+         focus_page_ || controls_focus_mapping_ ||
          std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
          profile_games_loading_.valid() ||
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||

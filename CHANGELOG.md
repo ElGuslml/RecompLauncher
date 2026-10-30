@@ -2,6 +2,25 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.4.0
+
+Every game's `game.h` defines `game::kHasWhammy` (`false` where the game has no whammy bar).
+
+- Controls: a controller's assignments are its own, kept by its serial number or GUID (the SDK's
+  `gamepad_device_remap`, recomp change 59), no longer shared by every controller of its type: an Xbox 360 guitar's
+  and an Xbox 360 controller's were one layout. A layout saved per type (`gamepad_remap`) is still each controller's
+  start. Only the controller being edited is listened to.
+- Controls: a trigger is taken as the button pressed only if it was released when the wait began and is then pressed
+  past 90 %. An Xbox 360 Guitar Hero guitar's accelerometer is on its triggers, at half when still: the slightest
+  movement assigned a trigger before the fret was pressed.
+- Controls, for a game with `game::kHasWhammy`: a Whammy bar row on each guitar and each controller playing guitar,
+  with how far the game reads the bar now and a calibration: push the bar all the way and hold it, then let it go.
+  The axis that moved, its value all the way and at rest go to the SDK's `gamepad_whammy_calibration` (recomp change
+  60); X (or Delete) clears it, as Reset does. A help tip says when to use it.
+- Settings > Graphics: a V-Sync row, on by default: no tearing (NativeXRenderer's `native_x_renderer_present_mode`
+  `"vsync"`, D106: a game moves its NativeXRenderer with this version; the SDK's presenters without their tearing
+  modes), or off: each frame as soon as it is ready (`"immediate"`, for G-Sync and FreeSync displays).
+
 ## 3.3.0
 
 - Controls: a controller (not a guitar or a drum kit) has the keyboard's strum switch too, for a game with

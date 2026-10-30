@@ -226,6 +226,7 @@ void App::StartListening(int bind, int slot) {
 void App::StopListening() {
   listen_bind_ = -1;
   pad_listen_ = -1;
+  if (WhammyCalibrating()) whammy_cal_.step = WhammyCalibration::kOff;
   held_modifiers_ = 0;
   modifier_pressed_ = false;
 }

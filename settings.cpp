@@ -61,6 +61,7 @@ void ResetGraphics(Options& o) {
   Options defaults;
   o.native = defaults.native;
   o.vulkan = defaults.vulkan;
+  o.vsync = defaults.vsync;
   o.frame_rate = defaults.frame_rate;
   o.no_msaa = defaults.no_msaa;
   o.native_aa = defaults.native_aa;
@@ -290,6 +291,8 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
     o.window = {MulDiv(window_width, int(primary_dpi), 96), MulDiv(window_height, int(primary_dpi), 96)};
   }
   o.vulkan = GetString(c, "gpu_backend") == "vulkan";
+  o.vsync = game::kHasNativeXRenderer ? GetString(c, "native_x_renderer_present_mode") != "immediate"
+                                      : !GetBool(c, "d3d12_allow_variable_refresh_rate_and_tearing", false);
   if (*game::kFrameRateCvar) {
     int value = game::kFrameRateIsBool
                     ? int(GetBool(c, game::kFrameRateCvar, game::kFrameRateDefault != 0))
@@ -366,6 +369,10 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   o.gamepad_tap = *game::kKeyboardTapTarget && !GetString(c, "gamepad_tap_target").empty();
 
   o.gamepad_remap = GetString(c, "gamepad_remap");
+  o.device_remap = GetEscapedString(c, "gamepad_device_remap");
+  if (game::kHasWhammy) {
+    o.whammy_calibration = GetEscapedString(c, "gamepad_whammy_calibration");
+  }
   if (game::kHasMicrophones) {
     for (int i = 0; i < 2; ++i) {
       std::string n = std::to_string(i + 1);
@@ -688,6 +695,15 @@ bool SaveOptions(const Settings& s) {
   f << "draw_resolution_scale_x = " << scale.first << "\n";
   f << "draw_resolution_scale_y = " << scale.second << "\n";
   f << "gpu_backend = \"" << (o.vulkan ? "vulkan" : "d3d12") << "\"\n";
+  // V-Sync: no tearing (NativeXRenderer's MAILBOX, else FIFO; the SDK's Direct3D 12 presenter without its tearing
+  // flag, its Vulkan one without IMMEDIATE and FIFO_RELAXED), or each frame shown as it is ready (tearing; a G-Sync or
+  // FreeSync monitor follows the game).
+  if (game::kHasNativeXRenderer) {
+    f << "native_x_renderer_present_mode = \"" << (o.vsync ? "vsync" : "immediate") << "\"\n";
+  }
+  f << "d3d12_allow_variable_refresh_rate_and_tearing = " << boolean(!o.vsync) << "\n";
+  f << "vulkan_allow_present_mode_immediate = " << boolean(!o.vsync) << "\n";
+  f << "vulkan_allow_present_mode_fifo_relaxed = " << boolean(!o.vsync) << "\n";
   // The game's own options (game.h).
   if (*game::kFrameRateCvar) {
     // 60 FPS (src/framerate.cpp), or the emulated vblank's rate the game follows.
@@ -782,8 +798,14 @@ bool SaveOptions(const Settings& s) {
     f << kBinds[i].cvar << " = \"" << o.binds[i] << "\"\n";
   }
   // The controllers' layouts: per SDL gamepad type, which button presses each Xbox 360 control
-  // ("ps5:a=east,b=south"); empty: the standard layout.
+  // ("ps5:a=east,b=south"), then per controller (its serial number or GUID: "<GUID>:x=north,y=west"); empty: the
+  // standard layout.
   f << "gamepad_remap = \"" << o.gamepad_remap << "\"\n";
+  f << "gamepad_device_remap = \"" << Escaped(o.device_remap) << "\"\n";
+  if (game::kHasWhammy) {
+    // The whammy bars calibrated: each controller's axis, its value at rest and all the way ("<GUID>=rx:-32768:32767").
+    f << "gamepad_whammy_calibration = \"" << Escaped(o.whammy_calibration) << "\"\n";
+  }
   if (game::kHasMicrophones) {
     f << "# Singing: usb_microphone_1/2 are the recording devices of the game's two microphones (\"default\" = the\n"
          "# system's, empty = none); usb_microphone_*_channel the channel each takes (0 = all mixed), *_gain its\n"

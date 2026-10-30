@@ -80,12 +80,17 @@ struct Texts {
   const char* anisotropic;
   const char* anisotropic_hint;
   const char* off;
+  const char* on;
   const char* shadows;
   const char* shadows_hint;
   const char* shadows_hint_xenos;
   const char* shadows_high;
   const char* shadows_ultra;
   const char* api_hint;
+  // Launcher 3.4: V-Sync.
+  const char* vsync;
+  const char* vsync_hint;
+  const char* vsync_help;
 
   // Keyboard.
   const char* mnk;
@@ -400,13 +405,21 @@ struct Texts {
   const char* help_keyboard_kicker;
   const char* help_keyboard_title;
   const char* help_keyboard_text;
-  const char* help_tip_same_type;
+  const char* help_tip_this_controller;
+  // Launcher 3.4: the whammy bar's row and its calibration (game::kHasWhammy).
+  const char* whammy_bar;
+  const char* whammy_calibrate;
+  const char* whammy_calibrate_again;
+  const char* whammy_automatic;   // after the bar's name: "Whammy bar · automatic"
+  const char* whammy_calibrated;  // likewise
+  const char* whammy_step_hold;
+  const char* whammy_step_release;
+  const char* whammy_failed;
+  const char* help_tip_whammy;
   const char* help_tip_fixed;
   const char* help_tip_escape;
   const char* help_tip_clear;
   const char* no_controller_title;
-  // Launcher 3.0: the Controls tab, the Xbox 360 type's shared layout.
-  const char* help_tip_shared_360;
   // Launcher 3.0: the Controls tab's keyboard hint.
   const char* mapping_select_key_hint;
   // Launcher 3.0: the first run (page_install.cpp).
