@@ -91,6 +91,10 @@ struct Texts {
   const char* vsync;
   const char* vsync_hint;
   const char* vsync_help;
+  // Launcher 3.5: the sound through WASAPI in exclusive mode (audio_wasapi_exclusive).
+  const char* audio_exclusive;
+  const char* audio_exclusive_hint;
+  const char* audio_exclusive_help;
 
   // Keyboard.
   const char* mnk;

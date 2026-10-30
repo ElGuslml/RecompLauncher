@@ -87,6 +87,9 @@ const Texts kEnglish = {
     .vsync = "V-Sync",
     .vsync_hint = "No tearing in the image.",
     .vsync_help = "On: the image never tears and the game runs in step with your screen, each frame shown once. Off: each frame appears as soon as it is ready, which can tear the image; for G-Sync or FreeSync monitors.",
+    .audio_exclusive = "Low latency audio",
+    .audio_exclusive_hint = "Exclusive mode: the sound comes sooner.",
+    .audio_exclusive_help = "On: the game takes your audio device in exclusive mode (WASAPI), past Windows' audio mixer, and the sound comes sooner. Other programs (music, Discord) cannot play on that device while the game runs; if it is busy or refuses, the usual output is used. Calibrate the audio again after changing it.",
 
     .mnk = "Play with keyboard and mouse",
     .mnk_hint = "They work as player 1's controller, together with a connected one.",
@@ -555,6 +558,9 @@ const Texts kGerman = {
     .vsync = "V-Sync",
     .vsync_hint = "Kein Tearing im Bild.",
     .vsync_help = "Ein: Das Bild zerreißt nie und das Spiel läuft im Takt deines Bildschirms, jedes Bild wird einmal gezeigt. Aus: Jedes Bild erscheint, sobald es fertig ist, was das Bild zerreißen kann; für Monitore mit G-Sync oder FreeSync.",
+    .audio_exclusive = "Audio mit geringer Latenz",
+    .audio_exclusive_hint = "Exklusiver Modus: Der Ton kommt früher.",
+    .audio_exclusive_help = "Ein: Das Spiel nutzt dein Audiogerät im exklusiven Modus (WASAPI), am Audiomixer von Windows vorbei, und der Ton kommt früher. Andere Programme (Musik, Discord) können auf diesem Gerät nichts abspielen, solange das Spiel läuft; ist es belegt oder lehnt es ab, wird die normale Ausgabe verwendet. Kalibriere den Ton danach neu.",
 
     .mnk = "Mit Tastatur und Maus spielen",
     .mnk_hint = "Sie dienen als Controller von Spieler 1, zusammen mit einem angeschlossenen.",
@@ -1023,6 +1029,9 @@ const Texts kFrench = {
     .vsync = "V-Sync",
     .vsync_hint = "Pas de déchirement de l'image.",
     .vsync_help = "Activé : l'image ne se déchire jamais et le jeu suit le rythme de votre écran, chaque image affichée une fois. Désactivé : chaque image s'affiche dès qu'elle est prête, ce qui peut déchirer l'image ; pour les écrans G-Sync ou FreeSync.",
+    .audio_exclusive = "Audio à faible latence",
+    .audio_exclusive_hint = "Mode exclusif : le son arrive plus tôt.",
+    .audio_exclusive_help = "Activé : le jeu prend votre périphérique audio en mode exclusif (WASAPI), sans passer par le mixeur audio de Windows, et le son arrive plus tôt. Les autres programmes (musique, Discord) ne peuvent pas jouer sur ce périphérique pendant le jeu ; s'il est occupé ou refuse, la sortie habituelle est utilisée. Recalibrez l'audio après l'avoir changé.",
 
     .mnk = "Jouer au clavier et à la souris",
     .mnk_hint = "Ils servent de manette au joueur 1, avec une manette branchée.",
@@ -1491,6 +1500,9 @@ const Texts kSpanish = {
     .vsync = "V-Sync",
     .vsync_hint = "Sin cortes (tearing) en la imagen.",
     .vsync_help = "Activado: la imagen nunca se corta y el juego va al ritmo de tu pantalla, cada cuadro se muestra una vez. Desactivado: cada cuadro aparece en cuanto está listo, lo que puede cortar la imagen; para monitores con G-Sync o FreeSync.",
+    .audio_exclusive = "Audio de baja latencia",
+    .audio_exclusive_hint = "Modo exclusivo: el sonido llega antes.",
+    .audio_exclusive_help = "Activado: el juego toma tu dispositivo de audio en modo exclusivo (WASAPI), sin pasar por el mezclador de audio de Windows, y el sonido llega antes. Otros programas (música, Discord) no pueden sonar en ese dispositivo mientras juegas; si está ocupado o lo rechaza, se usa la salida normal. Vuelve a calibrar el audio después de cambiarlo.",
 
     .mnk = "Jugar con teclado y ratón",
     .mnk_hint = "Hacen de mando del jugador 1, junto con un mando conectado.",
@@ -1959,6 +1971,9 @@ const Texts kItalian = {
     .vsync = "V-Sync",
     .vsync_hint = "Nessuno strappo nell'immagine.",
     .vsync_help = "Attivato: l'immagine non si strappa mai e il gioco segue il ritmo del tuo schermo, ogni fotogramma mostrato una volta. Disattivato: ogni fotogramma appare appena è pronto, il che può strappare l'immagine; per monitor G-Sync o FreeSync.",
+    .audio_exclusive = "Audio a bassa latenza",
+    .audio_exclusive_hint = "Modalità esclusiva: il suono arriva prima.",
+    .audio_exclusive_help = "Attivato: il gioco usa il tuo dispositivo audio in modalità esclusiva (WASAPI), senza passare dal mixer audio di Windows, e il suono arriva prima. Gli altri programmi (musica, Discord) non possono suonare su quel dispositivo mentre giochi; se è occupato o rifiuta, si usa l'uscita normale. Ricalibra l'audio dopo averlo cambiato.",
 
     .mnk = "Gioca con tastiera e mouse",
     .mnk_hint = "Fanno da controller del giocatore 1, insieme a un controller collegato.",

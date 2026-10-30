@@ -133,6 +133,19 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.language = index; };
       rows.push_back(std::move(row));
     }
+#ifdef _WIN32
+    {
+      OptionRow row;
+      row.id = "audio_exclusive";
+      row.title = t_.audio_exclusive;
+      row.sub = t_.audio_exclusive_hint;
+      row.help = t_.audio_exclusive_help;
+      row.values = {t_.on, t_.off};
+      row.index = o.audio_exclusive ? 0 : 1;
+      row.apply = [&o](int index) { o.audio_exclusive = index == 0; };
+      rows.push_back(std::move(row));
+    }
+#endif
     toggle_rows(game::ToggleGroup::kGame, nullptr);
   } else if (category == 1) {
     // Monitor.

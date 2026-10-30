@@ -114,6 +114,9 @@ struct Options {
   // cvar) and its switches. game::kUltrawideCvar follows native_aspect (the image format).
   int language = 0;
   std::array<bool, game::kToggles.size()> toggles{};
+  // The sound through WASAPI in exclusive mode (the SDK's audio_wasapi_exclusive, recomp change 64): less delay, and
+  // other programs silent on that device while the game runs.
+  bool audio_exclusive = false;
 
   // Keyboard and mouse: the SDK's controller emulation (mnk_mode, mnk_mouse, mnk_sensitivity, keybind_*).
   bool mnk = false;

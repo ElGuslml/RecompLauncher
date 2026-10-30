@@ -8,6 +8,10 @@ The launcher's versions (`launcher_version.h`). Each game shows its own version 
   vertical blank follows the monitor's, so the game never runs ahead of the display; NativeXRenderer's "vsync" is FIFO
   (D107). Measured in GH Metallica at 160 FPS on a 160 Hz display: 4 ms from present to display, no frame dropped,
   where NVIDIA's MAILBOX queued three frames (16-19 ms). Its help text says the game runs in step with the screen.
+- Settings > Game: a "Low latency audio" row (Windows), off by default: the SDK's `audio_wasapi_exclusive` (recomp
+  change 64), the output device in exclusive mode, past Windows' audio engine; other programs cannot play on it
+  meanwhile, and the shared output is used when it refuses. In GH Metallica on a Focusrite Scarlett 2i2: 77 ms from
+  the game's frame to the driver playing it, 20 ms with it.
 
 ## 3.4.0
 
