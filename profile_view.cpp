@@ -6,10 +6,14 @@
 
 #include "app.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include "platform.h"
+#endif
 
 #include <SDL3/SDL_messagebox.h>
 
@@ -132,10 +136,14 @@ void App::RegisterThisGame() {
   info.name = game::kName;
   info.accent = ToRgb(col::kAccent);
   info.icon = game::kBrandIcon;
+#ifdef _WIN32
   wchar_t exe[MAX_PATH];
   if (GetModuleFileNameW(nullptr, exe, MAX_PATH)) {
     info.launcher = exe;
   }
+#else
+  info.launcher = platform::GameExecutable(game::kLauncherExecutable);
+#endif
   info.version = kVersion;
   info.seen = Now();
   profiles::RegisterGame(store_, info);
@@ -311,6 +319,19 @@ void App::PlayProfileGame(const ProfileGame& game) {
   }
   // The other game's launcher, on its own (out of a job that would close it with this one, when the job allows),
   // then this one closes: the other handles its updates, first run and settings.
+#ifndef _WIN32
+  {
+    platform::Process other;
+    if (!other.Start(game.info.launcher, {}, game.info.launcher.parent_path())) {
+      char text[512];
+      std::snprintf(text, sizeof(text), t_.open_launcher_failed, game.info.name.c_str());
+      SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, game::kLauncherName, text, window_);
+      return;
+    }
+    result_ = Result::kQuit;
+    return;
+  }
+#else
   std::wstring command_line = L"\"" + game.info.launcher.wstring() + L"\"";
   std::filesystem::path folder = game.info.launcher.parent_path();
   STARTUPINFOW startup = {sizeof(startup)};
@@ -333,6 +354,7 @@ void App::PlayProfileGame(const ProfileGame& game) {
   CloseHandle(process.hThread);
   CloseHandle(process.hProcess);
   result_ = Result::kQuit;
+#endif
 }
 
 App::ProfileTotals App::Totals() const {

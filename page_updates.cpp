@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "app.h"
+#include "platform.h"  // outside Windows: the C runtime names below
 #include "game.h"
 #include "pages.h"
 

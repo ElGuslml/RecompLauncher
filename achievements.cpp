@@ -2,12 +2,16 @@
 
 #include "achievements.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
 #include <shlobj.h>
 #include <wincodec.h>
+#else
+#include "platform.h"
+#endif
 
 #include <algorithm>
 #include <cstdio>
@@ -34,6 +38,7 @@ const char* LanguageKey(uint32_t language) {
 }
 
 
+#ifdef _WIN32
 // A PNG (or any image WIC reads) as RGBA pixels.
 bool DecodeImage(IWICImagingFactory* factory, const std::filesystem::path& path, Achievement& out) {
   IWICBitmapDecoder* decoder = nullptr;
@@ -62,6 +67,23 @@ bool DecodeImage(IWICImagingFactory* factory, const std::filesystem::path& path,
   return ok;
 }
 
+#else
+// A PNG (or any image ImageIO reads) as RGBA pixels (picture_mac.mm). No factory outside Windows.
+using IWICImagingFactory = const void;
+
+bool DecodeImage(IWICImagingFactory*, const std::filesystem::path& path, Achievement& out) {
+  std::optional<Rgba> picture = LoadPicture(path);
+  if (!picture) {
+    out.icon.clear();
+    return false;
+  }
+  out.icon = std::move(picture->pixels);
+  out.icon_width = picture->width;
+  out.icon_height = picture->height;
+  return true;
+}
+
+#endif
 // A TOML file, or nullopt when it is missing or cannot be parsed (being written).
 std::optional<toml::table> ReadToml(const std::filesystem::path& path) {
   std::ifstream file(path, std::ios::binary);
@@ -93,6 +115,7 @@ std::filesystem::path AchievementsFolder(const std::filesystem::path& exe_dir) {
   if (std::filesystem::exists(portable / name, ec)) {
     return portable;
   }
+#ifdef _WIN32
   PWSTR documents = nullptr;
   std::filesystem::path result;
   if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &documents))) {
@@ -103,6 +126,10 @@ std::filesystem::path AchievementsFolder(const std::filesystem::path& exe_dir) {
   }
   CoTaskMemFree(documents);
   return result.empty() ? portable : result;
+#else
+  std::filesystem::path other = platform::DocumentsFolder() / game::kDocumentsFolder / "achievements";
+  return std::filesystem::exists(other / name, ec) ? other : portable;
+#endif
 }
 
 std::optional<Achievements> LoadAchievements(const std::filesystem::path& exe_dir, uint32_t language) {
@@ -155,9 +182,14 @@ std::optional<Achievements> LoadAchievementsFrom(const std::filesystem::path& fo
   toml::table unlocks = ReadToml(unlocks_file).value_or(toml::table{});  // none yet
   const toml::table* unlocked = unlocks["unlocked"].as_table();
 
+#ifdef _WIN32
   HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
   IWICImagingFactory* factory = nullptr;
   CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory));
+#else
+  static const int kNoFactory = 0;
+  IWICImagingFactory* factory = &kNoFactory;
+#endif
 
   Achievements result;
   for (const toml::node& node : *list) {
@@ -195,12 +227,14 @@ std::optional<Achievements> LoadAchievementsFrom(const std::filesystem::path& fo
     }
     result.items.push_back(std::move(a));
   }
+#ifdef _WIN32
   if (factory) {
     factory->Release();
   }
   if (SUCCEEDED(com)) {
     CoUninitialize();
   }
+#endif
   return result;
 }
 
@@ -223,6 +257,7 @@ std::optional<GameIcon> FindGameIcon(const std::filesystem::path& exe_dir) {
   return icon;
 }
 
+#ifdef _WIN32
 bool WriteAchievementList(const std::filesystem::path& exe_dir) {
   std::filesystem::path game = exe_dir / game::kRecompExecutable;
   std::wstring command_line = L"\"" + game.wstring() + L"\" --achievements_cache_only=true";
@@ -241,6 +276,20 @@ bool WriteAchievementList(const std::filesystem::path& exe_dir) {
   return true;
 }
 
+#else
+bool WriteAchievementList(const std::filesystem::path& exe_dir) {
+  platform::Process process;
+  if (!process.Start(platform::GameExecutable(game::kRecompExecutable), {"--achievements_cache_only=true"}, exe_dir)) {
+    return false;
+  }
+  if (!process.Wait(std::chrono::milliseconds(30000))) {
+    process.Terminate();
+    process.Wait(std::chrono::milliseconds(5000));
+  }
+  return true;
+}
+
+#endif
 std::string FormatDate(uint64_t filetime, uint32_t language) {
   constexpr uint64_t kUnixEpoch = 116'444'736'000'000'000ULL;  // 1970-01-01 in FILETIME units (100 ns)
   if (filetime < kUnixEpoch) {

@@ -2,8 +2,12 @@
 
 #include "dlc.h"
 
+#ifdef _WIN32
 #include <windows.h>
 #include <shlobj.h>
+#else
+#include "platform.h"
+#endif
 
 #include <algorithm>
 #include <array>
@@ -42,6 +46,7 @@ uint32_t ReadU32(const uint8_t* p) { return uint32_t(p[0]) << 24 | uint32_t(p[1]
 
 uint64_t ReadU64(const uint8_t* p) { return uint64_t(ReadU32(p)) << 32 | ReadU32(p + 4); }
 
+#ifdef _WIN32
 std::string Utf8(const std::wstring& wide) {
   if (wide.empty()) return {};
   int length = WideCharToMultiByte(CP_UTF8, 0, wide.data(), int(wide.size()), nullptr, 0, nullptr, nullptr);
@@ -49,6 +54,9 @@ std::string Utf8(const std::wstring& wide) {
   WideCharToMultiByte(CP_UTF8, 0, wide.data(), int(wide.size()), text.data(), length, nullptr, nullptr);
   return text;
 }
+#else
+std::string Utf8(const std::wstring& wide) { return platform::Utf8(wide); }
+#endif
 
 // A big-endian UTF-16 string of at most `bytes`, up to its terminator.
 std::string Utf16BeToUtf8(const uint8_t* p, size_t bytes) {
@@ -154,6 +162,7 @@ std::filesystem::path GameUserDataFolder(const std::filesystem::path& exe_dir) {
   if (writable) {
     return portable;
   }
+#ifdef _WIN32
   PWSTR documents = nullptr;
   std::filesystem::path result = portable;
   if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &documents))) {
@@ -161,6 +170,9 @@ std::filesystem::path GameUserDataFolder(const std::filesystem::path& exe_dir) {
   }
   CoTaskMemFree(documents);
   return result;
+#else
+  return platform::DocumentsFolder() / game::kDocumentsFolder;
+#endif
 }
 
 std::filesystem::path DlcFolder(const std::filesystem::path& exe_dir) {
@@ -231,10 +243,14 @@ std::vector<InstalledDlc> ListInstalledDlc(const std::filesystem::path& exe_dir)
 }
 
 bool RemoveDlc(const std::filesystem::path& exe_dir, const std::string& folder) {
+#ifdef _WIN32
   int length = MultiByteToWideChar(CP_UTF8, 0, folder.c_str(), -1, nullptr, 0);
   std::wstring name(size_t(std::max(length, 1)), L'\0');
   MultiByteToWideChar(CP_UTF8, 0, folder.c_str(), -1, name.data(), length);
   name.resize(wcslen(name.c_str()));
+#else
+  std::wstring name = platform::Wide(folder);
+#endif
   // Only a folder directly in the DLC folder.
   if (name.empty() || name == L"." || name == L".." || name.find_first_of(L"\\/:") != std::wstring::npos) {
     return false;
@@ -281,7 +297,11 @@ void DlcInstall::Reset() {
 }
 
 void DlcInstall::Run(std::filesystem::path exe_dir, std::vector<DlcPackage> packages) {
+#ifdef _WIN32
   std::filesystem::path game = exe_dir / game::kRecompExecutable;
+#else
+  std::filesystem::path game = platform::GameExecutable(game::kRecompExecutable);
+#endif
   std::filesystem::path dlc_folder = DlcFolder(exe_dir);
   uint64_t base = 0;
   for (size_t i = 0; i < packages.size(); ++i) {
@@ -296,6 +316,7 @@ void DlcInstall::Run(std::filesystem::path exe_dir, std::vector<DlcPackage> pack
     std::filesystem::path header = HeaderPath(exe_dir, folder);
     std::error_code ec;
     std::filesystem::remove(header, ec);  // written last: its presence afterwards is the success
+#ifdef _WIN32
     std::wstring command_line =
         L"\"" + game.wstring() + L"\" \"--install_content=" + package.path.wstring() + L"\"";
     STARTUPINFOW startup = {sizeof(startup)};
@@ -322,6 +343,25 @@ void DlcInstall::Run(std::filesystem::path exe_dir, std::vector<DlcPackage> pack
       CloseHandle(process.hProcess);
       ok = exit_code == 0 && std::filesystem::exists(header, ec);
     }
+#else
+    bool ok = false;
+    platform::Process process;
+    if (process.Start(game, {"--install_content=" + package.path.string()}, exe_dir)) {
+      // As on Windows: the package's folder grows towards its content size; 30 minutes at most.
+      auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(30);
+      while (!process.Wait(std::chrono::milliseconds(250))) {
+        if (std::chrono::steady_clock::now() > deadline) {
+          process.Terminate();
+          process.Wait(std::chrono::milliseconds(5000));
+          break;
+        }
+        uint64_t bytes = std::min(FolderBytes(dlc_folder / folder), package.content_size);
+        std::lock_guard lock(mutex_);
+        progress_.done = base + bytes;
+      }
+      ok = process.Exited() && process.ExitCode() == 0 && std::filesystem::exists(header, ec);
+    }
+#endif
     base += package.content_size;
     std::lock_guard lock(mutex_);
     progress_.done = base;

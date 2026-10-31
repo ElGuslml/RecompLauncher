@@ -11,11 +11,18 @@
 
 #include "iso.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <set>
@@ -31,6 +38,7 @@ constexpr int kMaxDepth = 32;
 constexpr size_t kMaxEntries = 100000;
 constexpr uint32_t kMaxDirectorySize = 64 * 1024 * 1024;
 
+#ifdef _WIN32
 class Reader {
  public:
   explicit Reader(const std::filesystem::path& path) {
@@ -67,6 +75,43 @@ class Reader {
   HANDLE handle_ = INVALID_HANDLE_VALUE;
   uint64_t size_ = 0;
 };
+#else
+// POSIX (the games' macOS builds read the image themselves: no launcher there).
+class Reader {
+ public:
+  explicit Reader(const std::filesystem::path& path) {
+    fd_ = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    struct stat st;
+    if (fd_ >= 0 && fstat(fd_, &st) == 0) {
+      size_ = uint64_t(st.st_size);
+    }
+  }
+  ~Reader() {
+    if (fd_ >= 0) close(fd_);
+  }
+  Reader(const Reader&) = delete;
+  Reader& operator=(const Reader&) = delete;
+  bool ok() const { return fd_ >= 0; }
+  uint64_t size() const { return size_; }
+
+  bool Read(uint64_t offset, void* out, size_t length) {
+    if (offset + length > size_) return false;
+    auto* bytes = static_cast<uint8_t*>(out);
+    while (length) {
+      ssize_t read = pread(fd_, bytes, std::min<size_t>(length, 64u * 1024 * 1024), off_t(offset));
+      if (read <= 0) return false;
+      bytes += read;
+      offset += uint64_t(read);
+      length -= size_t(read);
+    }
+    return true;
+  }
+
+ private:
+  int fd_ = -1;
+  uint64_t size_ = 0;
+};
+#endif
 
 uint16_t U16(const uint8_t* p) { return uint16_t(p[0] | (p[1] << 8)); }
 uint32_t U32(const uint8_t* p) { return uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16 | uint32_t(p[3]) << 24; }
