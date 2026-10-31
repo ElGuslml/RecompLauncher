@@ -5,11 +5,15 @@
 
 #include <SDL3/SDL_messagebox.h>
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
 #include <shellapi.h>
+#else
+#include "platform.h"
+#endif
 
 #include <algorithm>
 #include <cstdio>
@@ -32,6 +36,7 @@ const char* const kLauncherVersion = RECOMP_LAUNCHER_VERSION_STR;
 namespace {
 
 // The value of a launcher option on the command line (--launcher_update_url=...), or empty.
+#ifdef _WIN32
 std::string CommandLineValue(const std::wstring& name) {
   std::wstring line = GetCommandLineW();
   size_t at = line.find(name);
@@ -46,9 +51,17 @@ std::string CommandLineValue(const std::wstring& name) {
   WideCharToMultiByte(CP_UTF8, 0, value.data(), int(value.size()), out.data(), length, nullptr, nullptr);
   return out;
 }
+#else
+std::string CommandLineValue(const std::wstring& name) {
+  std::string prefix = platform::Utf8(name);
+  if (!prefix.empty() && prefix.back() == '=') prefix.pop_back();
+  return platform::ArgumentValue(prefix);
+}
+#endif
 
 }  // namespace
 
+#ifdef _WIN32
 void OpenFolder(const std::filesystem::path& folder) {
   ShellExecuteW(nullptr, L"open", folder.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
@@ -60,6 +73,11 @@ void OpenUrl(const char* url) {
   MultiByteToWideChar(CP_UTF8, 0, url, -1, wide.data(), length);
   ShellExecuteW(nullptr, L"open", wide.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
+#else
+void OpenFolder(const std::filesystem::path& folder) { platform::OpenInSystem(folder.string()); }
+
+void OpenUrl(const char* url) { platform::OpenInSystem(url); }
+#endif
 
 App::App(Settings settings, uint32_t language)
     : settings_(std::move(settings)),
@@ -68,7 +86,11 @@ App::App(Settings settings, uint32_t language)
       exe_dir_(settings_.options_path.parent_path()) {
   // The first run: the game's files are not there yet, or --launcher_first_run asks for it (to install again, or
   // to see it in a development build, whose game falls back to the repository's files).
+#ifdef _WIN32
   installing_ = !GameInstalled(exe_dir_) || std::wstring(GetCommandLineW()).find(L"--launcher_first_run") != std::wstring::npos;
+#else
+  installing_ = !GameInstalled(exe_dir_) || platform::HasArgument("--launcher_first_run");
+#endif
   if (!installing_) {
     // The profiles first: the achievements' unlocks may be the profile's (page_profile.cpp).
     LoadProfiles();

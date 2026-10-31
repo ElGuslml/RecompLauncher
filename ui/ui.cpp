@@ -7,10 +7,19 @@
 #include "resources.h"
 #include "ui/gfx.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include "platform.h"
+
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -214,6 +223,7 @@ float Scale() { return g_scale; }
 
 float Radius(float dp) { return Px(dp * col::kRoundness); }
 
+#ifdef _WIN32
 std::string_view Resource(int id) {
   HMODULE module = GetModuleHandleW(nullptr);
   HRSRC info = FindResourceW(module, MAKEINTRESOURCEW(id), MAKEINTRESOURCEW(10));  // RT_RCDATA
@@ -226,10 +236,13 @@ std::string_view Resource(int id) {
                : std::string_view();
 }
 
+#endif  // outside Windows: Resource is the build's embedded table (RecompLauncher.cmake)
+
 // --- Type ---
 
 // A font of Windows (C:\Windows\Fonts), mapped into memory for the program's life: only the pages ImGui reads
 // are loaded. Empty if it is not there.
+#ifdef _WIN32
 std::string_view MapWindowsFont(const wchar_t* name) {
   wchar_t path[MAX_PATH];
   UINT length = GetWindowsDirectoryW(path, MAX_PATH);
@@ -251,6 +264,19 @@ std::string_view MapWindowsFont(const wchar_t* name) {
   }
   return view ? std::string_view(static_cast<const char*>(view), size_t(size.QuadPart)) : std::string_view();
 }
+#else
+// macOS: a font of the system (its path), mapped into memory for the program's life. Empty if it is not there.
+std::string_view MapWindowsFont(const wchar_t* name) {
+  std::string path = launcher::platform::Utf8(name);
+  int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return {};
+  struct stat st;
+  void* view = fstat(fd, &st) == 0 && st.st_size > 0 ? mmap(nullptr, size_t(st.st_size), PROT_READ, MAP_PRIVATE, fd, 0)
+                                                     : MAP_FAILED;
+  close(fd);
+  return view != MAP_FAILED ? std::string_view(static_cast<const char*>(view), size_t(st.st_size)) : std::string_view();
+}
+#endif
 
 // Windows' fonts for the scripts Source Sans 3 does not have, which the names of the game's languages (game.h, in
 // their own words) use: merged after it into each font, in this order.
@@ -278,11 +304,21 @@ std::vector<std::string_view> FallbackFonts() {
       }
     }
   };
+#ifdef _WIN32
   if (kana || (han && !traditional && !simplified)) add({L"YuGothM.ttc", L"msgothic.ttc"});
   if (han && traditional) add({L"msjh.ttc", L"mingliu.ttc"});
   if (han && simplified) add({L"msyh.ttc", L"simsun.ttc"});
   if (hangul) add({L"malgun.ttf", L"gulim.ttc"});
   if (cyrillic) add({L"segoeui.ttf", L"arial.ttf"});
+#else
+  if (kana || (han && !traditional && !simplified)) {
+    add({L"/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", L"/System/Library/Fonts/Hiragino Sans GB.ttc"});
+  }
+  if (han && traditional) add({L"/System/Library/Fonts/STHeiti Light.ttc", L"/System/Library/Fonts/Hiragino Sans GB.ttc"});
+  if (han && simplified) add({L"/System/Library/Fonts/Hiragino Sans GB.ttc", L"/System/Library/Fonts/STHeiti Light.ttc"});
+  if (hangul) add({L"/System/Library/Fonts/AppleSDGothicNeo.ttc", L"/System/Library/Fonts/Supplemental/AppleGothic.ttf"});
+  if (cyrillic) add({L"/System/Library/Fonts/Supplemental/Arial.ttf", L"/System/Library/Fonts/Helvetica.ttc"});
+#endif
   return fonts;
 }
 
@@ -411,6 +447,9 @@ std::string Upper(std::string_view text) {
   if (text.empty()) {
     return {};
   }
+#ifndef _WIN32
+  return launcher::platform::Upper(std::string(text));
+#else
   int length = MultiByteToWideChar(CP_UTF8, 0, text.data(), int(text.size()), nullptr, 0);
   std::wstring wide(size_t(std::max(length, 0)), L'\0');
   MultiByteToWideChar(CP_UTF8, 0, text.data(), int(text.size()), wide.data(), length);
@@ -420,6 +459,7 @@ std::string Upper(std::string_view text) {
   std::string upper(size_t(std::max(bytes, 0)), '\0');
   WideCharToMultiByte(CP_UTF8, 0, wide.data(), int(wide.size()), upper.data(), bytes, nullptr, nullptr);
   return upper;
+#endif
 }
 
 std::string Title(std::string_view text) { return launcher::game::kUppercaseTitles ? Upper(text) : std::string(text); }

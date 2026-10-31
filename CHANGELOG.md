@@ -2,6 +2,17 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## Unreleased
+
+- macOS (Apple Silicon and Intel): the launcher builds and runs there, with the same pages and logic, drawn with Metal.
+  The Windows code is unchanged; the shared files have `#ifdef _WIN32` blocks, and the macOS parts are their own files
+  (README: Windows and macOS). Settings, profiles and game files are in `~/Library/Application Support`, the first
+  run installs from the ISO as on Windows, Play starts the game with `posix_spawn` and hides the launcher meanwhile, and
+  an update opens the release's `...-macos-<arch>.dmg` after checking its SHA-256. The launcher's window is not
+  fullscreen by default there. `iso.cpp` reads with `pread` outside Windows.
+  A game that builds on macOS defines `game::kDataFolder` in its `game.h` (the folder in Application Support) and
+  `GAME_EXE` without `.exe`.
+
 ## 3.5.0
 
 - Settings > Graphics > V-Sync on also writes the SDK's `vblank_follows_display` (recomp change 61): the game's

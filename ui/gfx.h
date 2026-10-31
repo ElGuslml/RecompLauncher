@@ -26,6 +26,12 @@ void Resize(int width, int height);
 void BeginFrame(ImU32 clear_color);
 void Present();
 
+#ifdef __APPLE__
+// macOS (gfx_metal.mm): Metal, with Dear ImGui's Metal backend driven from here. Init takes the SDL_Window.
+void NewFrame();
+void Render(ImDrawData* draw_data);
+#endif
+
 // RGBA pixels (straight alpha) as a texture ImGui can draw; 0 if it could not be created.
 ImTextureID CreateTexture(const uint8_t* rgba, int width, int height);
 void DestroyTexture(ImTextureID texture);

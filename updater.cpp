@@ -2,11 +2,15 @@
 
 #include "updater.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
 #include <bcrypt.h>
+#else
+#include "platform.h"
+#endif
 
 #include <algorithm>
 #include <cctype>
@@ -53,6 +57,7 @@ std::string Lower(std::string text) {
   return text;
 }
 
+#ifdef _WIN32
 // The SHA-256 of a file in lower-case hex (Windows' CNG), or empty.
 std::string Sha256(const std::filesystem::path& path) {
   BCRYPT_ALG_HANDLE algorithm = nullptr;
@@ -82,6 +87,10 @@ std::string Sha256(const std::filesystem::path& path) {
   return result;
 }
 
+#else
+std::string Sha256(const std::filesystem::path& path) { return platform::Sha256File(path); }
+
+#endif
 // A path inside the archive's folder that is safe to write under the launcher's: relative, without "..", drive
 // letters or control characters.
 bool SafeRelative(const std::string& name) {
@@ -172,11 +181,26 @@ UpdateCheck CheckForUpdates(const std::string& url) {
     release.page = String(item, "html_url");
     auto assets = item.find("assets");
     if (assets != item.end() && assets->is_array()) {
+#ifdef _WIN32
       // The zip (the Windows one if there are several), and its .sha256 if published.
       for (const json& asset : *assets) {
         std::string name = String(asset, "name");
         if (!EndsWith(name, ".zip")) continue;
         if (!release.asset_name.empty() && name.find("windows") == std::string::npos) continue;
+#else
+      // macOS: the disk image ("...-macos-arm64.dmg"; this processor's if there are several), and its .sha256.
+#if defined(__aarch64__)
+      const std::string arch = "arm64";
+#else
+      const std::string arch = "amd64";
+#endif
+      for (const json& asset : *assets) {
+        std::string name = String(asset, "name");
+        std::string lower = Lower(name);
+        if (!EndsWith(lower, ".dmg") || lower.find("macos") == std::string::npos) continue;
+        if (lower.find("-shell") != std::string::npos) continue;
+        if (!release.asset_name.empty() && lower.find(arch) == std::string::npos) continue;
+#endif
         release.asset_name = name;
         release.asset_url = String(asset, "browser_download_url");
         release.asset_size = asset.value("size", uint64_t(0));
@@ -292,6 +316,7 @@ void Update::Run(Release release, std::filesystem::path exe_dir) {
     return;
   }
 
+#ifdef _WIN32
   // Extracted into update\files, without the archive's top folder.
   Set(State::kInstalling);
   zip::Archive archive;
@@ -408,6 +433,22 @@ void Update::Run(Release release, std::filesystem::path exe_dir) {
   }
   clean();
   Set(State::kDone);
+#else
+  // macOS: no files replaced in place (the app is a signed bundle): the verified disk image is opened, for the new
+  // app to be dragged over this one, and the launcher closes (App: kDone -> kRestart, which main_mac.cpp ends with).
+  Set(State::kInstalling);
+  std::filesystem::path image = exe_dir / "Downloads";
+  std::filesystem::create_directories(image, ec);
+  image /= FromUtf8(release.asset_name);
+  std::filesystem::rename(archive_path, image, ec);
+  if (ec || !platform::OpenInSystem(image.string())) {
+    Fail("cannot open " + Utf8(image));
+    clean();
+    return;
+  }
+  clean();
+  Set(State::kDone);
+#endif
 }
 
 void CleanUpAfterUpdate(const std::filesystem::path& exe_dir) {

@@ -2,12 +2,18 @@
 
 #include "install.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include "platform.h"
+#endif
 
 #include <algorithm>
+#include <cerrno>
+#include <cstdio>
 #include <cwctype>
 #include <memory>
 #include <vector>
@@ -33,6 +39,7 @@ bool InsideRepository(const std::filesystem::path& folder, const std::filesystem
   return root.size() > 1 && inside.compare(0, root.size(), root) == 0;
 }
 
+#ifdef _WIN32
 std::string Utf8(const std::wstring& text) {
   if (text.empty()) return {};
   int length = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), int(text.size()), nullptr, 0, nullptr, nullptr);
@@ -61,6 +68,13 @@ struct Handle {
     if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
   }
 };
+#else
+std::string Utf8(const std::wstring& text) { return platform::Utf8(text); }
+
+std::string SystemMessage(unsigned long code) { return platform::ErrorMessage(int(code)); }
+
+std::filesystem::path FromUtf8(const std::string& path) { return std::filesystem::path(path); }
+#endif
 
 }  // namespace
 
@@ -79,8 +93,12 @@ std::filesystem::path GameFilesFolder(const std::filesystem::path& exe_dir) {
 }
 
 bool GameInstalled(const std::filesystem::path& exe_dir) {
+#ifdef _WIN32
   return !GameFilesFolder(exe_dir).empty() ||
          std::wstring(GetCommandLineW()).find(L"--game_data_root") != std::wstring::npos;
+#else
+  return !GameFilesFolder(exe_dir).empty() || platform::HasArgument("--game_data_root");
+#endif
 }
 
 IsoCheck CheckIso(const std::filesystem::path& path) {
@@ -119,8 +137,16 @@ IsoCheck CheckIso(const std::filesystem::path& path) {
 }
 
 uint64_t FreeSpace(const std::filesystem::path& path) {
+#ifdef _WIN32
   ULARGE_INTEGER available;
   return GetDiskFreeSpaceExW(path.c_str(), &available, nullptr, nullptr) ? available.QuadPart : 0;
+#else
+  std::error_code ec;
+  std::filesystem::path existing = path;
+  while (!existing.empty() && !std::filesystem::exists(existing, ec)) existing = existing.parent_path();
+  std::filesystem::space_info space = std::filesystem::space(existing.empty() ? path : existing, ec);
+  return ec ? 0 : space.available;
+#endif
 }
 
 Extraction::~Extraction() { Cancel(); }
@@ -176,6 +202,7 @@ void Extraction::Run(std::filesystem::path iso_path, iso::Image image, std::file
     }
   };
 
+#ifdef _WIN32
   Handle source;
   source.h = CreateFileW(iso_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                          FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
@@ -260,6 +287,93 @@ void Extraction::Run(std::filesystem::path iso_path, iso::Image image, std::file
     partial.clear();
     written.push_back(target);
   }
+#else
+  std::FILE* source = std::fopen(iso_path.c_str(), "rb");
+  if (!source) {
+    Fail(iso_path.string(), unsigned(errno));
+    return;
+  }
+  std::error_code ec;
+  std::filesystem::create_directories(destination, ec);
+  for (const std::string& directory : image.directories) {
+    std::filesystem::create_directories(destination / FromUtf8(directory), ec);
+  }
+
+  constexpr size_t kChunk = 8 * 1024 * 1024;
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[kChunk]);
+  uint64_t done = 0;
+  for (const iso::File& file : image.files) {
+    std::filesystem::path target = destination / FromUtf8(file.path);
+    partial = target;
+    partial += ".part";
+    {
+      std::lock_guard lock(mutex_);
+      progress_.current = file.path;
+    }
+    std::filesystem::create_directories(target.parent_path(), ec);
+    std::FILE* out = std::fopen(partial.c_str(), "wb");
+    if (!out) {
+      Fail(target.string(), unsigned(errno));
+      partial.clear();
+      std::fclose(source);
+      undo();
+      return;
+    }
+    if (fseeko(source, off_t(file.offset), SEEK_SET) != 0) {
+      Fail(iso_path.string(), unsigned(errno));
+      std::fclose(out);
+      std::fclose(source);
+      undo();
+      return;
+    }
+    uint64_t left = file.size;
+    while (left) {
+      if (cancel_) {
+        std::fclose(out);
+        std::fclose(source);
+        undo();
+        std::lock_guard lock(mutex_);
+        progress_.state = State::kCancelled;
+        return;
+      }
+      size_t chunk = size_t(std::min<uint64_t>(left, kChunk));
+      if (std::fread(buffer.get(), 1, chunk, source) != chunk) {
+        Fail(iso_path.string(), std::ferror(source) ? unsigned(errno) : unsigned(EIO));
+        std::fclose(out);
+        std::fclose(source);
+        undo();
+        return;
+      }
+      if (std::fwrite(buffer.get(), 1, chunk, out) != chunk) {
+        Fail(target.string(), unsigned(errno));
+        std::fclose(out);
+        std::fclose(source);
+        undo();
+        return;
+      }
+      left -= chunk;
+      done += chunk;
+      std::lock_guard lock(mutex_);
+      progress_.done = done;
+    }
+    if (std::fclose(out) != 0) {
+      Fail(target.string(), unsigned(errno));
+      std::fclose(source);
+      undo();
+      return;
+    }
+    std::filesystem::rename(partial, target, ec);
+    if (ec) {
+      Fail(target.string(), unsigned(ec.value()));
+      std::fclose(source);
+      undo();
+      return;
+    }
+    partial.clear();
+    written.push_back(target);
+  }
+  std::fclose(source);
+#endif
   std::lock_guard lock(mutex_);
   progress_.current.clear();
   progress_.state = State::kDone;

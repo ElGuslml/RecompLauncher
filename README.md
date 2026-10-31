@@ -51,9 +51,26 @@ The game executable reads which profile it runs with (`profile_store.h`): `recom
 SDK_DIR "${REXSDK_DIR}")`, and its `src/startup.cpp` sets the SDK's `profile_root` and `profile_name` from
 `launcher::profiles::ForGame` (KameoRecomp's `ConfigureProfile`).
 
-Windows only. It needs the ReXGlue SDK tree (SDL3, Dear ImGui, toml++ and stb, and the SDK's `imgui` and
-`SDL3::SDL3` targets) and builds with the game's toolchain (LLVM/Clang, Ninja, the Windows SDK). To try a working
-copy of this repository in a game, configure the game with `-DRECOMP_LAUNCHER_DIR=<the working copy>`.
+Windows and macOS. It needs the ReXGlue SDK tree (SDL3, Dear ImGui, toml++ and stb, and the SDK's `imgui` and
+`SDL3::SDL3` targets) and builds with the game's toolchain (LLVM/Clang, Ninja; the Windows SDK on Windows, the Xcode
+Command Line Tools on macOS). To try a working copy of this repository in a game, configure the game with
+`-DRECOMP_LAUNCHER_DIR=<the working copy>`.
+
+On macOS the same pages and logic are built with these in place of the Windows parts (`RecompLauncher.cmake`'s
+`_recomp_launcher_add_macos`); the Windows code is unchanged, and the shared files only have `#ifdef _WIN32` blocks:
+
+| Windows | macOS |
+|---|---|
+| `main.cpp` (WinMain, job object, `CreateProcess`) | `main_mac.cpp` (`posix_spawn`, the window hidden while the game runs) |
+| `ui/gfx.cpp` (Direct3D 11) | `ui/gfx_metal.mm` (Metal, Dear ImGui's Metal backend) |
+| `picture.cpp` (WIC) | `picture_mac.mm` (ImageIO) |
+| `net.cpp` (WinHTTP) | `net_curl.cpp` (libcurl, part of macOS) |
+| Win32 calls in the shared files | `platform.h`: `platform_posix.cpp`, `platform_mac.mm` |
+| resources from the `.rc` script | the same script's `RCDATA` embedded at build time (`.incbin`) |
+
+The settings, profiles and game files are in `~/Library/Application Support/<the game's folder>` (`platform::DataFolder`;
+the app bundle is signed and may be read-only); the profiles' store in `~/Library/Application Support/ElGuslml
+Recomps`. An update downloads the release's `...-macos-<arch>.dmg`, checks its SHA-256 and opens it.
 
 ## Versions
 

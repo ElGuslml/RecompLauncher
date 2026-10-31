@@ -2,10 +2,14 @@
 
 #include "texts.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include "platform.h"
+#endif
 
 namespace launcher {
 namespace {
@@ -2383,6 +2387,16 @@ Texts Complete(const Texts& texts) {
 }  // namespace
 
 uint32_t SystemLanguage() {
+#ifndef _WIN32
+  // The first of the user's preferred languages ("de-AT" -> German).
+  std::string tag = platform::PreferredLanguage();
+  std::string primary = tag.substr(0, tag.find('-'));
+  if (primary == "de") return 3;
+  if (primary == "fr") return 4;
+  if (primary == "es") return 5;
+  if (primary == "it") return 6;
+  return 1;
+#else
   switch (PRIMARYLANGID(GetUserDefaultUILanguage())) {
     case LANG_GERMAN:
       return 3;
@@ -2395,6 +2409,7 @@ uint32_t SystemLanguage() {
     default:
       return 1;
   }
+#endif
 }
 
 const Texts& TextsFor(uint32_t language) {

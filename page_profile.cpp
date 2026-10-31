@@ -4,12 +4,18 @@
 
 #include "app.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include "platform.h"
+#endif
+#ifdef _WIN32
 #define SECURITY_WIN32
 #include <security.h>
+#endif
 
 #include <SDL3/SDL_dialog.h>
 
@@ -36,6 +42,13 @@ ImU32 ProfileColor(int index) {
   return IM_COL32((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, 0xFF);
 }
 
+#ifndef _WIN32
+std::string ToUtf8(std::wstring_view text) { return platform::Utf8(std::wstring(text)); }
+
+std::string WindowsUserName() { return platform::UserName(); }
+
+std::string PathUtf8(const std::filesystem::path& path) { return path.string(); }
+#else
 std::string ToUtf8(std::wstring_view text) {
   if (text.empty()) {
     return {};
@@ -64,6 +77,7 @@ std::string WindowsUserName() {
   }
   return {};
 }
+#endif
 
 // A centered card over the page; returns its rectangle.
 ImRect Card(ImVec2 size, float width_dp, float height) {

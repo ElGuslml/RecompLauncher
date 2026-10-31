@@ -2,12 +2,16 @@
 
 #include "profile_store.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
 #include <shellapi.h>
 #include <shlobj.h>
+#else
+#include "platform.h"
+#endif
 
 #include <toml.hpp>
 
@@ -251,6 +255,12 @@ Profile* Store::Find(std::string_view id) {
 }
 
 fs::path StoreFolder() {
+#ifndef _WIN32
+  if (std::optional<std::string> folder = platform::Environment("ELGUSLML_RECOMPS_DIR"); folder && !folder->empty()) {
+    return fs::path(*folder);
+  }
+  return platform::ApplicationSupportFolder() / kStoreName;
+#else
   if (const wchar_t* folder = _wgetenv(L"ELGUSLML_RECOMPS_DIR"); folder && *folder) {
     return fs::path(folder);
   }
@@ -261,6 +271,7 @@ fs::path StoreFolder() {
   }
   CoTaskMemFree(path);
   return result;
+#endif
 }
 
 Store Load() {
@@ -375,6 +386,11 @@ bool Delete(Store& store, std::string_view id, std::string_view writer) {
   if (it == store.profiles.end()) {
     return false;
   }
+#ifndef _WIN32
+  if (!platform::MoveToTrash(it->folder)) {
+    return false;
+  }
+#else
   // The Recycle Bin: SHFileOperation takes a list of paths ended by two zeros.
   std::wstring from = it->folder.wstring();
   from.push_back(L'\0');
@@ -386,6 +402,7 @@ bool Delete(Store& store, std::string_view id, std::string_view writer) {
   if (SHFileOperationW(&operation) != 0 || operation.fAnyOperationsAborted) {
     return false;
   }
+#endif
   bool was_current = store.current == it->id;
   store.profiles.erase(it);
   if (was_current) {
@@ -405,7 +422,11 @@ std::vector<GameInfo> Games(const Store& store) {
       continue;
     }
     GameInfo game;
+#ifdef _WIN32
     game.title_id = uint32_t(std::wcstoul(it->path().filename().c_str(), nullptr, 16));
+#else
+    game.title_id = uint32_t(std::strtoul(it->path().filename().c_str(), nullptr, 16));
+#endif
     game.name = (*table)["name"].value_or<std::string>("");
     game.accent = uint32_t((*table)["accent"].value_or<int64_t>(0));
     game.icon = (*table)["icon"].value_or<std::string>("");

@@ -2,11 +2,17 @@
 
 #include "settings.h"
 
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
 #include <shellscalingapi.h>
+#else
+#include "platform.h"
+
+#include <SDL3/SDL_video.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -100,6 +106,23 @@ int SystemGameLanguage() {
     return 0;
   }
   uint32_t id = 1;
+#ifndef _WIN32
+  // The user's first preferred language ("es-MX", "zh-Hans-CN").
+  std::string locale = platform::PreferredLanguage();
+  {
+    std::string primary = locale.substr(0, locale.find('-'));
+    if (primary == "ja") id = 2;
+    else if (primary == "de") id = 3;
+    else if (primary == "fr") id = 4;
+    else if (primary == "es") id = 5;
+    else if (primary == "it") id = 6;
+    else if (primary == "ko") id = 7;
+    else if (primary == "zh") id = locale.find("Hans") != std::string::npos || locale == "zh-CN" || locale == "zh-SG" ? 10 : 8;
+    else if (primary == "pt") id = 9;
+    else if (primary == "pl") id = 11;
+    else if (primary == "ru") id = 12;
+  }
+#else
   switch (PRIMARYLANGID(GetUserDefaultUILanguage())) {
     case LANG_JAPANESE: id = 2; break;
     case LANG_GERMAN: id = 3; break;
@@ -120,6 +143,7 @@ int SystemGameLanguage() {
   GetUserDefaultLocaleName(wide, LOCALE_NAME_MAX_LENGTH);
   std::string locale;
   for (const wchar_t* c = wide; *c; ++c) locale += char(*c);
+#endif
   // The longest `locales` prefix that matches wins; an entry without one comes next, then one whose prefix does not
   // match (the first of those).
   int best = -1;
@@ -218,6 +242,9 @@ std::string Escaped(std::string_view s) {
   return out;
 }
 
+#ifndef _WIN32
+std::string Utf8(const wchar_t* text) { return platform::Utf8(text); }
+#else
 std::string Utf8(const wchar_t* text) {
   int length = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
   if (length <= 1) {
@@ -227,6 +254,7 @@ std::string Utf8(const wchar_t* text) {
   WideCharToMultiByte(CP_UTF8, 0, text, -1, out.data(), length, nullptr, nullptr);
   return out;
 }
+#endif
 
 }  // namespace
 
@@ -387,12 +415,17 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
 
   o.check_updates = GetBool(c, "launcher_check_updates", true);
   o.last_update_check = std::strtoll(GetString(c, "launcher_last_update_check").c_str(), nullptr, 10);
+#ifdef _WIN32
   o.ui_fullscreen = GetBool(c, "launcher_ui_fullscreen", true);
+#else
+  o.ui_fullscreen = GetBool(c, "launcher_ui_fullscreen", false);
+#endif
   o.ui_maximized = GetBool(c, "launcher_ui_maximized", false);
   o.ui_size = {GetInt(c, "launcher_ui_width", 0), GetInt(c, "launcher_ui_height", 0)};
   return o;
 }
 
+#ifdef _WIN32
 // --- Monitors ---
 
 namespace {
@@ -498,10 +531,72 @@ std::vector<Monitor> EnumerateMonitors() {
   }
   return monitors;
 }
+#else
+// --- Monitors ---
+
+// macOS: SDL's displays (the order the monitor cvar uses), sizes in points as SDL's window and modes take them. The
+// SDK's window sizes are in points too: the DPI stays 96 (no conversion).
+std::vector<Monitor> EnumerateMonitors() {
+  std::vector<Monitor> monitors;
+  int count = 0;
+  SDL_DisplayID* displays = SDL_GetDisplays(&count);
+  SDL_DisplayID primary = SDL_GetPrimaryDisplay();
+  for (int i = 0; displays && i < count; ++i) {
+    Monitor m;
+    m.primary = displays[i] == primary;
+    if (const char* name = SDL_GetDisplayName(displays[i])) m.name = name;
+    SDL_Rect bounds{}, usable{};
+    SDL_GetDisplayBounds(displays[i], &bounds);
+    if (!SDL_GetDisplayUsableBounds(displays[i], &usable)) usable = bounds;
+    m.work_left = usable.x;
+    m.work_top = usable.y;
+    m.work_right = usable.x + usable.w;
+    m.work_bottom = usable.y + usable.h;
+    m.size = {bounds.w, bounds.h};
+    if (const SDL_DisplayMode* current = SDL_GetCurrentDisplayMode(displays[i])) {
+      // The screen's pixels (a Retina display's points times its density): fullscreen is drawn at these, and the
+      // automatic render scale follows them (a 4K screen: 3x). The window sizes below stay in points.
+      float density = current->pixel_density > 0.0f ? current->pixel_density : 1.0f;
+      m.size = {int(current->w * density + 0.5f), int(current->h * density + 0.5f)};
+      if (current->refresh_rate > 1.0f) m.refresh = int(current->refresh_rate + 0.5f);
+    }
+    int mode_count = 0;
+    if (SDL_DisplayMode** modes = SDL_GetFullscreenDisplayModes(displays[i], &mode_count)) {
+      for (int k = 0; k < mode_count; ++k) {
+        Size size{modes[k]->w, modes[k]->h};
+        if (std::find(m.modes.begin(), m.modes.end(), size) == m.modes.end()) m.modes.push_back(size);
+      }
+      SDL_free(modes);
+    }
+    if (m.modes.empty()) m.modes.push_back(m.size);
+    std::sort(m.modes.begin(), m.modes.end(), std::greater<>());
+    monitors.push_back(std::move(m));
+  }
+  SDL_free(displays);
+  std::stable_partition(monitors.begin(), monitors.end(), [](const Monitor& m) { return m.primary; });
+  if (monitors.empty()) {
+    Monitor m;
+    m.primary = true;
+    m.size = {1920, 1080};
+    m.work_right = m.size.first;
+    m.work_bottom = m.size.second;
+    m.modes.push_back(m.size);
+    monitors.push_back(m);
+  }
+  return monitors;
+}
+#endif
 
 std::vector<Size> WindowSizes(const Monitor& m, Size keep) {
+#ifdef _WIN32
   RECT frame = {0, 0, 0, 0};
   AdjustWindowRectExForDpi(&frame, WS_OVERLAPPEDWINDOW, FALSE, 0, m.dpi);
+#else
+  // macOS: a window's title bar (28 points); no side borders.
+  struct {
+    int left, top, right, bottom;
+  } frame = {0, 0, 0, 28};
+#endif
   int max_width = (m.work_right - m.work_left) - (frame.right - frame.left);
   int max_height = (m.work_bottom - m.work_top) - (frame.bottom - frame.top);
   std::vector<Size> sizes;
@@ -631,11 +726,17 @@ Settings LoadSettings(const std::filesystem::path& exe_dir) {
   // A monitor that is not connected now (a TV) stays chosen: the page shows the primary for it
   // (CurrentMonitor), and the file keeps it unless another one is picked.
   s.window_sizes = WindowSizes(s.CurrentMonitor(), s.o.window);
+#ifdef _WIN32
   if (HMODULE vulkan = LoadLibraryW(L"vulkan-1.dll")) {
     s.has_vulkan = true;
     FreeLibrary(vulkan);
   }
   s.o.vulkan = s.o.vulkan && s.has_vulkan;
+#else
+  // macOS: Vulkan through MoltenVK, which the game carries; there is no Direct3D.
+  s.has_vulkan = true;
+  s.o.vulkan = true;
+#endif
   s.o.native = s.o.native && s.has_vulkan;
   s.FitFrameRate();
   return s;

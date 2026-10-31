@@ -1,7 +1,11 @@
 // The DLC tab (dlc.h; Gustavo's 2026-10-28 mockup): a card to install the packages of a folder the player chooses (or
 // drops on the window), searched and installed at once, and the content installed, each with a button to remove it.
 
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include "platform.h"
+#endif
 
 #include <algorithm>
 #include <cstdio>
@@ -21,6 +25,7 @@ using namespace ui;
 
 namespace {
 
+#ifdef _WIN32
 std::wstring Wide(const std::string& utf8) {
   int length = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
   std::wstring wide(size_t(std::max(length, 1)), L'\0');
@@ -28,6 +33,9 @@ std::wstring Wide(const std::string& utf8) {
   wide.resize(wcslen(wide.c_str()));
   return wide;
 }
+#else
+std::wstring Wide(const std::string& utf8) { return platform::Wide(utf8); }
+#endif
 
 // "1,4 GB", or "350 MB" below a gigabyte.
 std::string SizeText(uint64_t bytes, const char* decimal_separator) {
