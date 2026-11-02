@@ -90,6 +90,11 @@ const Texts kEnglish = {
     .audio_exclusive = "Low latency audio",
     .audio_exclusive_hint = "Exclusive mode: the sound comes sooner.",
     .audio_exclusive_help = "On: the game takes your audio device in exclusive mode (WASAPI), past Windows' audio mixer, and the sound comes sooner. Other programs (music, Discord) cannot play on that device while the game runs; if it is busy or refuses, the usual output is used. Calibrate the audio again after changing it.",
+    .antialiasing_hint_no_dlaa = "Smooths the edges of the 3D image.",
+    .launcher_language = "Launcher language",
+    .launcher_language_hint = "The language of this launcher's texts.",
+    .launcher_language_help = "The language of this launcher's texts. Automatic follows the Windows display language.",
+    .launcher_language_automatic = "Automatic (%s)",
 
     .mnk = "Play with keyboard and mouse",
     .mnk_hint = "They work as player 1's controller, together with a connected one.",
@@ -150,7 +155,7 @@ const Texts kEnglish = {
     .updates_title = "Updates",
     .check_updates = "Check for updates",
     .up_to_date = "You have the latest version.",
-    .game_language = "Language",
+    .game_language = "Game language",
     .game_language_hint = "The game's texts and voices.",
     .updates_off = "This version does not look for updates.",
     .check_on_start = "Check when the launcher opens",
@@ -321,7 +326,7 @@ const Texts kEnglish = {
     .last_session = "Last session: %s · %s played",
     .no_session = "Not played yet with this profile",
 
-    .settings_intro_game = "The game's own options, applied when it starts.",
+    .settings_intro_game = "The launcher's language, and the game's own options, applied when the game starts.",
     .settings_intro_video = "How the game is shown on your screen.",
     .settings_intro_graphics = "Image quality and performance.",
     .settings_controls_note = "Your instruments and the controller are set up in the Controls tab.",
@@ -561,6 +566,11 @@ const Texts kGerman = {
     .audio_exclusive = "Audio mit geringer Latenz",
     .audio_exclusive_hint = "Exklusiver Modus: Der Ton kommt früher.",
     .audio_exclusive_help = "Ein: Das Spiel nutzt dein Audiogerät im exklusiven Modus (WASAPI), am Audiomixer von Windows vorbei, und der Ton kommt früher. Andere Programme (Musik, Discord) können auf diesem Gerät nichts abspielen, solange das Spiel läuft; ist es belegt oder lehnt es ab, wird die normale Ausgabe verwendet. Kalibriere den Ton danach neu.",
+    .antialiasing_hint_no_dlaa = "Glättet die Kanten des 3D-Bildes.",
+    .launcher_language = "Sprache des Launchers",
+    .launcher_language_hint = "Die Sprache der Texte dieses Launchers.",
+    .launcher_language_help = "Die Sprache der Texte dieses Launchers. Automatisch folgt der Anzeigesprache von Windows.",
+    .launcher_language_automatic = "Automatisch (%s)",
 
     .mnk = "Mit Tastatur und Maus spielen",
     .mnk_hint = "Sie dienen als Controller von Spieler 1, zusammen mit einem angeschlossenen.",
@@ -621,7 +631,7 @@ const Texts kGerman = {
     .updates_title = "Updates",
     .check_updates = "Nach Updates suchen",
     .up_to_date = "Du hast die neueste Version.",
-    .game_language = "Sprache",
+    .game_language = "Sprache des Spiels",
     .game_language_hint = "Texte und Stimmen des Spiels.",
     .updates_off = "Diese Version sucht nicht nach Updates.",
     .check_on_start = "Beim Öffnen des Launchers suchen",
@@ -792,7 +802,7 @@ const Texts kGerman = {
     .last_session = "Letzte Sitzung: %s · %s gespielt",
     .no_session = "Mit diesem Profil noch nicht gespielt",
 
-    .settings_intro_game = "Die eigenen Optionen des Spiels, beim Start angewendet.",
+    .settings_intro_game = "Die Sprache des Launchers und die eigenen Optionen des Spiels, beim Start des Spiels angewendet.",
     .settings_intro_video = "Wie das Spiel auf deinem Bildschirm angezeigt wird.",
     .settings_intro_graphics = "Bildqualität und Leistung.",
     .settings_controls_note = "Deine Instrumente und den Controller richtest du im Reiter Steuerung ein.",
@@ -1032,6 +1042,11 @@ const Texts kFrench = {
     .audio_exclusive = "Audio à faible latence",
     .audio_exclusive_hint = "Mode exclusif : le son arrive plus tôt.",
     .audio_exclusive_help = "Activé : le jeu prend votre périphérique audio en mode exclusif (WASAPI), sans passer par le mixeur audio de Windows, et le son arrive plus tôt. Les autres programmes (musique, Discord) ne peuvent pas jouer sur ce périphérique pendant le jeu ; s'il est occupé ou refuse, la sortie habituelle est utilisée. Recalibrez l'audio après l'avoir changé.",
+    .antialiasing_hint_no_dlaa = "Lisse les bords de l'image 3D.",
+    .launcher_language = "Langue du launcher",
+    .launcher_language_hint = "La langue des textes de ce launcher.",
+    .launcher_language_help = "La langue des textes de ce launcher. Automatique suit la langue d'affichage de Windows.",
+    .launcher_language_automatic = "Automatique (%s)",
 
     .mnk = "Jouer au clavier et à la souris",
     .mnk_hint = "Ils servent de manette au joueur 1, avec une manette branchée.",
@@ -1092,7 +1107,7 @@ const Texts kFrench = {
     .updates_title = "Mises à jour",
     .check_updates = "Rechercher des mises à jour",
     .up_to_date = "Vous avez la dernière version.",
-    .game_language = "Langue",
+    .game_language = "Langue du jeu",
     .game_language_hint = "Les textes et les voix du jeu.",
     .updates_off = "Cette version ne recherche pas de mises à jour.",
     .check_on_start = "Vérifier à l'ouverture du launcher",
@@ -1263,7 +1278,7 @@ const Texts kFrench = {
     .last_session = "Dernière session : %s · %s de jeu",
     .no_session = "Pas encore joué avec ce profil",
 
-    .settings_intro_game = "Les options propres au jeu, appliquées à son lancement.",
+    .settings_intro_game = "La langue du launcher et les options propres au jeu, appliquées à son lancement.",
     .settings_intro_video = "Comment le jeu s'affiche sur ton écran.",
     .settings_intro_graphics = "Qualité d'image et performances.",
     .settings_controls_note = "Tes instruments et la manette se règlent dans l'onglet Contrôles.",
@@ -1503,6 +1518,11 @@ const Texts kSpanish = {
     .audio_exclusive = "Audio de baja latencia",
     .audio_exclusive_hint = "Modo exclusivo: el sonido llega antes.",
     .audio_exclusive_help = "Activado: el juego toma tu dispositivo de audio en modo exclusivo (WASAPI), sin pasar por el mezclador de audio de Windows, y el sonido llega antes. Otros programas (música, Discord) no pueden sonar en ese dispositivo mientras juegas; si está ocupado o lo rechaza, se usa la salida normal. Vuelve a calibrar el audio después de cambiarlo.",
+    .antialiasing_hint_no_dlaa = "Suaviza los bordes de la imagen 3D.",
+    .launcher_language = "Idioma del launcher",
+    .launcher_language_hint = "El idioma de los textos de este launcher.",
+    .launcher_language_help = "El idioma de los textos de este launcher. Automático sigue el idioma de pantalla de Windows.",
+    .launcher_language_automatic = "Automático (%s)",
 
     .mnk = "Jugar con teclado y ratón",
     .mnk_hint = "Hacen de mando del jugador 1, junto con un mando conectado.",
@@ -1563,7 +1583,7 @@ const Texts kSpanish = {
     .updates_title = "Actualizaciones",
     .check_updates = "Buscar actualizaciones",
     .up_to_date = "Tienes la versión más reciente.",
-    .game_language = "Idioma",
+    .game_language = "Idioma del juego",
     .game_language_hint = "Los textos y las voces del juego.",
     .updates_off = "Esta versión no busca actualizaciones.",
     .check_on_start = "Buscar al abrir el launcher",
@@ -1734,7 +1754,7 @@ const Texts kSpanish = {
     .last_session = "Última sesión: %s · %s jugadas",
     .no_session = "Aún no has jugado con este perfil",
 
-    .settings_intro_game = "Las opciones propias del juego, aplicadas al iniciarlo.",
+    .settings_intro_game = "El idioma del launcher y las opciones propias del juego, aplicadas al iniciarlo.",
     .settings_intro_video = "Cómo se muestra el juego en tu pantalla.",
     .settings_intro_graphics = "Calidad de imagen y rendimiento.",
     .settings_controls_note = "Tus instrumentos y el mando se configuran en la pestaña Controles.",
@@ -1974,6 +1994,11 @@ const Texts kItalian = {
     .audio_exclusive = "Audio a bassa latenza",
     .audio_exclusive_hint = "Modalità esclusiva: il suono arriva prima.",
     .audio_exclusive_help = "Attivato: il gioco usa il tuo dispositivo audio in modalità esclusiva (WASAPI), senza passare dal mixer audio di Windows, e il suono arriva prima. Gli altri programmi (musica, Discord) non possono suonare su quel dispositivo mentre giochi; se è occupato o rifiuta, si usa l'uscita normale. Ricalibra l'audio dopo averlo cambiato.",
+    .antialiasing_hint_no_dlaa = "Smussa i bordi dell'immagine 3D.",
+    .launcher_language = "Lingua del launcher",
+    .launcher_language_hint = "La lingua dei testi di questo launcher.",
+    .launcher_language_help = "La lingua dei testi di questo launcher. Automatica segue la lingua di visualizzazione di Windows.",
+    .launcher_language_automatic = "Automatica (%s)",
 
     .mnk = "Gioca con tastiera e mouse",
     .mnk_hint = "Fanno da controller del giocatore 1, insieme a un controller collegato.",
@@ -2034,7 +2059,7 @@ const Texts kItalian = {
     .updates_title = "Aggiornamenti",
     .check_updates = "Cerca aggiornamenti",
     .up_to_date = "Hai la versione più recente.",
-    .game_language = "Lingua",
+    .game_language = "Lingua del gioco",
     .game_language_hint = "I testi e le voci del gioco.",
     .updates_off = "Questa versione non cerca aggiornamenti.",
     .check_on_start = "Cerca all'apertura del launcher",
@@ -2205,7 +2230,7 @@ const Texts kItalian = {
     .last_session = "Ultima sessione: %s · %s giocate",
     .no_session = "Non ancora giocato con questo profilo",
 
-    .settings_intro_game = "Le opzioni proprie del gioco, applicate all'avvio.",
+    .settings_intro_game = "La lingua del launcher e le opzioni proprie del gioco, applicate al suo avvio.",
     .settings_intro_video = "Come il gioco appare sul tuo schermo.",
     .settings_intro_graphics = "Qualità dell'immagine e prestazioni.",
     .settings_controls_note = "I tuoi strumenti e il controller si configurano nella scheda Controlli.",
@@ -2395,6 +2420,20 @@ uint32_t SystemLanguage() {
     default:
       return 1;
   }
+}
+
+uint32_t TextsLanguage(uint32_t chosen) {
+  for (const LauncherLanguage& l : kLauncherLanguages) {
+    if (l.id == chosen) return chosen;
+  }
+  return SystemLanguage();
+}
+
+const char* LauncherLanguageName(uint32_t id) {
+  for (const LauncherLanguage& l : kLauncherLanguages) {
+    if (l.id == id) return l.name;
+  }
+  return "English";
 }
 
 const Texts& TextsFor(uint32_t language) {

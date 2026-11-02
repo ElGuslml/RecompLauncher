@@ -1,6 +1,7 @@
 // The launcher's settings (settings.h).
 
 #include "settings.h"
+#include "texts.h"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -77,7 +78,10 @@ void ResetGraphics(Options& o) {
 }
 
 void ResetGame(Options& o) {
+  Options defaults;
+  o.launcher_language = defaults.launcher_language;
   o.language = SystemGameLanguage();
+  o.audio_exclusive = defaults.audio_exclusive;
   for (size_t i = 0; i < game::kToggles.size(); ++i) {
     if (game::kToggles[i].group == game::ToggleGroup::kGame) {
       o.toggles[i] = game::kToggles[i].default_value;
@@ -337,6 +341,8 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   for (int i = 0; i < kNativeAntialiasingCount; ++i) {
     if (native_aa == kNativeAntialiasingNames[i]) o.native_aa = i;
   }
+  // DLAA where the game does not mark its views (game::kHasDlaa) turns SMAA and FXAA off and DLSS never runs: SMAA.
+  if (!game::kHasDlaa && o.native_aa == kDlaa) o.native_aa = kSmaa;
   for (int i = 0; i < int(std::size(kExperimentalAntialiasing)); ++i) {
     if (native_aa == kExperimentalAntialiasing[i].name) {
       o.native_aa_experimental = i;
@@ -385,6 +391,8 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
     o.device_subtypes = GetString(c, "gamepad_device_subtypes");
   }
 
+  o.launcher_language = uint32_t(std::max(GetInt(c, "launcher_language", 0), 0));
+  if (TextsLanguage(o.launcher_language) != o.launcher_language) o.launcher_language = 0;
   o.check_updates = GetBool(c, "launcher_check_updates", true);
   o.last_update_check = std::strtoll(GetString(c, "launcher_last_update_check").c_str(), nullptr, 10);
   o.ui_fullscreen = GetBool(c, "launcher_ui_fullscreen", true);
@@ -659,7 +667,8 @@ bool SaveOptions(const Settings& s) {
        "# actual scale is draw_resolution_scale_x/y (with \"auto\", computed for the monitor or the\n"
        "# window). launcher_window_*: the chosen window size, kept even when playing fullscreen\n"
        "# (window_width/height are not written then: they are the console video mode).\n"
-       "# launcher_ui_*: the launcher's own window.\n";
+       "# launcher_ui_*: the launcher's own window. launcher_language: its texts' language (1 English,\n"
+       "# 3 German, 4 French, 5 Spanish, 6 Italian; 0 = the Windows display language's).\n";
   f << "monitor = " << o.monitor << "\n";
   f << "fullscreen = " << boolean(o.display != kWindow) << "\n";
   f << "fullscreen_exclusive = " << boolean(o.display == kFullscreen) << "\n";
@@ -769,8 +778,10 @@ bool SaveOptions(const Settings& s) {
       if (value.back() == '.') value.pop_back();
       f << "native_x_renderer_resolution_scale = " << value << "\n";
     }
-    // NativeXRenderer's own antialiasing: smaa, dlaa, fxaa or off; or an experimental mode the file named (D53).
-    f << "# native_x_renderer_antialiasing: smaa, dlaa, fxaa or off, the launcher's choices. Experimental, for\n"
+    // NativeXRenderer's own antialiasing: smaa, dlaa (game::kHasDlaa), fxaa or off; or an experimental mode the file
+    // named (D53).
+    f << "# native_x_renderer_antialiasing: " << (game::kHasDlaa ? "smaa, dlaa, fxaa or off" : "smaa, fxaa or off")
+      << ", the launcher's choices. Experimental, for\n"
          "# testing only (not finished, so the launcher does not offer them): dlss_quality, dlss_balanced,\n"
          "# dlss_performance and dlss_ultra_performance, NVIDIA DLSS upscaling the 3D view from a lower\n"
          "# resolution. The launcher keeps one written here.\n";
@@ -824,6 +835,7 @@ bool SaveOptions(const Settings& s) {
     }
     f << "gamepad_device_subtypes = \"" << o.device_subtypes << "\"\n";
   }
+  f << "launcher_language = " << o.launcher_language << "\n";
   f << "launcher_check_updates = " << boolean(o.check_updates) << "\n";
   if (o.last_update_check > 0) {
     f << "launcher_last_update_check = " << o.last_update_check << "\n";

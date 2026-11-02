@@ -1,6 +1,6 @@
-// The launcher's texts, UTF-8, in the Windows display language: English, German, French,
-// Spanish and Italian (the Spanish ones are the mockup's). The game asks for its own language in its
-// first menu.
+// The launcher's texts, UTF-8: English, German, French, Spanish and Italian (the Spanish ones are the mockup's), in
+// the language chosen in Settings > Game (launcher_language) or else the Windows display language. The game's own
+// language is another row there, or the game asks for it in its first menu.
 
 #pragma once
 
@@ -95,6 +95,13 @@ struct Texts {
   const char* audio_exclusive;
   const char* audio_exclusive_hint;
   const char* audio_exclusive_help;
+  // Launcher 3.6: the antialiasing row's hint where the game has no DLAA (game::kHasDlaa).
+  const char* antialiasing_hint_no_dlaa;
+  // Launcher 3.6: the launcher's own language (Settings > Game, launcher_language).
+  const char* launcher_language;
+  const char* launcher_language_hint;
+  const char* launcher_language_help;
+  const char* launcher_language_automatic;  // %s: the Windows display language's name
 
   // Keyboard.
   const char* mnk;
@@ -504,5 +511,18 @@ struct Texts {
 // 4 French, 5 Spanish, 6 Italian.
 uint32_t SystemLanguage();
 const Texts& TextsFor(uint32_t language);
+
+// The launcher's languages, each in its own words, in the order of the Settings row (Settings > Game).
+struct LauncherLanguage {
+  uint32_t id;  // an XLanguage id, as SystemLanguage's
+  const char* name;
+};
+inline constexpr LauncherLanguage kLauncherLanguages[] = {
+    {3, "Deutsch"}, {1, "English"}, {5, "Español"}, {4, "Français"}, {6, "Italiano"}};
+// The language of the launcher's texts: `chosen` (Options::launcher_language) when it is one of them, else the
+// Windows display language's.
+uint32_t TextsLanguage(uint32_t chosen);
+// A launcher language's name (kLauncherLanguages), English's for another id.
+const char* LauncherLanguageName(uint32_t id);
 
 }  // namespace launcher

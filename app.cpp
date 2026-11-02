@@ -126,6 +126,10 @@ void App::PollAchievements() {
     return;
   }
   AchievementsRead read = achievements_loading_.get();
+  if (achievements_reload_) {
+    achievements_reload_ = false;
+    LoadAchievements();
+  }
   if (read.icon) {
     SetGameIcon(std::move(*read.icon));
   }
@@ -201,6 +205,20 @@ void App::Changed() {
     char text[512];
     std::snprintf(text, sizeof(text), t_.save_failed, game::kOptionsFile);
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, game::kLauncherName, text, nullptr);
+  }
+}
+
+void App::SetLanguage(uint32_t language) {
+  language_ = language;
+  t_ = TextsFor(language);
+  // The achievements' names and descriptions are read in the launcher's language where the game has it.
+  if (achievements_loading_.valid()) {
+    achievements_reload_ = true;
+  } else if (achievements_requested_) {
+    LoadAchievements();
+  }
+  if (store_.Current()) {
+    LoadProfileGames();
   }
 }
 

@@ -11,8 +11,9 @@
 // DualSense included).
 //
 // The window scales with its size (the mockup's 1280x760 at 100 %) and fills the screen by default (always on the
-// Steam Deck and in Big Picture); F11 or Alt+Enter switch it. The texts follow the Windows display language
-// (English, German, French, Spanish, Italian); the game asks for its own language in its first menu.
+// Steam Deck and in Big Picture); F11 or Alt+Enter switch it. The texts (English, German, French, Spanish, Italian)
+// are in the language chosen in Settings > Game, or else the Windows display language's; the game's own language is
+// another row there, or the game asks for it in its first menu.
 //
 // "Play" starts the game (with the arguments the launcher received) and the launcher stays:
 // it shows "Starting the game…" until the game's window appears, hides, and comes back on the Play page when the
@@ -253,7 +254,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 
   std::filesystem::path exe_dir = ExecutableFolder();
   launcher::Settings settings = launcher::LoadSettings(exe_dir);
-  uint32_t language = launcher::SystemLanguage();
+  uint32_t language = launcher::TextsLanguage(settings.o.launcher_language);
   const launcher::Texts& t = launcher::TextsFor(language);
 
   SDL_SetMainReady();
@@ -355,7 +356,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // Play: the game starts, and the launcher stays.
     if (app.result() == App::Result::kPlay) {
       if (!save()) {
-        ShowError(Formatted(t.save_failed, launcher::game::kOptionsFile).c_str());
+        ShowError(Formatted(app.texts().save_failed, launcher::game::kOptionsFile).c_str());
       }
       // The controllers are the game's while it runs (both reading a DualSense would also set its lights twice).
       ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_Manual, nullptr, 0);
@@ -363,7 +364,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       std::filesystem::path exe = exe_dir / launcher::game::kRecompExecutable;
       bool found = std::filesystem::exists(exe);
       if (!found) {
-        ShowError(Formatted(t.game_missing, launcher::game::kRecompExecutable, launcher::game::kLauncherName).c_str());
+        ShowError(Formatted(app.texts().game_missing, launcher::game::kRecompExecutable, launcher::game::kLauncherName)
+                      .c_str());
       }
       // The launcher's own options are not the game's.
       if (found && game.Start(exe, ArgumentsWithout({L"--launcher_"}))) {

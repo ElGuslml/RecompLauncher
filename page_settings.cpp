@@ -122,6 +122,24 @@ void App::SettingsPage(const ImRect& rect) {
 
   Size output = settings_.OutputSize();
   if (category == 0) {
+    // The launcher's language: automatic (the Windows display language's, named) or one of its own.
+    {
+      OptionRow row;
+      row.id = "launcher_language";
+      row.title = t_.launcher_language;
+      row.sub = t_.launcher_language_hint;
+      row.help = t_.launcher_language_help;
+      char automatic[96];
+      std::snprintf(automatic, sizeof(automatic), t_.launcher_language_automatic,
+                    LauncherLanguageName(SystemLanguage()));
+      row.values.push_back(automatic);
+      for (const LauncherLanguage& l : kLauncherLanguages) {
+        if (l.id == o.launcher_language) row.index = int(row.values.size());
+        row.values.push_back(l.name);
+      }
+      row.apply = [&o](int index) { o.launcher_language = index == 0 ? 0 : kLauncherLanguages[index - 1].id; };
+      rows.push_back(std::move(row));
+    }
     if (!game::kLanguages.empty()) {
       OptionRow row;
       row.id = "language";
@@ -339,26 +357,35 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.vsync = index == 0; };
       rows.push_back(std::move(row));
     }
-    // Antialiasing: NativeXRenderer's (an experimental DLSS mode the options file named, last), or the game's MSAA.
+    // Antialiasing: NativeXRenderer's (DLAA where the game marks its views, game::kHasDlaa; an experimental DLSS mode
+    // the options file named, last), or the game's MSAA.
     if (o.native) {
-      constexpr int kOrder[] = {kSmaa, kFxaa, kDlaa, kAaOff};
+      std::vector<int> order = {kSmaa, kFxaa};
       OptionRow row;
       row.id = "aa";
       row.title = t_.antialiasing;
-      row.sub = t_.antialiasing_hint;
-      row.help = t_.antialiasing_hint;
-      row.values = {"SMAA", "FXAA", "DLAA", t_.none};
-      row.tags = {"", "", "", ""};
-      row.tag_accent = {false, false, false, false};
+      row.sub = game::kHasDlaa ? t_.antialiasing_hint : t_.antialiasing_hint_no_dlaa;
+      row.help = row.sub;
+      row.values = {"SMAA", "FXAA"};
+      if (game::kHasDlaa) {
+        order.push_back(kDlaa);
+        row.values.push_back("DLAA");
+      }
+      order.push_back(kAaOff);
+      row.values.push_back(t_.none);
+      row.tags.assign(row.values.size(), "");
+      row.tag_accent.assign(row.values.size(), false);
       if (o.native_aa_experimental >= 0) {
         row.values.push_back(kExperimentalAntialiasing[o.native_aa_experimental].label);
         row.tags.push_back(t_.experimental);
         row.tag_accent.push_back(false);
       }
       row.index = o.native_aa >= kNativeAntialiasingCount
-                      ? 4
-                      : int(std::find(std::begin(kOrder), std::end(kOrder), o.native_aa) - std::begin(kOrder));
-      row.apply = [&o](int index) { o.native_aa = index < 4 ? kOrder[index] : kNativeAntialiasingCount; };
+                      ? int(order.size())
+                      : int(std::find(order.begin(), order.end(), o.native_aa) - order.begin());
+      row.apply = [&o, order](int index) {
+        o.native_aa = index < int(order.size()) ? order[size_t(index)] : kNativeAntialiasingCount;
+      };
       rows.push_back(std::move(row));
     } else if (*game::kNoMsaaCvar) {
       OptionRow row;
@@ -424,8 +451,12 @@ void App::SettingsPage(const ImRect& rect) {
 
   // The categories: the title, a button each (accent for the current one), the note at the foot.
   {
-    constexpr Type kTitle{Font::kDisplayBold, 40};
-    DrawLabel(kTitle, nav.Min, col::kText, Upper(t_.nav_settings), Px(40.0f));
+    // The title no wider than the categories (German's EINSTELLUNGEN is wider at 40).
+    Type title{Font::kDisplayBold, 40};
+    std::string label = Upper(t_.nav_settings);
+    float width = MeasureText(title, label).x;
+    if (width > nav.GetWidth()) title.size *= nav.GetWidth() / width;
+    DrawLabel(title, nav.Min, col::kText, label, Px(40.0f));
     float y = nav.Min.y + Px(40.0f) + Px(12.0f) + Px(8.0f);
     constexpr Type kCategory{Font::kDisplaySemiBold, 19, 0.04f};
     struct Category {
@@ -441,7 +472,6 @@ void App::SettingsPage(const ImRect& rect) {
     };
     std::vector<std::array<ImGuiID, 2>> category_ids;
     for (const Category& c : categories) {
-      if (c.page == Page::kGame && !game::kHasGamePage) continue;
       ImRect button(ImVec2(nav.Min.x, y), ImVec2(nav.Max.x, y + Px(56.0f)));
       ImGui::PushID(int(c.page));
       ItemState state = Item("##category", button);
@@ -714,6 +744,10 @@ void App::SettingsPage(const ImRect& rect) {
   }
 
   if (changed) {
+    // The launcher's language (its row, or Reset): the texts change from the next frame.
+    if (uint32_t language = TextsLanguage(o.launcher_language); language != language_) {
+      SetLanguage(language);
+    }
     Changed();
   }
 }

@@ -2,6 +2,22 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.6.0
+
+Every game's `game.h` defines `game::kHasDlaa` (`true` only where the game's hooks mark its views for NativeXRenderer,
+`native_x_renderer::BeginView` and `EndViewGeometry`, as POTCAWE's). `game::kHasGamePage` is no longer read (a game's
+`game.h` may drop it and its `HasToggles`).
+
+- Settings > Game: a "Launcher language" row, the first: Automatic (the Windows display language, as before, named
+  in the value) or English, Deutsch, Español, Français, Italiano. The texts change at once, the game's own texts
+  (`game.cpp`) and the achievements' names with them; the choice is `launcher_language` in the options file (0 =
+  automatic) and the launcher starts in it. The Game category is now in every game's Settings, and the game's
+  language row is titled "Game language" next to it. Its Reset also puts back the Low latency audio row (left out in
+  3.5.0).
+- Settings > Graphics > Antialiasing offers DLAA only in a game with `game::kHasDlaa`; elsewhere SMAA, FXAA and None,
+  with a hint of its own. In a game that does not mark its views DLAA turned SMAA and FXAA off and DLSS never ran: no
+  antialiasing (Guitar Hero: Warriors of Rock). An options file with `dlaa` there reads as SMAA.
+
 ## 3.5.0
 
 - Settings > Graphics > V-Sync on also writes the SDK's `vblank_follows_display` (recomp change 61): the game's

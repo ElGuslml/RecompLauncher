@@ -150,6 +150,9 @@ struct Options {
   std::string device_subtypes;
 
   // The launcher's own.
+  // launcher_language: the language of the launcher's texts (an id of kLauncherLanguages, texts.h); 0 = the Windows
+  // display language's (Settings > Game).
+  uint32_t launcher_language = 0;
   bool check_updates = true;    // launcher_check_updates
   int64_t last_update_check = 0;  // launcher_last_update_check: when a check last answered (Unix time); 0 = never
   bool ui_fullscreen = true;    // launcher_ui_fullscreen: the launcher's window (fullscreen by default)

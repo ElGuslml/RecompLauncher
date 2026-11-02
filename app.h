@@ -47,8 +47,8 @@ void OpenUrl(const char* url);
 void OpenFolder(const std::filesystem::path& folder);
 
 
-// kDlc only when the game takes downloadable content (game::kHasDlcPage); kGame only when the game has options of its
-// own (game::kHasGamePage).
+// kDlc only when the game takes downloadable content (game::kHasDlcPage). kGame always: the launcher's language is
+// there, with the game's language and switches.
 // kProfiles .. kProfileEdit are not tabs: the header's avatar opens kProfiles, the others follow from it.
 enum class Page : int {
   kPlay, kDlc, kAchievements, kControls, kVideo, kGraphics, kGame, kUpdates,
@@ -98,6 +98,9 @@ class App {
  private:
   // A setting changed: the options file (game::kOptionsFile) is written at once.
   void Changed();
+  // The launcher's texts in another language (Settings > Game): from the next frame on, the game's texts and the
+  // achievements' names too.
+  void SetLanguage(uint32_t language);
 
   // The shell (shell.cpp): the art under every page, darkened by `dim` (0 to 1); the header with the tabs, Donate and
   // the profile's avatar; the footer with the controller, the version and the controller's hints for the page.
@@ -184,7 +187,7 @@ class App {
   void Assign(std::string token);
 
   Settings settings_;
-  const Texts& t_;
+  Texts t_;  // TextsFor(language_), a copy: SetLanguage replaces it
   Page page_ = Page::kPlay;
   Result result_ = Result::kNone;
   bool gamepad_used_ = false;  // the last input came from a controller: the focus shows
@@ -285,6 +288,7 @@ class App {
   std::optional<Achievements> achievements_;
   std::vector<ImTextureID> achievement_icons_;
   bool achievements_requested_ = false;
+  bool achievements_reload_ = false;  // the language changed while they were read: read them again
 
   // The game's icon (achievements.h's FindGameIcon): the sidebar's and the first run's logo, and the game's picture
   // in the profile pages; until it is found, the game's mark on accent. A list the game wrote before it wrote its
