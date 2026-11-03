@@ -95,11 +95,12 @@ void App::PlayPage(const ImRect& rect) {
       }
     }
     if (o.native) {
-      if (o.native_aa < kNativeAntialiasingCount && o.native_aa != kAaOff) {
-        constexpr const char* kNames[] = {"SMAA", "DLAA", "FXAA", ""};
-        chips.push_back(kNames[o.native_aa]);
-      } else if (o.native_aa >= kNativeAntialiasingCount && o.native_aa_experimental >= 0) {
-        chips.push_back(kExperimentalAntialiasing[o.native_aa_experimental].label);
+      // The upscaler, then the antialiasing (FSR 3.1 and DLSS are both).
+      if (game::kHasDlaa && IsTemporal(o.upscaler)) {
+        chips.push_back(o.upscaler == kUpscaleFsr3 ? "FSR 3.1" : o.upscale_quality == kQualityNative ? "DLAA" : "DLSS");
+      } else {
+        if (IsSpatial(o.upscaler)) chips.push_back(o.upscaler == kUpscaleFsr1 ? "FSR 1" : "NIS");
+        if (o.native_aa == kSmaa || o.native_aa == kFxaa) chips.push_back(o.native_aa == kSmaa ? "SMAA" : "FXAA");
       }
     } else if (*game::kNoMsaaCvar && !o.no_msaa) {
       chips.push_back(game::kMsaaLabel);

@@ -55,8 +55,9 @@ void ResetVideo(Options& o) {
   o.window = defaults.window;
   o.native_aspect = defaults.native_aspect;
   o.native_height = defaults.native_height;
-  o.native_scaling = defaults.native_scaling;
-  o.native_sharpness = defaults.native_sharpness;
+  o.upscaler = defaults.upscaler;
+  o.upscale_quality = defaults.upscale_quality;
+  o.sharpness = defaults.sharpness;
   o.scale = defaults.scale;
 }
 
@@ -68,7 +69,6 @@ void ResetGraphics(Options& o) {
   o.frame_rate = defaults.frame_rate;
   o.no_msaa = defaults.no_msaa;
   o.native_aa = defaults.native_aa;
-  o.native_aa_experimental = defaults.native_aa_experimental;
   o.anisotropic = defaults.anisotropic;
   o.shadow_quality = defaults.shadow_quality;
   // The game's screen effects are in the Graphics category.
@@ -342,31 +342,32 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   double native_scale = std::strtod(GetString(c, "native_x_renderer_resolution_scale").c_str(), nullptr);
   o.native_height = native_scale > 0.0 ? int(std::lround(native_scale * kGuestHeight)) : 0;
   {
-    std::string scaling = GetString(c, "native_x_renderer_scaling");
-    for (int i = 0; i < kNativeScalingCount; ++i) {
-      if (scaling == kNativeScalingNames[i]) o.native_scaling = i;
+    // The upscaler: a temporal one by the antialiasing's mode (fsr_native, dlaa, fsr_quality, dlss_quality...), only where
+    // the game marks its views (elsewhere DLSS never runs and SMAA would be off: SMAA); FSR 1 or NIS by the scaling.
+    std::string native_aa = GetString(c, "native_x_renderer_antialiasing");
+    for (int i = 0; i < kNativeAntialiasingCount; ++i) {
+      if (native_aa == kNativeAntialiasingNames[i]) o.native_aa = i;
     }
-    // The row's value closest to the file's (a negative one is the default).
-    double sharpness = GetDouble(c, "native_x_renderer_sharpness", -1.0);
-    o.native_sharpness = 0;
-    for (int i = 1; sharpness >= 0.0 && i < int(std::size(kNativeSharpnessValues)); ++i) {
-      if (o.native_sharpness == 0 || std::abs(kNativeSharpnessValues[i] - sharpness) <
-                                         std::abs(kNativeSharpnessValues[o.native_sharpness] - sharpness)) {
-        o.native_sharpness = i;
+    int temporal = native_aa == "dlaa" || native_aa.rfind("dlss_", 0) == 0 ? kUpscaleDlss
+                   : native_aa.rfind("fsr_", 0) == 0                     ? kUpscaleFsr3
+                                                                         : kUpscaleOff;
+    if (temporal != kUpscaleOff && game::kHasDlaa) {
+      o.upscaler = temporal;
+      std::string mode = native_aa == "dlaa" ? "native" : native_aa.substr(native_aa.find('_') + 1);
+      for (int i = 0; i < kUpscaleQualityCount; ++i) {
+        if (mode == kUpscaleQualityNames[i]) o.upscale_quality = i;
       }
+    } else {
+      std::string scaling = GetString(c, "native_x_renderer_scaling");
+      o.upscaler = scaling == "fsr" ? kUpscaleFsr1 : scaling == "nis" ? kUpscaleNis : kUpscaleOff;
+      std::string quality = GetString(c, "launcher_upscaling_quality");
+      for (int i = 0; i < kUpscaleQualityCount; ++i) {
+        if (quality == kUpscaleQualityNames[i]) o.upscale_quality = i;
+      }
+      // FSR 1 and NIS set the internal resolution: the one chosen without them is the automatic one.
+      if (IsSpatial(o.upscaler)) o.native_height = 0;
     }
-  }
-  std::string native_aa = GetString(c, "native_x_renderer_antialiasing");
-  for (int i = 0; i < kNativeAntialiasingCount; ++i) {
-    if (native_aa == kNativeAntialiasingNames[i]) o.native_aa = i;
-  }
-  // DLAA where the game does not mark its views (game::kHasDlaa) turns SMAA and FXAA off and DLSS never runs: SMAA.
-  if (!game::kHasDlaa && (o.native_aa == kDlaa || o.native_aa == kFsrAa)) o.native_aa = kSmaa;
-  for (int i = 0; i < int(std::size(kExperimentalAntialiasing)); ++i) {
-    if (native_aa == kExperimentalAntialiasing[i].name) {
-      o.native_aa_experimental = i;
-      o.native_aa = kNativeAntialiasingCount;
-    }
+    o.sharpness = SharpnessFromValue(o.upscaler, GetDouble(c, "native_x_renderer_sharpness", -1.0));
   }
   // Without the key, the game's default (src/startup.cpp adds it to its base settings at the next start): 16x.
   // A value the row does not offer: -1 (only what the game asks: 4x on some textures) shows as 4x, 1 (1x)
@@ -620,6 +621,66 @@ std::vector<int> NativeHeights(Size output, double image_aspect, int keep) {
   return heights;
 }
 
+int SpatialHeight(Size output, double image_aspect, int quality) {
+  int highest = NativeRenderSize(output, image_aspect, 0).second;
+  int lowest = NativeRenderSize(output, image_aspect, kGuestHeight).second;
+  double ratio = kUpscaleRatios[std::clamp(quality, 0, kUpscaleQualityCount - 1)];
+  return std::max(int(std::lround(highest / ratio)), lowest);
+}
+
+Size TemporalInputSize(Size output, double image_aspect, int quality) {
+  Size size = NativeRenderSize(output, image_aspect, 0);
+  double ratio = kUpscaleRatios[std::clamp(quality, 0, kUpscaleQualityCount - 1)];
+  return {int(std::lround(size.first / ratio)), int(std::lround(size.second / ratio))};
+}
+
+std::vector<int> UpscaleQualities(int upscaler, Size output, double image_aspect) {
+  std::vector<int> qualities;
+  if (IsTemporal(upscaler)) {
+    for (int q : {kQualityNative, kQualityQuality, kQualityBalanced, kQualityPerformance, kQualityUltraPerformance}) {
+      qualities.push_back(q);
+    }
+  } else if (IsSpatial(upscaler)) {
+    // Each a lower internal resolution than the last; the first one at the lowest is the last offered.
+    int last = NativeRenderSize(output, image_aspect, 0).second;
+    for (int q = kQualityUltra; q < kUpscaleQualityCount; ++q) {
+      int height = SpatialHeight(output, image_aspect, q);
+      if (height >= last && !qualities.empty()) break;
+      qualities.push_back(q);
+      last = height;
+    }
+  }
+  return qualities;
+}
+
+int FitUpscaleQuality(int upscaler, int quality, Size output, double image_aspect) {
+  std::vector<int> qualities = UpscaleQualities(upscaler, output, image_aspect);
+  if (qualities.empty() || std::find(qualities.begin(), qualities.end(), quality) != qualities.end()) return quality;
+  if (quality == kQualityUltra && IsTemporal(upscaler)) return kQualityNative;
+  if (quality == kQualityNative && IsSpatial(upscaler)) return kQualityUltra;
+  return qualities.back();  // lower than the screen allows: the lowest it does
+}
+
+namespace {
+const double* SharpnessTable(int upscaler) {
+  return upscaler == kUpscaleFsr1 ? kSharpnessFsr1 : upscaler == kUpscaleNis ? kSharpnessNis : kSharpnessCas;
+}
+}  // namespace
+
+double SharpnessValue(int upscaler, int sharpness) {
+  return SharpnessTable(upscaler)[std::clamp(sharpness, 0, kSharpnessCount - 1)];
+}
+
+int SharpnessFromValue(int upscaler, double value) {
+  if (value < 0.0) return IsSpatial(upscaler) ? kSharpnessMedium : kSharpnessOff;
+  const double* table = SharpnessTable(upscaler);
+  int nearest = 0;
+  for (int i = 1; i < kSharpnessCount; ++i) {
+    if (std::abs(table[i] - value) < std::abs(table[nearest] - value)) nearest = i;
+  }
+  return nearest;
+}
+
 // --- The settings being edited ---
 
 const Monitor& Settings::CurrentMonitor() const {
@@ -665,6 +726,8 @@ Settings LoadSettings(const std::filesystem::path& exe_dir) {
   s.o.vulkan = s.o.vulkan && s.has_vulkan;
   s.o.native = s.o.native && s.has_vulkan;
   s.FitFrameRate();
+  Size output = s.OutputSize();
+  s.o.upscale_quality = FitUpscaleQuality(s.o.upscaler, s.o.upscale_quality, output, ImageAspect(output, s.o.native_aspect));
   return s;
 }
 
@@ -791,9 +854,16 @@ bool SaveOptions(const Settings& s) {
       std::snprintf(text, sizeof(text), "%.4f", fill && o.native_aspect > 0.0 ? o.native_aspect : 0.0);
       f << "native_x_renderer_aspect = " << text << "\n";
     }
+    // The upscaling (launcher 3.9): FSR 1 and NIS from the internal resolution their quality sets, FSR 3.1 and DLSS at
+    // the screen's (they draw the 3D view smaller themselves).
+    int upscaler = !game::kHasDlaa && IsTemporal(o.upscaler) ? kUpscaleOff : o.upscaler;
+    Size output = s.OutputSize();
+    double aspect = ImageAspect(output, o.native_aspect);
+    int quality = FitUpscaleQuality(upscaler, o.upscale_quality, output, aspect);
+    int height = IsSpatial(upscaler) ? SpatialHeight(output, aspect, quality) : IsTemporal(upscaler) ? 0 : o.native_height;
     {
       char text[32];
-      std::snprintf(text, sizeof(text), "%.6f", o.native_height > 0 ? double(o.native_height) / kGuestHeight : 0.0);
+      std::snprintf(text, sizeof(text), "%.6f", height > 0 ? double(height) / kGuestHeight : 0.0);
       std::string value = text;
       value.erase(value.find_last_not_of('0') + 1);
       if (value.back() == '.') value.pop_back();
@@ -802,27 +872,33 @@ bool SaveOptions(const Settings& s) {
     // How the image is scaled into the window, and sharpened (D115).
     f << "# native_x_renderer_scaling: bilinear, fsr (AMD FSR 1) or nis (NVIDIA Image Scaling), when the internal\n"
          "# resolution is lower than the screen's. native_x_renderer_sharpness: 0 to 1 (0 none), or -1 for the\n"
-         "# filter's default (bilinear none, fsr RCAS at 0.2 stops, nis 0.5); AMD CAS sharpens the bilinear image.\n";
+         "# filter's default (bilinear none, fsr RCAS at 0.2 stops, nis 0.5); AMD CAS sharpens the bilinear image.\n"
+         "# launcher_upscaling_quality: the launcher's Quality row (native, ultra_quality, quality, balanced,\n"
+         "# performance, ultra_performance), which sets the internal resolution with fsr and nis.\n";
     f << "native_x_renderer_scaling = \""
-      << kNativeScalingNames[std::clamp(o.native_scaling, 0, kNativeScalingCount - 1)] << "\"\n";
+      << (upscaler == kUpscaleFsr1 ? "fsr" : upscaler == kUpscaleNis ? "nis" : "bilinear") << "\"\n";
     {
       char text[32];
-      int sharpness = std::clamp(o.native_sharpness, 0, int(std::size(kNativeSharpnessValues)) - 1);
-      std::snprintf(text, sizeof(text), "%g", kNativeSharpnessValues[sharpness]);
+      std::snprintf(text, sizeof(text), "%g", SharpnessValue(upscaler, o.sharpness));
       f << "native_x_renderer_sharpness = " << text << "\n";
     }
-    // NativeXRenderer's own antialiasing: smaa, dlaa and fsr_native (game::kHasDlaa), fxaa or off; or an experimental
-    // mode the file named (D53, D116).
-    f << "# native_x_renderer_antialiasing: "
-      << (game::kHasDlaa ? "smaa, dlaa, fsr_native, fxaa or off" : "smaa, fxaa or off")
-      << ", the launcher's choices. Experimental, for\n"
-         "# testing only (not finished, so the launcher does not offer them): dlss_quality, dlss_balanced,\n"
-         "# dlss_performance and dlss_ultra_performance, NVIDIA DLSS upscaling the 3D view from a lower\n"
-         "# resolution; fsr_quality, fsr_balanced, fsr_performance and fsr_ultra_performance, AMD FSR 3.1.\n"
-         "# The launcher keeps one written here.\n";
-    const char* native_aa = o.native_aa < kNativeAntialiasingCount ? kNativeAntialiasingNames[std::max(o.native_aa, 0)]
-                            : o.native_aa_experimental >= 0   ? kExperimentalAntialiasing[o.native_aa_experimental].name
-                                                              : kNativeAntialiasingNames[0];
+    f << "launcher_upscaling_quality = \"" << kUpscaleQualityNames[std::clamp(quality, 0, kUpscaleQualityCount - 1)]
+      << "\"\n";
+    // NativeXRenderer's own antialiasing, or the temporal upscaler's mode (D47-D49, D116; the upscaling modes are
+    // experimental, D53).
+    f << "# native_x_renderer_antialiasing: smaa, fxaa or off"
+      << (game::kHasDlaa ? "; with FSR 3.1 or DLSS, their mode: fsr_native or dlaa (antialiasing\n"
+                           "# alone), fsr_quality / dlss_quality, _balanced, _performance, _ultra_performance\n"
+                           "# (experimental)"
+                         : "")
+      << ".\n";
+    std::string native_aa = kNativeAntialiasingNames[std::clamp(o.native_aa, 0, kNativeAntialiasingCount - 1)];
+    if (IsTemporal(upscaler)) {
+      const char* prefix = upscaler == kUpscaleDlss ? "dlss_" : "fsr_";
+      native_aa = upscaler == kUpscaleDlss && quality == kQualityNative
+                      ? std::string("dlaa")
+                      : prefix + std::string(kUpscaleQualityNames[std::clamp(quality, 0, kUpscaleQualityCount - 1)]);
+    }
     f << "native_x_renderer_antialiasing = \"" << native_aa << "\"\n";
     // The shadow maps' resolution (D92): 0 = the internal resolution's, as everything else; 2 or 4 = at least twice
     // or four times the game's.

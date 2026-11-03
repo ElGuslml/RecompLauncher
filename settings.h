@@ -28,36 +28,47 @@ using Size = std::pair<int, int>;  // width, height
 
 enum Display : int { kFullscreen, kBorderless, kWindow };
 
-// NativeXRenderer's antialiasing (native_x_renderer_antialiasing): SMAA or FXAA on the finished scene (D41),
-// DLAA with NVIDIA DLSS before the post-processing (D47; SMAA where DLSS is not available), AMD FSR 3.1's native AA
-// there instead (D116, any GPU), or off. DLAA and FSR 3.1 only where the game marks its views (game::kHasDlaa).
-enum NativeAntialiasing : int { kSmaa, kDlaa, kFxaa, kAaOff, kFsrAa, kNativeAntialiasingCount };
-inline constexpr const char* kNativeAntialiasingNames[] = {"smaa", "dlaa", "fxaa", "off", "fsr_native"};
+// NativeXRenderer's antialiasing on the finished scene (native_x_renderer_antialiasing, D41): SMAA, FXAA or none. With
+// a temporal upscaler (below) the upscaler's mode is written there instead.
+enum NativeAntialiasing : int { kSmaa, kFxaa, kAaOff, kNativeAntialiasingCount };
+inline constexpr const char* kNativeAntialiasingNames[] = {"smaa", "fxaa", "off"};
 
-// How NativeXRenderer scales its image into the window when the internal resolution is lower (native_x_renderer_scaling,
-// its D115): a bilinear stretch, AMD FSR 1 or NVIDIA Image Scaling. Its sharpening (native_x_renderer_sharpness), each
-// row value's: the filter's own default (-1: none with the stretch, FSR 1's RCAS at 0.2 stops, NIS 0.5), none, or a
-// strength (AMD CAS with the stretch, FSR 1's RCAS, NIS's own), at any internal resolution.
-enum NativeScaling : int { kScalingBilinear, kScalingFsr, kScalingNis, kNativeScalingCount };
-inline constexpr const char* kNativeScalingNames[] = {"bilinear", "fsr", "nis"};
-inline constexpr double kNativeSharpnessValues[] = {-1.0, 0.0, 0.3, 0.6, 1.0};  // default, off, low, medium, high
+// NativeXRenderer's upscaling (Settings > Video > Upscaling, launcher 3.9), the choices other PC games give:
+// - off: the image at the internal resolution, stretched bilinearly into the window (native_x_renderer_scaling bilinear);
+// - AMD FSR 1, NVIDIA Image Scaling: the finished image enlarged into the window (D115: fsr, nis), from an internal
+//   resolution the quality sets (native_x_renderer_resolution_scale);
+// - AMD FSR 3.1, NVIDIA DLSS, where the game marks its views (game::kHasDlaa): the 3D view rebuilt from several frames,
+//   its antialiasing too (D47-D49, D116), at the screen's resolution; the quality is their mode
+//   (native_x_renderer_antialiasing: fsr_native / dlaa, fsr_quality / dlss_quality...). DLSS needs an NVIDIA RTX GPU;
+//   elsewhere NativeXRenderer falls back to SMAA.
+enum Upscaler : int { kUpscaleOff, kUpscaleFsr1, kUpscaleNis, kUpscaleFsr3, kUpscaleDlss, kUpscalerCount };
+inline constexpr bool IsTemporal(int upscaler) { return upscaler == kUpscaleFsr3 || upscaler == kUpscaleDlss; }
+inline constexpr bool IsSpatial(int upscaler) { return upscaler == kUpscaleFsr1 || upscaler == kUpscaleNis; }
 
-// The DLSS modes (NativeXRenderer's D49) draw the 3D view at a lower resolution and upscale it. They are not
-// finished, and the launcher does not offer them (D53): the options file can still name one, and the row then shows it,
-// marked experimental, so that saving keeps it.
-struct ExperimentalAntialiasing {
-  const char* name;
-  const char* label;
+// The upscaling's quality: how much smaller the image is drawn, per axis (AMD's FSR ratios; NVIDIA's NIS and DLSS
+// presets are the same within a few pixels). Native only for FSR 3.1 and DLSS (their antialiasing alone: Native AA,
+// DLAA); ultra quality only for FSR 1 and NIS. FSR 3.1's and DLSS's other modes are experimental (D53).
+enum UpscaleQuality : int {
+  kQualityNative,
+  kQualityUltra,
+  kQualityQuality,
+  kQualityBalanced,
+  kQualityPerformance,
+  kQualityUltraPerformance,
+  kUpscaleQualityCount
 };
-inline constexpr ExperimentalAntialiasing kExperimentalAntialiasing[] = {
-    {"dlss_quality", "DLSS Quality"},
-    {"dlss_balanced", "DLSS Balanced"},
-    {"dlss_performance", "DLSS Performance"},
-    {"dlss_ultra_performance", "DLSS Ultra Performance"},
-    {"fsr_quality", "FSR 3.1 Quality"},
-    {"fsr_balanced", "FSR 3.1 Balanced"},
-    {"fsr_performance", "FSR 3.1 Performance"},
-    {"fsr_ultra_performance", "FSR 3.1 Ultra Performance"}};
+inline constexpr double kUpscaleRatios[] = {1.0, 1.3, 1.5, 1.7, 2.0, 3.0};
+// launcher_upscaling_quality's values, and the temporal modes' suffixes (fsr_quality, dlss_balanced...).
+inline constexpr const char* kUpscaleQualityNames[] = {"native",  "ultra_quality", "quality",
+                                                       "balanced", "performance",   "ultra_performance"};
+
+// The sharpening (native_x_renderer_sharpness, D115), after the HUD: off, low, medium (what AMD and NVIDIA recommend)
+// or high. Each filter's own values: FSR 1's RCAS (2 × (1 - s) stops: 1, 0.2 as AMD's default, 0), NIS's (0.5 its
+// default), and AMD CAS on the image otherwise (off, FSR 3.1, DLSS).
+enum Sharpness : int { kSharpnessOff, kSharpnessLow, kSharpnessMedium, kSharpnessHigh, kSharpnessCount };
+inline constexpr double kSharpnessFsr1[] = {0.0, 0.5, 0.9, 1.0};
+inline constexpr double kSharpnessNis[] = {0.0, 0.25, 0.5, 0.8};
+inline constexpr double kSharpnessCas[] = {0.0, 0.3, 0.6, 1.0};
 
 // The keyboard's controls: the SDK's keybind_* cvars (thirdparty/rexglue-sdk/src/input/mnk), in the Keyboard
 // page's order. Each is a comma-separated list of key names; the page edits the first two (primary and
@@ -110,18 +121,17 @@ struct Options {
   // shown as it is ready ("immediate": IMMEDIATE, tearing).
   bool vsync = true;
   bool native = game::kHasNativeXRenderer && game::kNativeXRendererDefault;  // native_x_renderer: NativeXRenderer draws
-  // native_x_renderer_antialiasing: a NativeAntialiasing, or kNativeAntialiasingCount for the experimental mode
-  // the options file named (native_aa_experimental, an index of kExperimentalAntialiasing; -1: none).
+  // native_x_renderer_antialiasing without a temporal upscaler: a NativeAntialiasing.
   int native_aa = kSmaa;
-  int native_aa_experimental = -1;
   // The image's aspect ratio (native_x_renderer_fill_screen and native_x_renderer_aspect, game::kUltrawideCvar): 0 = the
   // screen's, which it fills; kAspect16x9 = the game's own (bars on a wider screen); another (kAspect21x9,
   // kAspect32x9) with NativeXRenderer only, with bars where the screen is narrower or wider.
   double native_aspect = 0.0;
-  int native_height = 0;    // native_x_renderer_resolution_scale × the frame's height: the internal resolution's
-                            // height; 0 = automatic
-  int native_scaling = kScalingBilinear;  // native_x_renderer_scaling: a NativeScaling
-  int native_sharpness = 0;               // native_x_renderer_sharpness: an index of kNativeSharpnessValues
+  int native_height = 0;    // native_x_renderer_resolution_scale × the frame's height without upscaling: the internal
+                            // resolution's height; 0 = automatic
+  int upscaler = kUpscaleOff;              // an Upscaler
+  int upscale_quality = kQualityQuality;   // an UpscaleQuality (launcher_upscaling_quality)
+  int sharpness = kSharpnessOff;           // a Sharpness
   // native_x_renderer_shadow_scale (NativeXRenderer's D92): 0 = the shadow maps like everything else, 1 = at least
   // twice the game's resolution (2), 2 = at least four times (4).
   int shadow_quality = 0;
@@ -248,6 +258,20 @@ Size NativeRenderSize(Size output, double image_aspect, int height);
 
 // The internal resolutions NativeXRenderer offers, as heights (D54): 0 (automatic), then lower ones.
 std::vector<int> NativeHeights(Size output, double image_aspect, int keep);
+
+// The qualities an upscaler offers (UpscaleQuality values): FSR 3.1 and DLSS native and their four modes; FSR 1 and NIS
+// those whose internal resolution differs, down to the lowest NativeXRenderer draws (the game's 720 lines).
+std::vector<int> UpscaleQualities(int upscaler, Size output, double image_aspect);
+// A quality the upscaler offers: the given one, or the nearest (native <-> ultra quality, the lowest offered).
+int FitUpscaleQuality(int upscaler, int quality, Size output, double image_aspect);
+// The internal resolution's height FSR 1 and NIS draw at for a quality (native_x_renderer_resolution_scale × 720).
+int SpatialHeight(Size output, double image_aspect, int quality);
+// The size FSR 3.1 or DLSS draw the 3D view at for a quality, from the screen's internal resolution.
+Size TemporalInputSize(Size output, double image_aspect, int quality);
+// The sharpening's native_x_renderer_sharpness for an upscaler, and back (the nearest step; a negative value, the
+// filter's own default, is medium for FSR 1 and NIS and off otherwise).
+double SharpnessValue(int upscaler, int sharpness);
+int SharpnessFromValue(int upscaler, double value);
 
 // --- The settings being edited ---
 

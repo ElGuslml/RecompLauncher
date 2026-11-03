@@ -107,18 +107,32 @@ struct Texts {
   const char* debug_keys_hint;
   const char* debug_keys_help;
   const char* debug_keys_conflict;  // %s: the keys on controls and the controls ("F4 (Red)")
-  // Launcher 3.8: NativeXRenderer's scaling into the window and its sharpening (Settings > Display; its D115).
+  // Launcher 3.9: NativeXRenderer's upscaling, its quality and the sharpening (Settings > Video; its D115, D116), as other
+  // PC games name them.
   const char* scaling;
   const char* scaling_hint;
   const char* scaling_help;
-  const char* scaling_bilinear;
-  const char* scaling_bilinear_sub;
+  const char* scaling_off;
+  const char* scaling_off_sub;
   const char* scaling_fsr_sub;
   const char* scaling_nis_sub;
+  const char* scaling_fsr3_sub;
+  const char* scaling_dlss_sub;
+  const char* quality;
+  const char* quality_help;
+  const char* quality_native;
+  const char* quality_ultra;
+  const char* quality_quality;
+  const char* quality_balanced;
+  const char* quality_performance;
+  const char* quality_ultra_performance;
+  const char* quality_from;        // %s: the size the image is drawn at ("Drawn at 2293 × 960")
+  const char* quality_native_sub;  // FSR 3.1's and DLSS's native: their antialiasing alone
+  const char* internal_by_quality;       // the internal resolution's line when the upscaling sets it
+  const char* antialiasing_by_upscaler;  // the antialiasing row's line while FSR 3.1 or DLSS does it
   const char* sharpness;
   const char* sharpness_hint;
   const char* sharpness_help;
-  const char* sharpness_default;
   const char* sharpness_off;
   const char* sharpness_low;
   const char* sharpness_medium;

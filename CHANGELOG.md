@@ -2,6 +2,26 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.9.0
+
+The upscaling rows as other PC games name them (Gustavo, 2026-11-03: 3.8's Upscaling only did something when the
+internal resolution was lowered, and its quality was a number of lines). The options file's keys are the same; a game
+needs nothing new.
+
+- Settings > Video, with NativeXRenderer: "Upscaling": Off, AMD FSR 1, NVIDIA NIS, and where the game marks its views
+  (`game::kHasDlaa`) AMD FSR 3.1 and NVIDIA DLSS. Then "Quality": FSR 1 and NIS Ultra Quality, Quality, Balanced,
+  Performance, Ultra Performance (77, 67, 59, 50, 33 % of the screen's lines, those above the game's 720; written as
+  `native_x_renderer_resolution_scale`); FSR 3.1 and DLSS Native (Native AA, DLAA) and their four modes, marked
+  experimental (`native_x_renderer_antialiasing`: `fsr_native`, `dlaa`, `fsr_quality`, `dlss_quality`...). Each value
+  says the size the image is drawn at. The internal resolution is chosen only without upscaling; with it the row shows
+  the one the quality sets. The quality is kept as `launcher_upscaling_quality`.
+- "Sharpness": Off, Low, Medium, High, with each filter's own values (FSR 1's RCAS 1, 0.2 and 0 stops; NIS 0.25, 0.5,
+  0.8; AMD CAS 0.3, 0.6, 1); Medium is AMD's and NVIDIA's recommendation. FSR 1 and NIS start at Medium when chosen
+  with it off, and leave it off again.
+- Settings > Graphics > Antialiasing: SMAA, FXAA, None; DLAA and FSR 3.1 moved to Upscaling (DLSS / FSR 3.1 at Native),
+  and the row is locked to them while one is chosen. The Play page names the upscaler (FSR 1, NIS, FSR 3.1, DLSS or
+  DLAA) beside the antialiasing; 3.8 read past its names with FSR 3.1.
+
 ## 3.8.0
 
 Needs NativeXRenderer's D115 and D116 (its `ghmetal` branch until merged): a game on an older NativeXRenderer ignores

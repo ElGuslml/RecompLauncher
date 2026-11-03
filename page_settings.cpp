@@ -288,7 +288,74 @@ void App::SettingsPage(const ImRect& rect) {
       }
       rows.push_back(std::move(row));
     }
-    // Internal resolution: NativeXRenderer's (automatic, or a lower height), or Xenos's scale.
+    // NativeXRenderer's upscaling (launcher 3.9, settings.h): off, AMD FSR 1, NVIDIA NIS, and AMD FSR 3.1 and NVIDIA DLSS
+    // where the game marks its views (game::kHasDlaa); then its quality, which sets the internal resolution.
+    double aspect = ImageAspect(output, o.native_aspect);
+    if (o.native) {
+      if (!game::kHasDlaa && IsTemporal(o.upscaler)) o.upscaler = kUpscaleOff;
+      std::vector<int> upscalers = {kUpscaleOff, kUpscaleFsr1, kUpscaleNis};
+      OptionRow row;
+      row.id = "scaling";
+      row.title = t_.scaling;
+      row.sub = t_.scaling_hint;
+      row.help = t_.scaling_help;
+      row.values = {t_.scaling_off, "AMD FSR 1", "NVIDIA NIS"};
+      row.subs = {t_.scaling_off_sub, t_.scaling_fsr_sub, t_.scaling_nis_sub};
+      if (game::kHasDlaa) {
+        upscalers.push_back(kUpscaleFsr3);
+        row.values.push_back("AMD FSR 3.1");
+        row.subs.push_back(t_.scaling_fsr3_sub);
+        upscalers.push_back(kUpscaleDlss);
+        row.values.push_back("NVIDIA DLSS");
+        row.subs.push_back(t_.scaling_dlss_sub);
+      }
+      row.index = int(std::find(upscalers.begin(), upscalers.end(), o.upscaler) - upscalers.begin());
+      row.apply = [&o, upscalers, output, aspect](int index) {
+        int previous = o.upscaler;
+        o.upscaler = upscalers[size_t(index)];
+        // FSR 1 and NIS come with their own sharpening (medium: what AMD and NVIDIA recommend), and leave without it,
+        // unless another strength was chosen.
+        if (IsSpatial(o.upscaler) && !IsSpatial(previous) && o.sharpness == kSharpnessOff) o.sharpness = kSharpnessMedium;
+        if (!IsSpatial(o.upscaler) && IsSpatial(previous) && o.sharpness == kSharpnessMedium) o.sharpness = kSharpnessOff;
+        // FSR 3.1 and DLSS start at their antialiasing alone (not experimental).
+        int quality = IsTemporal(o.upscaler) && !IsTemporal(previous) ? kQualityNative : o.upscale_quality;
+        o.upscale_quality = FitUpscaleQuality(o.upscaler, quality, output, aspect);
+      };
+      rows.push_back(std::move(row));
+    }
+    if (o.native && o.upscaler != kUpscaleOff) {
+      o.upscale_quality = FitUpscaleQuality(o.upscaler, o.upscale_quality, output, aspect);
+      std::vector<int> qualities = UpscaleQualities(o.upscaler, output, aspect);
+      const char* names[] = {t_.quality_native, t_.quality_ultra,       t_.quality_quality,
+                             t_.quality_balanced, t_.quality_performance, t_.quality_ultra_performance};
+      OptionRow row;
+      row.id = "quality";
+      row.title = t_.quality;
+      row.help = t_.quality_help;
+      for (int quality : qualities) {
+        char from[128];
+        if (IsTemporal(o.upscaler)) {
+          std::string name = names[quality];
+          if (quality == kQualityNative) name += o.upscaler == kUpscaleDlss ? " · DLAA" : " · Native AA";
+          row.values.push_back(name);
+          std::snprintf(from, sizeof(from), t_.quality_from, SizeText(TemporalInputSize(output, aspect, quality)).c_str());
+          row.subs.push_back(quality == kQualityNative ? t_.quality_native_sub : from);
+          row.tags.push_back(quality == kQualityNative ? std::string() : std::string(t_.experimental));
+        } else {
+          row.values.push_back(names[quality]);
+          Size size = NativeRenderSize(output, aspect, SpatialHeight(output, aspect, quality));
+          std::snprintf(from, sizeof(from), t_.quality_from, SizeText(size).c_str());
+          row.subs.push_back(from);
+          row.tags.push_back("");
+        }
+        row.tag_accent.push_back(false);
+        if (quality == o.upscale_quality) row.index = int(row.values.size()) - 1;
+      }
+      row.apply = [&o, qualities](int index) { o.upscale_quality = qualities[size_t(index)]; };
+      rows.push_back(std::move(row));
+    }
+    // Internal resolution: NativeXRenderer's (automatic, or a lower height; set by the upscaling's quality), or Xenos's
+    // scale.
     {
       OptionRow row;
       row.id = "internal";
@@ -297,7 +364,12 @@ void App::SettingsPage(const ImRect& rect) {
       std::snprintf(xenos_hint, sizeof(xenos_hint), t_.internal_hint_xenos, game::kFrameWidth, game::kFrameHeight);
       row.sub = o.native ? t_.internal_hint : xenos_hint;
       row.help = row.sub;
-      if (o.native) {
+      if (o.native && o.upscaler != kUpscaleOff) {
+        row.locked = true;
+        Size size = NativeRenderSize(output, aspect, IsSpatial(o.upscaler) ? SpatialHeight(output, aspect, o.upscale_quality) : 0);
+        row.locked_value = IsSpatial(o.upscaler) ? SizeText(size) : std::string(t_.automatic) + " (" + SizeText(size) + ")";
+        row.sub = t_.internal_by_quality;
+      } else if (o.native) {
         std::vector<int> heights = NativeHeights(output, ImageAspect(output, o.native_aspect), o.native_height);
         if (std::find(heights.begin(), heights.end(), o.native_height) == heights.end()) {
           o.native_height = 0;  // another monitor or window no longer offers it
@@ -329,28 +401,16 @@ void App::SettingsPage(const ImRect& rect) {
       }
       rows.push_back(std::move(row));
     }
-    // NativeXRenderer's scaling into the window when the internal resolution is lower, and its sharpening (D115).
-    if (o.native) {
-      OptionRow row;
-      row.id = "scaling";
-      row.title = t_.scaling;
-      row.sub = t_.scaling_hint;
-      row.help = t_.scaling_help;
-      row.values = {t_.scaling_bilinear, "AMD FSR 1", "NVIDIA NIS"};
-      row.subs = {t_.scaling_bilinear_sub, t_.scaling_fsr_sub, t_.scaling_nis_sub};
-      row.index = std::clamp(o.native_scaling, 0, kNativeScalingCount - 1);
-      row.apply = [&o](int index) { o.native_scaling = index; };
-      rows.push_back(std::move(row));
-    }
+    // The sharpening after the HUD (D115): the upscaler's own with FSR 1 and NIS, AMD CAS otherwise.
     if (o.native) {
       OptionRow row;
       row.id = "sharpness";
       row.title = t_.sharpness;
       row.sub = t_.sharpness_hint;
       row.help = t_.sharpness_help;
-      row.values = {t_.sharpness_default, t_.sharpness_off, t_.sharpness_low, t_.sharpness_medium, t_.sharpness_high};
-      row.index = std::clamp(o.native_sharpness, 0, int(std::size(kNativeSharpnessValues)) - 1);
-      row.apply = [&o](int index) { o.native_sharpness = index; };
+      row.values = {t_.sharpness_off, t_.sharpness_low, t_.sharpness_medium, t_.sharpness_high};
+      row.index = std::clamp(o.sharpness, 0, kSharpnessCount - 1);
+      row.apply = [&o](int index) { o.sharpness = index; };
       rows.push_back(std::move(row));
     }
   } else {
@@ -401,37 +461,22 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.vsync = index == 0; };
       rows.push_back(std::move(row));
     }
-    // Antialiasing: NativeXRenderer's (DLAA and FSR 3.1 where the game marks its views, game::kHasDlaa; an
-    // experimental DLSS or FSR mode the options file named, last), or the game's MSAA.
+    // Antialiasing: NativeXRenderer's SMAA or FXAA (FSR 3.1 and DLSS, Video > Upscaling, do their own), or the game's
+    // MSAA.
     if (o.native) {
-      std::vector<int> order = {kSmaa, kFxaa};
       OptionRow row;
       row.id = "aa";
       row.title = t_.antialiasing;
       row.sub = game::kHasDlaa ? t_.antialiasing_hint : t_.antialiasing_hint_no_dlaa;
       row.help = row.sub;
-      row.values = {"SMAA", "FXAA"};
-      if (game::kHasDlaa) {
-        order.push_back(kDlaa);
-        row.values.push_back("DLAA");
-        order.push_back(kFsrAa);
-        row.values.push_back("FSR 3.1");
+      row.values = {"SMAA", "FXAA", t_.none};
+      row.index = std::clamp(o.native_aa, 0, kNativeAntialiasingCount - 1);
+      if (game::kHasDlaa && IsTemporal(o.upscaler)) {
+        row.locked = true;
+        row.locked_value = o.upscaler == kUpscaleDlss ? "NVIDIA DLSS" : "AMD FSR 3.1";
+        row.sub = t_.antialiasing_by_upscaler;
       }
-      order.push_back(kAaOff);
-      row.values.push_back(t_.none);
-      row.tags.assign(row.values.size(), "");
-      row.tag_accent.assign(row.values.size(), false);
-      if (o.native_aa_experimental >= 0) {
-        row.values.push_back(kExperimentalAntialiasing[o.native_aa_experimental].label);
-        row.tags.push_back(t_.experimental);
-        row.tag_accent.push_back(false);
-      }
-      row.index = o.native_aa >= kNativeAntialiasingCount
-                      ? int(order.size())
-                      : int(std::find(order.begin(), order.end(), o.native_aa) - order.begin());
-      row.apply = [&o, order](int index) {
-        o.native_aa = index < int(order.size()) ? order[size_t(index)] : kNativeAntialiasingCount;
-      };
+      row.apply = [&o](int index) { o.native_aa = index; };
       rows.push_back(std::move(row));
     } else if (*game::kNoMsaaCvar) {
       OptionRow row;
