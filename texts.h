@@ -129,6 +129,8 @@ struct Texts {
   const char* quality_from;        // %s: the size the image is drawn at ("Drawn at 2293 × 960")
   const char* quality_native_sub;  // FSR 3.1's and DLSS's native: their antialiasing alone
   const char* internal_by_quality;       // the internal resolution's line when the upscaling sets it
+  const char* internal_scene_only;       // the same with FSR 3.1 or DLSS, which draw only the 3D scene smaller (3.9.1)
+  const char* internal_scene_help;
   const char* antialiasing_by_upscaler;  // the antialiasing row's line while FSR 3.1 or DLSS does it
   const char* sharpness;
   const char* sharpness_hint;

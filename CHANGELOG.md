@@ -2,6 +2,13 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.9.1
+
+- Settings > Video > Internal resolution with AMD FSR 3.1 or NVIDIA DLSS: the size the 3D scene is drawn at (the
+  quality's: 2293 × 960 for Quality at 3440 × 1440), "The 3D scene only", where 3.9 showed the screen's (the HUD's and
+  the effects', which the upscaler rebuilds the scene at). Gustavo read 3.9's as the quality not lowering anything; the
+  game's log says it does ("DLSS Quality: 2293x960 to 3440x1440").
+
 ## 3.9.0
 
 The upscaling rows as other PC games name them (Gustavo, 2026-11-03: 3.8's Upscaling only did something when the

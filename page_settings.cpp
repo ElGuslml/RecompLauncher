@@ -364,11 +364,17 @@ void App::SettingsPage(const ImRect& rect) {
       std::snprintf(xenos_hint, sizeof(xenos_hint), t_.internal_hint_xenos, game::kFrameWidth, game::kFrameHeight);
       row.sub = o.native ? t_.internal_hint : xenos_hint;
       row.help = row.sub;
-      if (o.native && o.upscaler != kUpscaleOff) {
+      if (o.native && IsSpatial(o.upscaler)) {
         row.locked = true;
-        Size size = NativeRenderSize(output, aspect, IsSpatial(o.upscaler) ? SpatialHeight(output, aspect, o.upscale_quality) : 0);
-        row.locked_value = IsSpatial(o.upscaler) ? SizeText(size) : std::string(t_.automatic) + " (" + SizeText(size) + ")";
+        row.locked_value = SizeText(NativeRenderSize(output, aspect, SpatialHeight(output, aspect, o.upscale_quality)));
         row.sub = t_.internal_by_quality;
+      } else if (o.native && IsTemporal(o.upscaler)) {
+        // FSR 3.1 and DLSS draw only the 3D scene at the quality's size; the HUD and the game's effects are drawn at the
+        // screen's, which the upscaler rebuilds the scene at (launcher 3.9.1: 3.9 showed the screen's size here).
+        row.locked = true;
+        row.locked_value = SizeText(TemporalInputSize(output, aspect, o.upscale_quality));
+        row.sub = t_.internal_scene_only;
+        row.help = t_.internal_scene_help;
       } else if (o.native) {
         std::vector<int> heights = NativeHeights(output, ImageAspect(output, o.native_aspect), o.native_height);
         if (std::find(heights.begin(), heights.end(), o.native_height) == heights.end()) {
