@@ -185,6 +185,10 @@ class App {
   void StartListening(int bind, int slot);
   void StopListening();
   void Assign(std::string token);
+  // A Bind's name: the game's function on it (game.h, GameControlsFor), else the Xbox 360 control's.
+  const char* BindName(int bind);
+  // The SDK's developer keys (F3, F4, `) on the keyboard's controls, each with its control ("F4 (Red)"), or "".
+  std::string DebugKeysOnControls();
 
   Settings settings_;
   Texts t_;  // TextsFor(language_), a copy: SetLanguage replaces it
@@ -217,6 +221,7 @@ class App {
   int listen_slot_ = 0;   // 0 = primary, 1 = secondary
   uint8_t held_modifiers_ = 0;
   bool modifier_pressed_ = false;
+  SDL_Scancode modifier_first_ = SDL_SCANCODE_UNKNOWN;  // the first of them pressed: alone, it is the key
   std::string notice_;  // a message in place of the keyboard mapping's hint, for a moment
   std::chrono::steady_clock::time_point notice_until_{};
 

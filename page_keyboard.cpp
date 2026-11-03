@@ -4,8 +4,10 @@
 //
 // The keys are the SDK's names (thirdparty/rexglue-sdk/src/ui/keybinds.cpp) of physical keys: the SDK maps
 // SDL scancodes, as on a US keyboard (src/ui/sdl_virtual_key.cpp). The page shows each with its label in the
-// user's layout. A bind may need Shift, Ctrl or Alt held ("Shift+Up"); a bare modifier never fires there, so
-// the page does not accept one alone.
+// user's layout. A bind may need Shift, Ctrl or Alt held ("Shift+Up"). One of them pressed and released alone is a
+// key of its own, its side's ("LAlt", recomp change 67): the SDK then no longer takes that key for a modifier, and
+// the page says so when another bind needs it held. A key the SDK's overlays use (F3, F4, ` while the debug keys are
+// on; F7) plays only its control there (recomp change 68): the page says so too.
 
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_mouse.h>
@@ -30,6 +32,63 @@ namespace {
 constexpr uint8_t kShift = 1;
 constexpr uint8_t kCtrl = 2;
 constexpr uint8_t kAlt = 4;
+
+// Shift, Ctrl and Alt as keys of their own: the SDK's names of each side, and either side's, with their labels.
+struct ModifierKey {
+  std::string_view name;
+  uint8_t bit;
+  int side;  // -1 left, 1 right, 0 either
+};
+constexpr ModifierKey kModifierKeys[] = {
+    {"LShift", 1, -1}, {"RShift", 1, 1}, {"Shift", 1, 0}, {"LCtrl", 2, -1}, {"RCtrl", 2, 1},
+    {"Ctrl", 2, 0},    {"Control", 2, 0}, {"LAlt", 4, -1}, {"RAlt", 4, 1}, {"Alt", 4, 0},
+};
+
+const char* ModifierWord(uint8_t bit, const Texts& t) {
+  return bit == 1 ? t.key_shift : bit == 2 ? t.key_ctrl : t.key_alt;
+}
+
+const ModifierKey* FindModifierKey(std::string_view name) {
+  for (const ModifierKey& key : kModifierKeys) {
+    if (key.name == name) return &key;
+  }
+  return nullptr;
+}
+
+const char* SideName(SDL_Scancode scancode) {
+  switch (scancode) {
+    case SDL_SCANCODE_LSHIFT:
+      return "LShift";
+    case SDL_SCANCODE_RSHIFT:
+      return "RShift";
+    case SDL_SCANCODE_LCTRL:
+      return "LCtrl";
+    case SDL_SCANCODE_RCTRL:
+      return "RCtrl";
+    case SDL_SCANCODE_LALT:
+      return "LAlt";
+    case SDL_SCANCODE_RALT:
+      return "RAlt";
+    default:
+      return nullptr;
+  }
+}
+
+// A key's name after its modifier prefixes, and the modifiers they hold (ModifierBit's bits), as the SDK parses them.
+std::string_view BareKey(std::string_view token, uint8_t* prefixes = nullptr) {
+  uint8_t bits = 0;
+  for (;;) {
+    size_t plus = token.find('+');
+    if (plus == std::string_view::npos || plus == 0) break;
+    std::string_view head = token.substr(0, plus);
+    uint8_t bit = head == "Shift" ? kShift : head == "Ctrl" || head == "Control" ? kCtrl : head == "Alt" ? kAlt : 0;
+    if (!bit) break;
+    bits |= bit;
+    token.remove_prefix(plus + 1);
+  }
+  if (prefixes) *prefixes = bits;
+  return token;
+}
 
 uint8_t ModifierBit(SDL_Scancode scancode) {
   switch (scancode) {
@@ -140,6 +199,13 @@ KeyLabel LabelOf(std::string_view token, const Texts& t) {
       return label;
     }
   }
+  if (const ModifierKey* key = FindModifierKey(token)) {
+    const char* word = ModifierWord(key->bit, t);
+    char text[64];
+    std::snprintf(text, sizeof(text), key->side < 0 ? t.key_left_side : key->side > 0 ? t.key_right_side : "%s", word);
+    label.text += text;
+    return label;
+  }
   if (token == "Up" || token == "Down" || token == "Left" || token == "Right") {
     label.icon = token == "Up" ? Icon::kArrowUp : token == "Down" ? Icon::kArrowDown
                  : token == "Left" ? Icon::kArrowLeft : Icon::kArrowRight;
@@ -221,6 +287,7 @@ void App::StartListening(int bind, int slot) {
   listen_slot_ = slot;
   held_modifiers_ = 0;
   modifier_pressed_ = false;
+  modifier_first_ = SDL_SCANCODE_UNKNOWN;
 }
 
 void App::StopListening() {
@@ -229,6 +296,7 @@ void App::StopListening() {
   if (WhammyCalibrating()) whammy_cal_.step = WhammyCalibration::kOff;
   held_modifiers_ = 0;
   modifier_pressed_ = false;
+  modifier_first_ = SDL_SCANCODE_UNKNOWN;
 }
 
 void App::Assign(std::string token) {
@@ -237,10 +305,62 @@ void App::Assign(std::string token) {
   while (int(alternatives.size()) <= listen_slot_) {
     alternatives.emplace_back();
   }
-  alternatives[size_t(listen_slot_)] = std::move(token);
+  alternatives[size_t(listen_slot_)] = token;
   list = Join(alternatives);
   StopListening();
   Changed();
+
+  // What the key does besides (its notice in place of the hint, for a moment).
+  std::string_view key = BareKey(token);
+  char text[320] = "";
+  if (const ModifierKey* modifier = FindModifierKey(key)) {
+    // A modifier alone: the binds that need it held now work with the other side's key only.
+    bool prefix_used = false;
+    for (const std::string& keys : settings_.o.binds) {
+      for (const std::string& other : Alternatives(keys)) {
+        uint8_t prefixes = 0;
+        BareKey(other, &prefixes);
+        prefix_used = prefix_used || (prefixes & modifier->bit) != 0;
+      }
+    }
+    if (prefix_used) {
+      std::snprintf(text, sizeof(text), t_.modifier_bound_alone, LabelOf(key, t_).text.c_str(),
+                    ModifierWord(modifier->bit, t_));
+    }
+  } else if (settings_.o.debug_hotkeys && (key == "F3" || key == "F4" || key == "Backtick")) {
+    std::snprintf(text, sizeof(text), t_.key_debug_bound, LabelOf(key, t_).text.c_str());
+  } else if (key == "F7") {
+    std::snprintf(text, sizeof(text), t_.key_achievements_bound, LabelOf(key, t_).text.c_str());
+  }
+  if (*text) {
+    notice_ = text;
+    notice_until_ = std::chrono::steady_clock::now() + std::chrono::seconds(6);
+  }
+}
+
+const char* App::BindName(int bind) {
+  for (const game::GameControlGroup& group : game::GameControlsFor(language_)) {
+    for (const game::GameControl& control : group.controls) {
+      if (control.bind == bind) return control.name;
+    }
+  }
+  return t_.binds[bind];
+}
+
+std::string App::DebugKeysOnControls() {
+  std::string out;
+  // Without the keyboard's controller the keys are the overlays'.
+  if (!settings_.o.mnk) return out;
+  for (int b = 0; b < int(Bind::kCount); ++b) {
+    for (const std::string& token : Alternatives(settings_.o.binds[size_t(b)])) {
+      std::string_view key = BareKey(token);
+      if (key == "F3" || key == "F4" || key == "Backtick") {
+        if (!out.empty()) out += ", ";
+        out += LabelOf(key, t_).text + " (" + BindName(b) + ")";
+      }
+    }
+  }
+  return out;
 }
 
 bool App::OnKeyCapture(const SDL_Event& event) {
@@ -264,6 +384,7 @@ bool App::OnKeyCapture(const SDL_Event& event) {
         return true;
       }
       if (uint8_t bit = ModifierBit(event.key.scancode)) {
+        if (!held_modifiers_) modifier_first_ = event.key.scancode;
         held_modifiers_ |= bit;
         modifier_pressed_ = true;
         return true;
@@ -278,10 +399,9 @@ bool App::OnKeyCapture(const SDL_Event& event) {
       if (uint8_t bit = ModifierBit(event.key.scancode)) {
         held_modifiers_ &= uint8_t(~bit);
         if (!held_modifiers_ && modifier_pressed_) {
-          // Shift, Ctrl or Alt pressed and released alone.
+          // Shift, Ctrl or Alt pressed and released alone: the key, its side's (the first pressed).
           modifier_pressed_ = false;
-          notice_ = t_.modifier_alone;
-          notice_until_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+          if (const char* name = SideName(modifier_first_)) Assign(name);
         }
       }
       return true;

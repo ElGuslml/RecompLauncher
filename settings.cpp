@@ -82,6 +82,7 @@ void ResetGame(Options& o) {
   o.launcher_language = defaults.launcher_language;
   o.language = SystemGameLanguage();
   o.audio_exclusive = defaults.audio_exclusive;
+  o.debug_hotkeys = defaults.debug_hotkeys;
   for (size_t i = 0; i < game::kToggles.size(); ++i) {
     if (game::kToggles[i].group == game::ToggleGroup::kGame) {
       o.toggles[i] = game::kToggles[i].default_value;
@@ -325,6 +326,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
     o.toggles[i] = GetBool(c, game::kToggles[i].cvar, game::kToggles[i].default_value);
   }
   o.audio_exclusive = GetBool(c, "audio_wasapi_exclusive", false);
+  o.debug_hotkeys = GetBool(c, "debug_hotkeys", false);
   o.native = game::kHasNativeXRenderer && GetBool(c, "native_x_renderer", game::kNativeXRendererDefault);
   if (game::kShadowQuality) {
     double shadow_scale = std::strtod(GetString(c, "native_x_renderer_shadow_scale").c_str(), nullptr);
@@ -751,6 +753,8 @@ bool SaveOptions(const Settings& s) {
   }
   // The sound in exclusive mode (WASAPI), past Windows' audio engine; the shared output when the device refuses.
   f << "audio_wasapi_exclusive = " << boolean(o.audio_exclusive) << "\n";
+  // The SDK's developer keys (F3, F4, `): off, they do nothing in the game (a key on a control plays it either way).
+  f << "debug_hotkeys = " << boolean(o.debug_hotkeys) << "\n";
   // Anisotropic filtering for textures with mipmaps, sharper at oblique angles (SDK cvar; the game itself
   // asks for 4x on some textures only): 5 = 16x, 4 = 8x, 3 = 4x, 2 = 2x, 0 = off.
   f << "anisotropic_override = " << o.anisotropic << "\n";

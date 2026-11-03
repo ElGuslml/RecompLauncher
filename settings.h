@@ -117,6 +117,9 @@ struct Options {
   // The sound through WASAPI in exclusive mode (the SDK's audio_wasapi_exclusive, recomp change 64): less delay, and
   // other programs silent on that device while the game runs.
   bool audio_exclusive = false;
+  // The SDK's developer keys (debug_hotkeys: F3 the debug overlay, F4 its settings window, ` the console); off, those
+  // keys do nothing in the game. A key bound to a control plays it either way.
+  bool debug_hotkeys = false;
 
   // Keyboard and mouse: the SDK's controller emulation (mnk_mode, mnk_mouse, mnk_sensitivity, keybind_*).
   bool mnk = false;

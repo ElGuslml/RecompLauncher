@@ -102,6 +102,11 @@ struct Texts {
   const char* launcher_language_hint;
   const char* launcher_language_help;
   const char* launcher_language_automatic;  // %s: the Windows display language's name
+  // Launcher 3.7: the SDK's developer keys (Settings > Game, debug_hotkeys).
+  const char* debug_keys;
+  const char* debug_keys_hint;
+  const char* debug_keys_help;
+  const char* debug_keys_conflict;  // %s: the keys on controls and the controls ("F4 (Red)")
 
   // Keyboard.
   const char* mnk;
@@ -114,7 +119,9 @@ struct Texts {
   const char* binds[24];  // in launcher::Bind order
   const char* unbound;
   const char* press_key;
-  const char* modifier_alone;
+  const char* modifier_bound_alone;    // Launcher 3.7. %s: the key ("Left Alt"), %s: Shift, Ctrl or Alt
+  const char* key_debug_bound;         // Launcher 3.7. %s: F3, F4 or `
+  const char* key_achievements_bound;  // Launcher 3.7. %s: F7
   const char* mouse_camera;
   const char* mouse_sensitivity;
   const char* key_space;
@@ -135,6 +142,8 @@ struct Texts {
   const char* key_shift;
   const char* key_ctrl;
   const char* key_alt;
+  const char* key_left_side;   // Launcher 3.7. %s: Shift, Ctrl or Alt
+  const char* key_right_side;
   const char* mouse_left;
   const char* mouse_right;
   const char* mouse_middle;

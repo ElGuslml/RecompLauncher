@@ -164,6 +164,26 @@ void App::SettingsPage(const ImRect& rect) {
       rows.push_back(std::move(row));
     }
 #endif
+    // The SDK's developer keys (debug_hotkeys); on, the ones on the keyboard's controls are named: they play there.
+    {
+      OptionRow row;
+      row.id = "debug_hotkeys";
+      row.title = t_.debug_keys;
+      row.sub = t_.debug_keys_hint;
+      row.help = t_.debug_keys_help;
+      row.values = {t_.on, t_.off};
+      row.index = o.debug_hotkeys ? 0 : 1;
+      if (o.debug_hotkeys) {
+        std::string on_controls = DebugKeysOnControls();
+        if (!on_controls.empty()) {
+          char sub[320];
+          std::snprintf(sub, sizeof(sub), t_.debug_keys_conflict, on_controls.c_str());
+          row.sub = sub;
+        }
+      }
+      row.apply = [&o](int index) { o.debug_hotkeys = index == 0; };
+      rows.push_back(std::move(row));
+    }
     toggle_rows(game::ToggleGroup::kGame, nullptr);
   } else if (category == 1) {
     // Monitor.

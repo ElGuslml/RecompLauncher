@@ -2,6 +2,21 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.7.0
+
+Needs the SDK's recomp changes 67 and 68 (`ghmetal` branch until merged): a game on an older SDK ignores
+`debug_hotkeys` and never fires a bare modifier key.
+
+- Controls > Keyboard: Shift, Ctrl or Alt pressed and released alone is assigned, its side's key ("LAlt", shown as
+  "Left Alt"), where it used to say that a modifier only works with another key. The SDK then takes it for that
+  control's key and not a modifier (Alt held for Star Power leaves the frets as they are). When another control needs
+  that modifier held ("Shift+Left"), a notice says those combinations now work with the other side's key.
+- Settings > Game: a "Debug keys" row, off by default: the SDK's `debug_hotkeys`, F3 the debug overlay, F4 the SDK's
+  settings window and ` the console. Off, those keys do nothing in the game, so they can be played. A key on one of
+  the keyboard's controls only presses it either way (the SDK, change 68): on, the row names those keys and their
+  controls; assigning one of them (or F7, the achievements) on the Keyboard page shows a notice. The SDK's default
+  is on: a game that moves to this version has them off until the player turns them on.
+
 ## 3.6.0
 
 Every game's `game.h` defines `game::kHasDlaa` (`true` only where the game's hooks mark its views for NativeXRenderer,
