@@ -315,8 +315,10 @@ void App::SettingsPage(const ImRect& rect) {
         o.upscaler = upscalers[size_t(index)];
         // FSR 1 and NIS come with their own sharpening (medium: what AMD and NVIDIA recommend), and leave without it,
         // unless another strength was chosen.
-        if (IsSpatial(o.upscaler) && !IsSpatial(previous) && o.sharpness == kSharpnessOff) o.sharpness = kSharpnessMedium;
-        if (!IsSpatial(o.upscaler) && IsSpatial(previous) && o.sharpness == kSharpnessMedium) o.sharpness = kSharpnessOff;
+        bool entering = IsSpatial(o.upscaler) && !IsSpatial(previous);
+        bool leaving = !IsSpatial(o.upscaler) && IsSpatial(previous);
+        if (entering && o.sharpness == kSharpnessOff) o.sharpness = kSharpnessMedium;
+        if (leaving && o.sharpness == kSharpnessMedium) o.sharpness = kSharpnessOff;
         // FSR 3.1 and DLSS start at their antialiasing alone (not experimental).
         int quality = IsTemporal(o.upscaler) && !IsTemporal(previous) ? kQualityNative : o.upscale_quality;
         o.upscale_quality = FitUpscaleQuality(o.upscaler, quality, output, aspect);
@@ -338,7 +340,8 @@ void App::SettingsPage(const ImRect& rect) {
           std::string name = names[quality];
           if (quality == kQualityNative) name += o.upscaler == kUpscaleDlss ? " · DLAA" : " · Native AA";
           row.values.push_back(name);
-          std::snprintf(from, sizeof(from), t_.quality_from, SizeText(TemporalInputSize(output, aspect, quality)).c_str());
+          Size size = TemporalInputSize(o.upscaler, output, aspect, quality);
+          std::snprintf(from, sizeof(from), t_.quality_from, SizeText(size).c_str());
           row.subs.push_back(quality == kQualityNative ? t_.quality_native_sub : from);
           row.tags.push_back(quality == kQualityNative ? std::string() : std::string(t_.experimental));
         } else {
@@ -369,10 +372,10 @@ void App::SettingsPage(const ImRect& rect) {
         row.locked_value = SizeText(NativeRenderSize(output, aspect, SpatialHeight(output, aspect, o.upscale_quality)));
         row.sub = t_.internal_by_quality;
       } else if (o.native && IsTemporal(o.upscaler)) {
-        // FSR 3.1 and DLSS draw only the 3D scene at the quality's size; the HUD and the game's effects are drawn at the
-        // screen's, which the upscaler rebuilds the scene at (launcher 3.9.1: 3.9 showed the screen's size here).
+        // FSR 3.1 and DLSS draw only the 3D scene at the quality's size; the HUD and the game's effects are drawn at
+        // the screen's, which the upscaler rebuilds the scene at (launcher 3.9.1: 3.9 showed the screen's size here).
         row.locked = true;
-        row.locked_value = SizeText(TemporalInputSize(output, aspect, o.upscale_quality));
+        row.locked_value = SizeText(TemporalInputSize(o.upscaler, output, aspect, o.upscale_quality));
         row.sub = t_.internal_scene_only;
         row.help = t_.internal_scene_help;
       } else if (o.native) {

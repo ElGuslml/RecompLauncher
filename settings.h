@@ -266,8 +266,9 @@ std::vector<int> UpscaleQualities(int upscaler, Size output, double image_aspect
 int FitUpscaleQuality(int upscaler, int quality, Size output, double image_aspect);
 // The internal resolution's height FSR 1 and NIS draw at for a quality (native_x_renderer_resolution_scale × 720).
 int SpatialHeight(Size output, double image_aspect, int quality);
-// The size FSR 3.1 or DLSS draw the 3D view at for a quality, from the screen's internal resolution.
-Size TemporalInputSize(Size output, double image_aspect, int quality);
+// The size FSR 3.1 or DLSS draw the 3D view at for a quality, from the screen's internal resolution (NGX's Balanced is
+// 58 % per axis, AMD's 1 / 1.7).
+Size TemporalInputSize(int upscaler, Size output, double image_aspect, int quality);
 // The sharpening's native_x_renderer_sharpness for an upscaler, and back (the nearest step; a negative value, the
 // filter's own default, is medium for FSR 1 and NIS and off otherwise).
 double SharpnessValue(int upscaler, int sharpness);

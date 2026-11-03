@@ -628,10 +628,12 @@ int SpatialHeight(Size output, double image_aspect, int quality) {
   return std::max(int(std::lround(highest / ratio)), lowest);
 }
 
-Size TemporalInputSize(Size output, double image_aspect, int quality) {
+Size TemporalInputSize(int upscaler, Size output, double image_aspect, int quality) {
   Size size = NativeRenderSize(output, image_aspect, 0);
-  double ratio = kUpscaleRatios[std::clamp(quality, 0, kUpscaleQualityCount - 1)];
-  return {int(std::lround(size.first / ratio)), int(std::lround(size.second / ratio))};
+  double scale = upscaler == kUpscaleDlss && quality == kQualityBalanced
+                     ? 0.58
+                     : 1.0 / kUpscaleRatios[std::clamp(quality, 0, kUpscaleQualityCount - 1)];
+  return {int(std::lround(size.first * scale)), int(std::lround(size.second * scale))};
 }
 
 std::vector<int> UpscaleQualities(int upscaler, Size output, double image_aspect) {
