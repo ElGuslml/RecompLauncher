@@ -329,6 +329,30 @@ void App::SettingsPage(const ImRect& rect) {
       }
       rows.push_back(std::move(row));
     }
+    // NativeXRenderer's scaling into the window when the internal resolution is lower, and its sharpening (D115).
+    if (o.native) {
+      OptionRow row;
+      row.id = "scaling";
+      row.title = t_.scaling;
+      row.sub = t_.scaling_hint;
+      row.help = t_.scaling_help;
+      row.values = {t_.scaling_bilinear, "AMD FSR 1", "NVIDIA NIS"};
+      row.subs = {t_.scaling_bilinear_sub, t_.scaling_fsr_sub, t_.scaling_nis_sub};
+      row.index = std::clamp(o.native_scaling, 0, kNativeScalingCount - 1);
+      row.apply = [&o](int index) { o.native_scaling = index; };
+      rows.push_back(std::move(row));
+    }
+    if (o.native) {
+      OptionRow row;
+      row.id = "sharpness";
+      row.title = t_.sharpness;
+      row.sub = t_.sharpness_hint;
+      row.help = t_.sharpness_help;
+      row.values = {t_.sharpness_default, t_.sharpness_off, t_.sharpness_low, t_.sharpness_medium, t_.sharpness_high};
+      row.index = std::clamp(o.native_sharpness, 0, int(std::size(kNativeSharpnessValues)) - 1);
+      row.apply = [&o](int index) { o.native_sharpness = index; };
+      rows.push_back(std::move(row));
+    }
   } else {
     // The renderer: NativeXRenderer (recommended) or Xenos.
     if (game::kHasNativeXRenderer) {

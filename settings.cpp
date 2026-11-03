@@ -55,6 +55,8 @@ void ResetVideo(Options& o) {
   o.window = defaults.window;
   o.native_aspect = defaults.native_aspect;
   o.native_height = defaults.native_height;
+  o.native_scaling = defaults.native_scaling;
+  o.native_sharpness = defaults.native_sharpness;
   o.scale = defaults.scale;
 }
 
@@ -339,6 +341,21 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   }
   double native_scale = std::strtod(GetString(c, "native_x_renderer_resolution_scale").c_str(), nullptr);
   o.native_height = native_scale > 0.0 ? int(std::lround(native_scale * kGuestHeight)) : 0;
+  {
+    std::string scaling = GetString(c, "native_x_renderer_scaling");
+    for (int i = 0; i < kNativeScalingCount; ++i) {
+      if (scaling == kNativeScalingNames[i]) o.native_scaling = i;
+    }
+    // The row's value closest to the file's (a negative one is the default).
+    double sharpness = GetDouble(c, "native_x_renderer_sharpness", -1.0);
+    o.native_sharpness = 0;
+    for (int i = 1; sharpness >= 0.0 && i < int(std::size(kNativeSharpnessValues)); ++i) {
+      if (o.native_sharpness == 0 || std::abs(kNativeSharpnessValues[i] - sharpness) <
+                                         std::abs(kNativeSharpnessValues[o.native_sharpness] - sharpness)) {
+        o.native_sharpness = i;
+      }
+    }
+  }
   std::string native_aa = GetString(c, "native_x_renderer_antialiasing");
   for (int i = 0; i < kNativeAntialiasingCount; ++i) {
     if (native_aa == kNativeAntialiasingNames[i]) o.native_aa = i;
@@ -781,6 +798,18 @@ bool SaveOptions(const Settings& s) {
       value.erase(value.find_last_not_of('0') + 1);
       if (value.back() == '.') value.pop_back();
       f << "native_x_renderer_resolution_scale = " << value << "\n";
+    }
+    // How the image is scaled into the window, and sharpened (D115).
+    f << "# native_x_renderer_scaling: bilinear, fsr (AMD FSR 1) or nis (NVIDIA Image Scaling), when the internal\n"
+         "# resolution is lower than the screen's. native_x_renderer_sharpness: 0 to 1 (0 none), or -1 for the\n"
+         "# filter's default (bilinear none, fsr RCAS at 0.2 stops, nis 0.5); AMD CAS sharpens the bilinear image.\n";
+    f << "native_x_renderer_scaling = \""
+      << kNativeScalingNames[std::clamp(o.native_scaling, 0, kNativeScalingCount - 1)] << "\"\n";
+    {
+      char text[32];
+      int sharpness = std::clamp(o.native_sharpness, 0, int(std::size(kNativeSharpnessValues)) - 1);
+      std::snprintf(text, sizeof(text), "%g", kNativeSharpnessValues[sharpness]);
+      f << "native_x_renderer_sharpness = " << text << "\n";
     }
     // NativeXRenderer's own antialiasing: smaa, dlaa (game::kHasDlaa), fxaa or off; or an experimental mode the file
     // named (D53).

@@ -33,6 +33,14 @@ enum Display : int { kFullscreen, kBorderless, kWindow };
 enum NativeAntialiasing : int { kSmaa, kDlaa, kFxaa, kAaOff, kNativeAntialiasingCount };
 inline constexpr const char* kNativeAntialiasingNames[] = {"smaa", "dlaa", "fxaa", "off"};
 
+// How NativeXRenderer scales its image into the window when the internal resolution is lower (native_x_renderer_scaling,
+// its D115): a bilinear stretch, AMD FSR 1 or NVIDIA Image Scaling. Its sharpening (native_x_renderer_sharpness), each
+// row value's: the filter's own default (-1: none with the stretch, FSR 1's RCAS at 0.2 stops, NIS 0.5), none, or a
+// strength (AMD CAS with the stretch, FSR 1's RCAS, NIS's own), at any internal resolution.
+enum NativeScaling : int { kScalingBilinear, kScalingFsr, kScalingNis, kNativeScalingCount };
+inline constexpr const char* kNativeScalingNames[] = {"bilinear", "fsr", "nis"};
+inline constexpr double kNativeSharpnessValues[] = {-1.0, 0.0, 0.3, 0.6, 1.0};  // default, off, low, medium, high
+
 // The DLSS modes (NativeXRenderer's D49) draw the 3D view at a lower resolution and upscale it. They are not
 // finished, and the launcher does not offer them (D53): the options file can still name one, and the row then shows it,
 // marked experimental, so that saving keeps it.
@@ -107,6 +115,8 @@ struct Options {
   double native_aspect = 0.0;
   int native_height = 0;    // native_x_renderer_resolution_scale × the frame's height: the internal resolution's
                             // height; 0 = automatic
+  int native_scaling = kScalingBilinear;  // native_x_renderer_scaling: a NativeScaling
+  int native_sharpness = 0;               // native_x_renderer_sharpness: an index of kNativeSharpnessValues
   // native_x_renderer_shadow_scale (NativeXRenderer's D92): 0 = the shadow maps like everything else, 1 = at least
   // twice the game's resolution (2), 2 = at least four times (4).
   int shadow_quality = 0;

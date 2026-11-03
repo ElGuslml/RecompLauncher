@@ -107,6 +107,22 @@ struct Texts {
   const char* debug_keys_hint;
   const char* debug_keys_help;
   const char* debug_keys_conflict;  // %s: the keys on controls and the controls ("F4 (Red)")
+  // Launcher 3.8: NativeXRenderer's scaling into the window and its sharpening (Settings > Display; its D115).
+  const char* scaling;
+  const char* scaling_hint;
+  const char* scaling_help;
+  const char* scaling_bilinear;
+  const char* scaling_bilinear_sub;
+  const char* scaling_fsr_sub;
+  const char* scaling_nis_sub;
+  const char* sharpness;
+  const char* sharpness_hint;
+  const char* sharpness_help;
+  const char* sharpness_default;
+  const char* sharpness_off;
+  const char* sharpness_low;
+  const char* sharpness_medium;
+  const char* sharpness_high;
 
   // Keyboard.
   const char* mnk;

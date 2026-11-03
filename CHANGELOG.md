@@ -2,6 +2,18 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.8.0
+
+Needs NativeXRenderer's D115 (its `ghmetal` branch until merged): a game on an older NativeXRenderer ignores the two
+new keys.
+
+- Settings > Display, with NativeXRenderer: an "Upscaling" row, how the image is scaled to the screen when the
+  internal resolution is lower than the screen's: Bilinear (as before), AMD FSR 1 or NVIDIA NIS
+  (`native_x_renderer_scaling`: bilinear, fsr, nis). Then a "Sharpness" row: Default, Off, Low, Medium, High
+  (`native_x_renderer_sharpness`: -1, 0, 0.3, 0.6, 1). Default is AMD's and NVIDIA's recommendation for FSR 1 and
+  NIS, and none with the bilinear stretch; with it, AMD CAS sharpens the image. Sharpening works at the screen's own
+  resolution too. The category's Reset puts both back (Bilinear, Default).
+
 ## 3.7.0
 
 Needs the SDK's recomp changes 67 and 68 (`ghmetal` branch until merged): a game on an older SDK ignores
