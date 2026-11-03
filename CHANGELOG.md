@@ -4,8 +4,8 @@ The launcher's versions (`launcher_version.h`). Each game shows its own version 
 
 ## 3.8.0
 
-Needs NativeXRenderer's D115 (its `ghmetal` branch until merged): a game on an older NativeXRenderer ignores the two
-new keys.
+Needs NativeXRenderer's D115 and D116 (its `ghmetal` branch until merged): a game on an older NativeXRenderer ignores
+the two new keys and takes `fsr_native` for SMAA.
 
 - Settings > Display, with NativeXRenderer: an "Upscaling" row, how the image is scaled to the screen when the
   internal resolution is lower than the screen's: Bilinear (as before), AMD FSR 1 or NVIDIA NIS
@@ -13,6 +13,10 @@ new keys.
   (`native_x_renderer_sharpness`: -1, 0, 0.3, 0.6, 1). Default is AMD's and NVIDIA's recommendation for FSR 1 and
   NIS, and none with the bilinear stretch; with it, AMD CAS sharpens the image. Sharpening works at the screen's own
   resolution too. The category's Reset puts both back (Bilinear, Default).
+- Settings > Graphics > Antialiasing, where the game marks its views (`game::kHasDlaa`): "FSR 3.1" after DLAA
+  (`native_x_renderer_antialiasing = "fsr_native"`, AMD FSR 3.1's native AA, NativeXRenderer's D116, on any GPU); the
+  hint says so. The options file's FSR 3.1 modes (`fsr_quality` and the others) are kept as the DLSS ones, marked
+  experimental.
 
 ## 3.7.0
 

@@ -401,8 +401,8 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.vsync = index == 0; };
       rows.push_back(std::move(row));
     }
-    // Antialiasing: NativeXRenderer's (DLAA where the game marks its views, game::kHasDlaa; an experimental DLSS mode
-    // the options file named, last), or the game's MSAA.
+    // Antialiasing: NativeXRenderer's (DLAA and FSR 3.1 where the game marks its views, game::kHasDlaa; an
+    // experimental DLSS or FSR mode the options file named, last), or the game's MSAA.
     if (o.native) {
       std::vector<int> order = {kSmaa, kFxaa};
       OptionRow row;
@@ -414,6 +414,8 @@ void App::SettingsPage(const ImRect& rect) {
       if (game::kHasDlaa) {
         order.push_back(kDlaa);
         row.values.push_back("DLAA");
+        order.push_back(kFsrAa);
+        row.values.push_back("FSR 3.1");
       }
       order.push_back(kAaOff);
       row.values.push_back(t_.none);

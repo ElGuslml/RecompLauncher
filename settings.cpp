@@ -361,7 +361,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
     if (native_aa == kNativeAntialiasingNames[i]) o.native_aa = i;
   }
   // DLAA where the game does not mark its views (game::kHasDlaa) turns SMAA and FXAA off and DLSS never runs: SMAA.
-  if (!game::kHasDlaa && o.native_aa == kDlaa) o.native_aa = kSmaa;
+  if (!game::kHasDlaa && (o.native_aa == kDlaa || o.native_aa == kFsrAa)) o.native_aa = kSmaa;
   for (int i = 0; i < int(std::size(kExperimentalAntialiasing)); ++i) {
     if (native_aa == kExperimentalAntialiasing[i].name) {
       o.native_aa_experimental = i;
@@ -811,13 +811,15 @@ bool SaveOptions(const Settings& s) {
       std::snprintf(text, sizeof(text), "%g", kNativeSharpnessValues[sharpness]);
       f << "native_x_renderer_sharpness = " << text << "\n";
     }
-    // NativeXRenderer's own antialiasing: smaa, dlaa (game::kHasDlaa), fxaa or off; or an experimental mode the file
-    // named (D53).
-    f << "# native_x_renderer_antialiasing: " << (game::kHasDlaa ? "smaa, dlaa, fxaa or off" : "smaa, fxaa or off")
+    // NativeXRenderer's own antialiasing: smaa, dlaa and fsr_native (game::kHasDlaa), fxaa or off; or an experimental
+    // mode the file named (D53, D116).
+    f << "# native_x_renderer_antialiasing: "
+      << (game::kHasDlaa ? "smaa, dlaa, fsr_native, fxaa or off" : "smaa, fxaa or off")
       << ", the launcher's choices. Experimental, for\n"
          "# testing only (not finished, so the launcher does not offer them): dlss_quality, dlss_balanced,\n"
          "# dlss_performance and dlss_ultra_performance, NVIDIA DLSS upscaling the 3D view from a lower\n"
-         "# resolution. The launcher keeps one written here.\n";
+         "# resolution; fsr_quality, fsr_balanced, fsr_performance and fsr_ultra_performance, AMD FSR 3.1.\n"
+         "# The launcher keeps one written here.\n";
     const char* native_aa = o.native_aa < kNativeAntialiasingCount ? kNativeAntialiasingNames[std::max(o.native_aa, 0)]
                             : o.native_aa_experimental >= 0   ? kExperimentalAntialiasing[o.native_aa_experimental].name
                                                               : kNativeAntialiasingNames[0];

@@ -29,9 +29,10 @@ using Size = std::pair<int, int>;  // width, height
 enum Display : int { kFullscreen, kBorderless, kWindow };
 
 // NativeXRenderer's antialiasing (native_x_renderer_antialiasing): SMAA or FXAA on the finished scene (D41),
-// DLAA with NVIDIA DLSS before the post-processing (D47; SMAA where DLSS is not available), or off.
-enum NativeAntialiasing : int { kSmaa, kDlaa, kFxaa, kAaOff, kNativeAntialiasingCount };
-inline constexpr const char* kNativeAntialiasingNames[] = {"smaa", "dlaa", "fxaa", "off"};
+// DLAA with NVIDIA DLSS before the post-processing (D47; SMAA where DLSS is not available), AMD FSR 3.1's native AA
+// there instead (D116, any GPU), or off. DLAA and FSR 3.1 only where the game marks its views (game::kHasDlaa).
+enum NativeAntialiasing : int { kSmaa, kDlaa, kFxaa, kAaOff, kFsrAa, kNativeAntialiasingCount };
+inline constexpr const char* kNativeAntialiasingNames[] = {"smaa", "dlaa", "fxaa", "off", "fsr_native"};
 
 // How NativeXRenderer scales its image into the window when the internal resolution is lower (native_x_renderer_scaling,
 // its D115): a bilinear stretch, AMD FSR 1 or NVIDIA Image Scaling. Its sharpening (native_x_renderer_sharpness), each
@@ -52,7 +53,11 @@ inline constexpr ExperimentalAntialiasing kExperimentalAntialiasing[] = {
     {"dlss_quality", "DLSS Quality"},
     {"dlss_balanced", "DLSS Balanced"},
     {"dlss_performance", "DLSS Performance"},
-    {"dlss_ultra_performance", "DLSS Ultra Performance"}};
+    {"dlss_ultra_performance", "DLSS Ultra Performance"},
+    {"fsr_quality", "FSR 3.1 Quality"},
+    {"fsr_balanced", "FSR 3.1 Balanced"},
+    {"fsr_performance", "FSR 3.1 Performance"},
+    {"fsr_ultra_performance", "FSR 3.1 Ultra Performance"}};
 
 // The keyboard's controls: the SDK's keybind_* cvars (thirdparty/rexglue-sdk/src/input/mnk), in the Keyboard
 // page's order. Each is a comma-separated list of key names; the page edits the first two (primary and
