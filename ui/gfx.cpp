@@ -10,6 +10,9 @@
 #include <dxgi1_2.h>
 
 #include <iterator>
+#include <string>
+
+#include "launcher_log.h"
 
 namespace ui::gfx {
 namespace {
@@ -48,6 +51,7 @@ bool Init(void* hwnd) {
     }
   }
   if (FAILED(result)) {
+    launcher::Log("Direct3D 11: no device (0x%08lX)", static_cast<unsigned long>(result));
     return false;
   }
 
@@ -56,6 +60,10 @@ bool Init(void* hwnd) {
   IDXGIFactory2* factory = nullptr;
   if (SUCCEEDED(g_device->QueryInterface(IID_PPV_ARGS(&dxgi_device))) &&
       SUCCEEDED(dxgi_device->GetAdapter(&adapter)) && SUCCEEDED(adapter->GetParent(IID_PPV_ARGS(&factory)))) {
+    DXGI_ADAPTER_DESC adapter_desc = {};
+    adapter->GetDesc(&adapter_desc);
+    launcher::Log("Direct3D 11: %s, feature level %X", launcher::LogText(adapter_desc.Description).c_str(),
+                  unsigned(g_device->GetFeatureLevel()));
     DXGI_SWAP_CHAIN_DESC1 desc = {};
     desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     desc.SampleDesc.Count = 1;
@@ -77,6 +85,7 @@ bool Init(void* hwnd) {
   if (adapter) adapter->Release();
   if (dxgi_device) dxgi_device->Release();
   if (!g_swap_chain) {
+    launcher::Log("Direct3D 11: no swap chain (0x%08lX)", static_cast<unsigned long>(result));
     Shutdown();
     return false;
   }
@@ -108,7 +117,10 @@ void Resize(int width, int height) {
     return;
   }
   ReleaseTarget();
-  g_swap_chain->ResizeBuffers(0, UINT(width), UINT(height), DXGI_FORMAT_UNKNOWN, 0);
+  HRESULT result = g_swap_chain->ResizeBuffers(0, UINT(width), UINT(height), DXGI_FORMAT_UNKNOWN, 0);
+  if (FAILED(result)) {
+    launcher::Log("Direct3D 11: resizing to %dx%d failed (0x%08lX)", width, height, static_cast<unsigned long>(result));
+  }
   CreateTarget();
 }
 
@@ -119,7 +131,21 @@ void BeginFrame(ImU32 clear_color) {
   g_context->ClearRenderTargetView(g_target, rgba);
 }
 
-void Present() { g_swap_chain->Present(1, 0); }
+void Present() {
+  HRESULT result = g_swap_chain->Present(1, 0);
+  // Logged when it changes: DXGI_STATUS_OCCLUDED (0x087A0001) while the window is hidden or covered is expected; a
+  // lost device would leave the window showing its last picture.
+  static HRESULT last = S_OK;
+  if (result != last) {
+    last = result;
+    if (result == DXGI_ERROR_DEVICE_REMOVED || result == DXGI_ERROR_DEVICE_RESET) {
+      launcher::Log("Direct3D 11: Present 0x%08lX, the device is lost (reason 0x%08lX)",
+                    static_cast<unsigned long>(result), static_cast<unsigned long>(g_device->GetDeviceRemovedReason()));
+    } else {
+      launcher::Log("Direct3D 11: Present 0x%08lX", static_cast<unsigned long>(result));
+    }
+  }
+}
 
 ImTextureID CreateTexture(const uint8_t* rgba, int width, int height) {
   if (!g_device || width <= 0 || height <= 0) {

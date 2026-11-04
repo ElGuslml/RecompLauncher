@@ -2,6 +2,27 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.10.0
+
+The launcher's own log and a watchdog (`launcher_log.{h,cpp}`). Gustavo, 2026-11-04: back from the game, the launcher
+showed but did nothing until he closed it from the taskbar, and nothing said why (the launcher had no log; Windows
+logged no hang).
+
+- `logs/launcher_NNN.log` next to the executable (in `Documents\<game::kDocumentsFolder>\logs` where that folder cannot
+  be written), one per run, the newest 20 kept with their dumps: the launcher's and the game's versions, Windows', the
+  window, the Direct3D adapter, the controllers in SDL's order (ImGui navigates with the first), each one connected or
+  disconnected, the pages opened, each run of the game (started, its window shown, exited with its code, the launcher
+  back in front or not, with or without the keyboard focus), the first input after the game, a controller that still
+  reads a button as held 3 s after the game (the controller does not navigate until all are up), Present's and
+  ResizeBuffers' errors (a lost device), the game run to write the achievements list, the errors shown, why it closed
+  and each step of closing (the background reads still running named).
+- The watchdog: a thread asks Windows every half second whether the window answers (`IsHungAppWindow`, Windows' "Not
+  responding"); 10 s without an answer writes `launcher_NNN_hang.dmp` (a minidump: every thread's stack), and the log
+  says when it answers again. A closing that takes more than 10 s writes `launcher_NNN_closing.dmp`, a crash
+  `launcher_NNN_crash.dmp`. Checked with a test program (a hidden window that stops taking its messages for 17 s, a
+  closing stuck 12 s, a null write: the three dumps open in cdb at the stuck or faulting line) and the launcher on a
+  hidden desktop (its log from the start to "closed").
+
 ## 3.9.1
 
 - Settings > Video > Internal resolution with AMD FSR 3.1 or NVIDIA DLSS: the size the 3D scene is drawn at (the

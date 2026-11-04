@@ -54,6 +54,8 @@ enum class Page : int {
   kPlay, kDlc, kAchievements, kControls, kVideo, kGraphics, kGame, kUpdates,
   kProfiles, kProfile, kProfileGame, kProfileEdit, kCount
 };
+// A page's name, for the log.
+const char* PageName(Page page);
 
 class App {
  public:
@@ -69,6 +71,9 @@ class App {
 
   Result result() const { return result_; }
   void Quit() { result_ = Result::kQuit; }
+  Page page() const { return page_; }
+  // Closing (main.cpp): waits for the background reads still running, each named in the log.
+  void WaitForTasks();
   // Something is changing on screen (a key being assigned, a message): keep drawing.
   bool Busy() const;
   // A key is being assigned: the controller does not navigate meanwhile (B cancels).

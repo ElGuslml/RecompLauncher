@@ -12,12 +12,14 @@
 #include <shellapi.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <iterator>
 
 #include "game.h"
+#include "launcher_log.h"
 #include "launcher_version.h"
 #include "ui/gfx.h"
 #include "version.h"
@@ -300,6 +302,33 @@ void App::StartingOverlay(ImVec2 size) {
   ImVec2 text_pos(Snap(center.x - text_size.x * 0.5f), Snap(spinner.y + radius + Px(22.0f)));
   DrawLabel(kText, text_pos, col::kText, t_.starting_game);
   ImGui::End();
+}
+
+const char* PageName(Page page) {
+  static const char* const kNames[] = {"Play",     "DLC",     "Achievements",   "Controls",     "Settings: Video",
+                                       "Settings: Graphics", "Settings: Game", "Updates", "Profiles", "Profile",
+                                       "Profile: a game",    "Profile: edit"};
+  static_assert(std::size(kNames) == size_t(Page::kCount));
+  return page < Page::kCount ? kNames[int(page)] : "?";
+}
+
+void App::WaitForTasks() {
+  auto wait = [](auto& future, const char* name) {
+    if (!future.valid() || future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+      return;
+    }
+    Log("closing: waiting for %s", name);
+    auto start = std::chrono::steady_clock::now();
+    future.wait();
+    Log("closing: %s done after %.1f s", name,
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+  };
+  wait(achievements_loading_, "the achievements' reading");
+  wait(update_check_, "the update check");
+  wait(iso_check_, "the ISO check");
+  wait(dlc_scan_, "the DLC search");
+  wait(dlc_listing_, "the installed DLC's listing");
+  wait(profile_games_loading_, "the profile's games");
 }
 
 void App::Navigate(Page page, bool focus) {

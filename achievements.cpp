@@ -21,6 +21,7 @@
 #include "dlc.h"
 #include "game.h"
 #include "install.h"
+#include "launcher_log.h"
 #include "picture.h"
 #include "profile_store.h"
 
@@ -230,12 +231,17 @@ bool WriteAchievementList(const std::filesystem::path& exe_dir) {
   PROCESS_INFORMATION process = {};
   if (!CreateProcessW(game.c_str(), command_line.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
                       exe_dir.c_str(), &startup, &process)) {
+    Log("achievements: the game could not be started to write their list (%lu)", GetLastError());
     return false;
   }
   CloseHandle(process.hThread);
+  Log("achievements: the game writes their list (process %lu)", process.dwProcessId);
   if (WaitForSingleObject(process.hProcess, 30000) != WAIT_OBJECT_0) {
+    Log("achievements: the game did not finish in 30 s: stopped");
     TerminateProcess(process.hProcess, 1);
     WaitForSingleObject(process.hProcess, 5000);
+  } else {
+    Log("achievements: the list written");
   }
   CloseHandle(process.hProcess);
   return true;

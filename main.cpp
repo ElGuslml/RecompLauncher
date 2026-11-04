@@ -46,6 +46,8 @@
 
 #include "app.h"
 #include "game.h"
+#include "launcher_log.h"
+#include "launcher_version.h"
 #include "ui/gfx.h"
 #include "ui/ui.h"
 
@@ -144,6 +146,7 @@ std::string Formatted(const char* format, const char* a, const char* b = "") {
 }
 
 void ShowError(const char* text) {
+  launcher::Log("error shown: %s", text);
   SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, launcher::game::kLauncherName, text, nullptr);
 }
 
@@ -187,6 +190,7 @@ class GameProcess {
   }
 
   HANDLE handle() const { return process_; }
+  uint32_t id() const { return id_; }
   bool Exited() const { return !process_ || WaitForSingleObject(process_, 0) == WAIT_OBJECT_0; }
   uint32_t ExitCode() const {
     DWORD code = 0;
@@ -246,6 +250,55 @@ void BringToFront(HWND hwnd) {
   }
 }
 
+// Windows' version, for the log (GetVersionEx tells programs without a manifest entry 6.2).
+std::string WindowsVersion() {
+  using RtlGetVersionFunction = LONG(WINAPI*)(OSVERSIONINFOW*);
+  OSVERSIONINFOW version = {sizeof(version)};
+  auto get_version = reinterpret_cast<RtlGetVersionFunction>(
+      reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion")));
+  if (!get_version || get_version(&version) != 0) {
+    return "?";
+  }
+  return std::to_string(version.dwMajorVersion) + "." + std::to_string(version.dwMinorVersion) + "." +
+         std::to_string(version.dwBuildNumber);
+}
+
+// The controllers SDL has, in its order: ImGui navigates with the first (ImGui_ImplSDL3_GamepadMode_AutoFirst).
+void LogGamepads(const char* when) {
+  int count = 0;
+  SDL_JoystickID* pads = SDL_GetGamepads(&count);
+  std::string list;
+  for (int i = 0; pads && i < count; ++i) {
+    const char* name = SDL_GetGamepadNameForID(pads[i]);
+    const char* type = SDL_GetGamepadStringForType(SDL_GetGamepadTypeForID(pads[i]));
+    list += std::string(i ? ", " : "") + std::to_string(i + 1) + ". " + (name ? name : "?") + " (" +
+            (type ? type : "?") + ")";
+  }
+  SDL_free(pads);
+  launcher::Log("controllers %s: %s", when, list.empty() ? "none" : list.c_str());
+}
+
+// The kind of an input event, for the log's first input after the game; null for the others.
+const char* InputKind(uint32_t type) {
+  switch (type) {
+    case SDL_EVENT_KEY_DOWN:
+      return "a key";
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+      return "a mouse button";
+    case SDL_EVENT_MOUSE_WHEEL:
+      return "the mouse wheel";
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+      return "a controller button";
+    default:
+      return nullptr;
+  }
+}
+
+const char* FocusText(SDL_Window* window) {
+  return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS ? "with the keyboard focus"
+                                                             : "without the keyboard focus";
+}
+
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
@@ -253,6 +306,13 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
   std::filesystem::path exe_dir = ExecutableFolder();
+  launcher::OpenLog(exe_dir);
+  launcher::Log("%s %s, %s %s, Windows %s", launcher::game::kLauncherName, RECOMP_LAUNCHER_VERSION_STR,
+                launcher::game::kRecompExecutable, launcher::game::kVersion, WindowsVersion().c_str());
+  launcher::Log("folder: %s", launcher::LogText(exe_dir.wstring()).c_str());
+  if (std::wstring arguments = ForwardedArguments(); !arguments.empty()) {
+    launcher::Log("arguments:%s", launcher::LogText(arguments).c_str());
+  }
   launcher::Settings settings = launcher::LoadSettings(exe_dir);
   uint32_t language = launcher::TextsLanguage(settings.o.launcher_language);
   const launcher::Texts& t = launcher::TextsFor(language);
@@ -307,6 +367,12 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   }
 
   HWND hwnd = HWND(SDL_GetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
+  launcher::Log("window %dx%d on a %dx%d work area at %.0f %%%s%s", window_width, window_height, work_width,
+                work_height, dpi_scale * 100.0f, fullscreen ? ", fullscreen" : "",
+                settings.o.ui_maximized ? ", maximized" : "");
+  // A dump when the window stops answering or the closing takes too long (launcher_log.h). Declared before the App:
+  // it outlives the App's background tasks, whose futures wait when the App goes.
+  launcher::Watchdog watchdog(hwnd);
   if (!ui::gfx::Init(hwnd)) {
     ShowError(Formatted(t.no_direct3d, launcher::game::kLauncherName).c_str());
     SDL_DestroyWindow(window);
@@ -346,7 +412,13 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     }
     return launcher::SaveOptions(app.settings());
   };
+  LogGamepads("at the start");
   GameProcess game;
+  uint64_t game_started_at = 0;  // SDL_GetTicks()
+  uint64_t returned_at = 0;      // SDL_GetTicks() when the launcher came back from the game
+  bool log_first_input = false;  // the first input after the game, and whether the window had the focus
+  bool logged_unprimed = false;  // the controller still waits for its buttons to be up
+  launcher::Page logged_page = launcher::Page::kCount;
   bool hidden = false;  // the game's window is on screen
   bool shown = false;
   bool primed = false;
@@ -368,9 +440,15 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
                       .c_str());
       }
       // The launcher's own options are not the game's.
-      if (found && game.Start(exe, ArgumentsWithout({L"--launcher_"}))) {
+      std::wstring game_arguments = ArgumentsWithout({L"--launcher_"});
+      launcher::Log("Play: starting %s%s", launcher::LogText(exe.wstring()).c_str(),
+                    launcher::LogText(game_arguments).c_str());
+      if (found && game.Start(exe, game_arguments)) {
+        launcher::Log("the game runs (process %u)", game.id());
+        game_started_at = SDL_GetTicks();
         app.GameStarted();
       } else {
+        launcher::Log("the game did not start");
         SDL_InitSubSystem(SDL_INIT_GAMEPAD);
         ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_AutoFirst, nullptr, 0);
         app.GameExited(0);
@@ -381,6 +459,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       if (game.Exited()) {
         // Back: the launcher on the Play page, in front, with the controllers.
         uint32_t exit_code = game.ExitCode();
+        launcher::Log("the game exited (code 0x%08X) after %.1f s", exit_code,
+                      double(SDL_GetTicks() - game_started_at) / 1000.0);
         game.Close();
         SDL_InitSubSystem(SDL_INIT_GAMEPAD);
         ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_AutoFirst, nullptr, 0);
@@ -399,10 +479,17 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
           hidden = false;
         }
         BringToFront(hwnd);
+        launcher::Log("back: %s, %s", GetForegroundWindow() == hwnd ? "in front" : "NOT in front (another window has it)",
+                      FocusText(window));
+        LogGamepads("after the game");
+        returned_at = SDL_GetTicks();
+        log_first_input = true;
+        logged_unprimed = false;
         // The button that quit the game may still be held: nothing is pressed until all are up.
         primed = false;
         idle_frames = 0;
       } else if (!hidden && game.WindowShown()) {
+        launcher::Log("the game's window is on screen: the launcher hides");
         SDL_HideWindow(window);
         hidden = true;
       }
@@ -425,6 +512,18 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       input = true;
+      if (event.type == SDL_EVENT_GAMEPAD_ADDED || event.type == SDL_EVENT_GAMEPAD_REMOVED) {
+        const char* name = SDL_GetGamepadNameForID(event.gdevice.which);
+        launcher::Log("controller %s: %s", event.type == SDL_EVENT_GAMEPAD_ADDED ? "connected" : "disconnected",
+                      name ? name : "?");
+      }
+      if (log_first_input && !app.GameRunning()) {
+        if (const char* kind = InputKind(event.type)) {
+          log_first_input = false;
+          launcher::Log("first input after the game, %.1f s after it: %s, the window %s",
+                        double(SDL_GetTicks() - returned_at) / 1000.0, kind, FocusText(window));
+        }
+      }
       if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
         ui::gfx::Resize(event.window.data1, event.window.data2);
       }
@@ -434,12 +533,14 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       }
       if (event.type == SDL_EVENT_QUIT ||
           (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))) {
+        launcher::Log("closing: %s", event.type == SDL_EVENT_QUIT ? "Windows asked" : "the window was closed");
         app.Quit();
         break;
       }
       if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && !app.Listening() &&
           (event.key.key == SDLK_F11 || (event.key.key == SDLK_RETURN && (event.key.mod & SDL_KMOD_ALT)))) {
         fullscreen = !fullscreen;
+        launcher::Log("fullscreen %s", fullscreen ? "on" : "off");
         SDL_SetWindowFullscreen(window, fullscreen);
         if (!SteamWantsFullscreen()) {
           app.settings().o.ui_fullscreen = fullscreen;
@@ -480,6 +581,22 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     if (!primed && !ui::AnyGamepadButtonDown()) {
       primed = true;
     }
+    if (!primed && !logged_unprimed && returned_at && SDL_GetTicks() - returned_at > 3000) {
+      // Still a button or a trigger read as held, 3 s after the game: a controller resting pressed would keep the
+      // controller from navigating.
+      logged_unprimed = true;
+      std::string held;
+      for (int key = ImGuiKey_GamepadStart; key <= ImGuiKey_GamepadR3; ++key) {
+        if (ImGui::IsKeyDown(ImGuiKey(key))) {
+          held += std::string(held.empty() ? "" : ", ") + ImGui::GetKeyName(ImGuiKey(key));
+        }
+      }
+      launcher::Log("the controller does not navigate yet: %s held", held.c_str());
+    }
+    if (app.page() != logged_page) {
+      logged_page = app.page();
+      launcher::Log("page: %s", launcher::PageName(logged_page));
+    }
     if (primed && !app.Listening() && !app.GamepadLocked() && !app.GameRunning()) {
       io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     } else {
@@ -501,7 +618,9 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     }
   }
 
-  save();
+  launcher::Log(app.result() == App::Result::kRestart ? "closing for the new version" : "closing");
+  watchdog.Closing();
+  launcher::Log(save() ? "options saved" : "the options could not be saved");
   // After an update: the new launcher, in place of this one. This process waits for it (and is gone only then), so
   // that Steam still sees the program it started running.
   GameProcess next;
@@ -512,14 +631,17 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     arguments += L" " + std::wstring(from.begin(), from.end());
     restarted = next.Start(exe_dir / launcher::game::kLauncherExecutable, arguments);
   }
+  app.WaitForTasks();
   app.ReleaseTextures();
   ui::ReleasePictures();
   ImGui_ImplDX11_Shutdown();
   ImGui_ImplSDL3_Shutdown();
   ImGui::DestroyContext();
   ui::gfx::Shutdown();
+  launcher::Log("closing: ImGui and Direct3D done");
   SDL_DestroyWindow(window);
   SDL_Quit();
+  launcher::Log("closed");
   if (restarted) {
     WaitForSingleObject(next.handle(), INFINITE);
     return int(next.ExitCode());

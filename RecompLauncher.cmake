@@ -29,6 +29,7 @@ function(recomp_launcher_add target)
 
   add_executable(${target} WIN32
       "${dir}/main.cpp"
+      "${dir}/launcher_log.cpp"
       "${dir}/app.cpp"
       "${dir}/shell.cpp"
       "${dir}/settings.cpp"
