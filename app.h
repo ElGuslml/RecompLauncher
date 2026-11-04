@@ -76,6 +76,8 @@ class App {
   void WaitForTasks();
   // Something is changing on screen (a key being assigned, a message): keep drawing.
   bool Busy() const;
+  // What makes it busy, for the log ("" when nothing).
+  std::string BusyReasons() const;
   // A key is being assigned: the controller does not navigate meanwhile (B cancels).
   bool Listening() const { return listen_bind_ >= 0 || pad_listen_ >= 0 || WhammyCalibrating(); }
   // A controller button was just assigned: the controller does nothing until its buttons are up.
@@ -218,6 +220,7 @@ class App {
   ImGuiID mapping_first_ = 0;  // the Controls tab's first row control (the mapping's)
   std::vector<std::array<ImGuiID, 2>> mapping_rows_;  // its rows' controls, this frame (ColumnNav)
   bool focus_page_ = false;    // focus page_focus_ on the next frame (back from the game)
+  int focus_page_wait_ = 0;    // frames focus_page_ waited for a page with nothing to focus
   bool game_running_ = false;
   uint32_t game_exit_code_ = 0;  // the last game's, when not 0: a notice on the Play page
 

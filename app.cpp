@@ -95,13 +95,39 @@ bool App::Busy() const {
   Update::State update = update_.Get().state;
   bool updating = update == Update::State::kDownloading || update == Update::State::kVerifying ||
                   update == Update::State::kInstalling;
+  // focus_page_ waits for the page, which the first run's screens do not draw.
   return listen_bind_ >= 0 || pad_listen_ >= 0 || whammy_cal_.step != WhammyCalibration::kOff || FocusRequested() ||
-         focus_page_ || controls_focus_mapping_ ||
+         (focus_page_ && !installing_) || controls_focus_mapping_ ||
          std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
          profile_games_loading_.valid() ||
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
          dlc_install_.Get().state == DlcInstall::State::kRunning || mic_meter_.stream ||
          (installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning));
+}
+
+std::string App::BusyReasons() const {
+  Update::State update = update_.Get().state;
+  std::string reasons;
+  auto add = [&reasons](bool on, const char* name) {
+    if (on) reasons += std::string(reasons.empty() ? "" : ", ") + name;
+  };
+  add(listen_bind_ >= 0 || pad_listen_ >= 0, "a key being assigned");
+  add(whammy_cal_.step != WhammyCalibration::kOff, "the whammy calibration");
+  add(FocusRequested(), "a focus request");
+  add(focus_page_ && !installing_, "the page's focus");
+  add(controls_focus_mapping_, "the controls' focus");
+  add(std::chrono::steady_clock::now() < notice_until_, "a notice");
+  add(achievements_loading_.valid(), "the achievements' reading");
+  add(profile_games_loading_.valid(), "the profile's games");
+  add(game_running_, "the game");
+  add(update_check_.valid(), "the update check");
+  add(update == Update::State::kDownloading || update == Update::State::kVerifying ||
+          update == Update::State::kInstalling,
+      "an update");
+  add(dlc_scan_.valid() || dlc_listing_.valid() || dlc_install_.Get().state == DlcInstall::State::kRunning, "the DLC");
+  add(mic_meter_.stream != nullptr, "the microphone's meter");
+  add(installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning), "the install");
+  return reasons;
 }
 
 void App::LoadAchievements() {
@@ -534,11 +560,16 @@ void App::Frame(ImVec2 size) {
   // When the launcher opens and back from the game: PLAY has the focus, shown when a controller is connected, so
   // that A (or Enter) plays at once (ImGui activates only an item whose focus is shown).
   // The page drawn this frame's: after a tab changed in it, the next frame's page gives it.
-  if (focus_page_ && page_focus_ && drawn == page_) {
-    // Shown when a controller is connected or was used (the page opened with the mouse shows none).
-    RequestFocus(page_focus_, gamepad_used_ || SDL_HasGamepad());
-    ImGui::SetNavCursorVisible(gamepad_used_ || SDL_HasGamepad());
+  // A page with nothing to focus (the Play page without the game's files) gives up after 30 frames: the request kept
+  // the launcher busy, drawing at the display's rate (launcher 3.11.1).
+  if (focus_page_ && drawn == page_ && (page_focus_ || ++focus_page_wait_ > 30)) {
+    if (page_focus_) {
+      // Shown when a controller is connected or was used (the page opened with the mouse shows none).
+      RequestFocus(page_focus_, gamepad_used_ || SDL_HasGamepad());
+      ImGui::SetNavCursorVisible(gamepad_used_ || SDL_HasGamepad());
+    }
     focus_page_ = false;
+    focus_page_wait_ = 0;
   }
 
   ImGui::End();

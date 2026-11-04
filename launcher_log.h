@@ -31,6 +31,14 @@ void Log(const char* format, ...);
 // A path or other wide text for the log, in UTF-8.
 std::string LogText(const std::wstring& text);
 
+// The main loop's heartbeat (main.cpp, each pass): a pass that does not come within 3 s while the loop is not waiting on
+// purpose is logged, and the first one of a run dumped (`launcher_NNN_stall.dmp`). Windows calls a window not
+// responding only after 5 s without its messages, and a thread blocked a few seconds at a time (in Present, say) never
+// gets there.
+void Heartbeat();
+// The main loop waits on purpose (the game running, a message box): no stall meanwhile.
+void SetWaiting(bool waiting);
+
 // The watchdog (above). One at a time; stops when destroyed, after the launcher has closed.
 class Watchdog {
  public:

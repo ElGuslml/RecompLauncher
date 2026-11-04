@@ -9,6 +9,7 @@
 #include <d3d11.h>
 #include <dxgi1_2.h>
 
+#include <algorithm>
 #include <iterator>
 #include <string>
 
@@ -132,7 +133,28 @@ void BeginFrame(ImU32 clear_color) {
 }
 
 void Present() {
+  LARGE_INTEGER before, after, frequency;
+  QueryPerformanceCounter(&before);
   HRESULT result = g_swap_chain->Present(1, 0);
+  QueryPerformanceCounter(&after);
+  QueryPerformanceFrequency(&frequency);
+  // A Present that takes more than a tenth of a second (it waits one refresh): logged, at most once a second, with how
+  // many since the last line.
+  static uint32_t slow = 0;
+  static double slowest = 0.0;
+  static LONGLONG logged_at = 0;
+  double ms = double(after.QuadPart - before.QuadPart) * 1000.0 / double(frequency.QuadPart);
+  if (ms > 100.0) {
+    ++slow;
+    slowest = std::max(slowest, ms);
+    if (after.QuadPart - logged_at > frequency.QuadPart) {
+      launcher::Log("Direct3D 11: Present took %.0f ms (%u over 100 ms since the last line, the longest %.0f ms)", ms,
+                    slow, slowest);
+      logged_at = after.QuadPart;
+      slow = 0;
+      slowest = 0.0;
+    }
+  }
   // Logged when it changes: DXGI_STATUS_OCCLUDED (0x087A0001) while the window is hidden or covered is expected; a
   // lost device would leave the window showing its last picture.
   static HRESULT last = S_OK;

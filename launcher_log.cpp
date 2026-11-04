@@ -114,6 +114,15 @@ LONG WINAPI OnCrash(EXCEPTION_POINTERS* exception) {
   return g_previous_filter ? g_previous_filter(exception) : EXCEPTION_CONTINUE_SEARCH;
 }
 
+std::atomic<int64_t> g_beat{0};  // steady_clock nanoseconds of the main loop's last pass
+std::atomic<bool> g_waiting{false};
+constexpr auto kStallAfter = std::chrono::seconds(3);
+
+int64_t NowNs() {
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+
 // The watchdog's thread (one at a time).
 struct WatchdogState {
   std::mutex mutex;
@@ -131,6 +140,9 @@ void WatchdogRun(WatchdogState* state) {
   bool hung = false;
   bool hang_dumped = false;
   bool closing_dumped = false;
+  bool stalled = false;
+  bool stall_dumped = false;
+  int64_t stall_beat = 0;
   Clock::time_point hung_since;
   std::unique_lock lock(state->mutex);
   while (!state->wake.wait_for(lock, std::chrono::milliseconds(500), [state] { return state->stop; })) {
@@ -148,6 +160,25 @@ void WatchdogRun(WatchdogState* state) {
     }
     HWND hwnd = state->hwnd;
     lock.unlock();
+    // The main loop's heartbeat (Heartbeat): a pass late by kStallAfter, outside a wait on purpose.
+    const int64_t beat = g_beat.load(std::memory_order_relaxed);
+    const bool late = beat && !g_waiting.load(std::memory_order_relaxed) &&
+                      NowNs() - beat > std::chrono::duration_cast<std::chrono::nanoseconds>(kStallAfter).count();
+    if (late && !stalled) {
+      stalled = true;
+      stall_beat = beat;
+      Log("watchdog: the main loop has not come round for %lld s%s", static_cast<long long>(kStallAfter.count()),
+          stall_dumped ? "" : "; writing a dump");
+      if (!stall_dumped) {
+        stall_dumped = true;  // the first stall of the run: the others are only logged
+        Log(WriteDump("stall", nullptr) ? "watchdog: launcher_%03d_stall.dmp written"
+                                        : "watchdog: the dump (launcher_%03d_stall.dmp) could not be written",
+            g_run);
+      }
+    } else if (stalled && beat != stall_beat) {
+      stalled = false;
+      Log("watchdog: the main loop came round again, after %.1f s", double(beat - stall_beat) / 1e9);
+    }
     // Windows' own test: the window's thread has not taken its messages for 5 seconds (and is not waiting for
     // them). A message box, the window being moved or the wait while the game runs take them.
     bool now_hung = hwnd && IsHungAppWindow(hwnd);
@@ -251,6 +282,10 @@ std::string LogText(const std::wstring& text) {
   WideCharToMultiByte(CP_UTF8, 0, text.data(), int(text.size()), utf8.data(), size, nullptr, nullptr);
   return utf8;
 }
+
+void Heartbeat() { g_beat.store(NowNs(), std::memory_order_relaxed); }
+
+void SetWaiting(bool waiting) { g_waiting.store(waiting, std::memory_order_relaxed); }
 
 Watchdog::Watchdog(void* hwnd) {
   if (g_watchdog) {

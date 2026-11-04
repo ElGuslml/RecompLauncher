@@ -2,6 +2,27 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.11.1
+
+Gustavo, 2026-11-04: back from the game the launcher kept freezing for seconds and coming back; a CPU core was busy
+while it was in front (sampled from outside: 300-580 ms of CPU every half second), and its log had one 5.5 s stop
+(the watchdog's "stopped answering Windows").
+- The launcher idles again. Every SDL event counted as input and reset the idle count: a DualSense's sticks move a few
+  units at rest all the time, and its sensors report, so it drew at the display's rate without stopping. Now a stick or
+  trigger counts only outside ImGui's dead zone (8000) or crossing it, sensors and the touchpad not at all, and such
+  events wake the loop without drawing a frame (one every quarter of a second at most while idle). A controller held
+  (as ImGui last read it) keeps it drawing, for the menus' repeat.
+- The page's first focus (`focus_page_`, set at the start and back from the game) waited for a control to focus
+  forever on a page with none, and during the first run's screens, keeping the launcher busy: it gives up after 30
+  frames, and is not "busy" during the first run. On a hidden desktop: 1547-1600 frames every 10 s before, idle after
+  (172 ms of CPU in 12 s with the game's files, 125 ms on the first run).
+- The log: a Present over 100 ms (with how many and the longest, at most a line a second); the main loop's heartbeat
+  (`Heartbeat`): a pass late by 3 s outside a wait on purpose (the game running, a message box) is logged and the
+  run's first dumped (`launcher_NNN_stall.dmp`), as Windows' 5 s "not responding" misses a thread blocked a few
+  seconds at a time; the focus lost (with the program that has the foreground) and back, the window occluded,
+  minimized or restored; "drawing all the time" every 10 s while it draws more than 30 frames a second, with what
+  keeps it busy (`App::BusyReasons`), whether a controller is held and the events' types.
+
 ## 3.11.0
 
 - Settings > Video > **Frame generation** (where the game marks its views, `game::kHasDlaa`): Off or AMD FSR 3.1

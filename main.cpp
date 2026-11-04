@@ -43,6 +43,7 @@
 #include <filesystem>
 #include <initializer_list>
 #include <string>
+#include <unordered_map>
 
 #include "app.h"
 #include "game.h"
@@ -147,7 +148,9 @@ std::string Formatted(const char* format, const char* a, const char* b = "") {
 
 void ShowError(const char* text) {
   launcher::Log("error shown: %s", text);
+  launcher::SetWaiting(true);  // the message box waits for the player
   SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, launcher::game::kLauncherName, text, nullptr);
+  launcher::SetWaiting(false);
 }
 
 // A program the launcher starts and stays for: the game from Play, or the launcher's new version after an update.
@@ -294,6 +297,66 @@ const char* InputKind(uint32_t type) {
   }
 }
 
+// The window that has the foreground, for the log: its program and class.
+std::string ForegroundText() {
+  HWND foreground = GetForegroundWindow();
+  if (!foreground) {
+    return "no window";
+  }
+  DWORD pid = 0;
+  GetWindowThreadProcessId(foreground, &pid);
+  std::wstring program = L"?";
+  if (HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
+    wchar_t path[MAX_PATH];
+    DWORD size = MAX_PATH;
+    if (QueryFullProcessImageNameW(process, 0, path, &size)) {
+      program = std::filesystem::path(std::wstring(path, size)).filename().wstring();
+    }
+    CloseHandle(process);
+  }
+  wchar_t class_name[128] = {};
+  GetClassNameW(foreground, class_name, 128);
+  return launcher::LogText(program) + " (" + launcher::LogText(class_name) + ")";
+}
+
+// Whether an event can change what the launcher shows. A controller's stick or trigger moving inside ImGui's dead zone
+// (8000; a DualSense's sticks move by a few units at rest, all the time) and its sensors and touchpad do not: counted as
+// input, they kept the launcher drawing at the display's rate, a CPU core busy (Gustavo, 2026-11-04). A stick crossing
+// the dead zone does, either way, and one held outside it keeps the menus repeating.
+bool ChangesSomething(const SDL_Event& event, std::unordered_map<uint64_t, bool>& outside) {
+  constexpr int kDeadZone = 8000;
+  auto axis = [&outside](uint64_t key, int value) {
+    bool out = std::abs(value) > kDeadZone;
+    bool& was = outside[key];
+    bool changed = out != was;
+    was = out;
+    return out || changed;
+  };
+  switch (event.type) {
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+      return axis((uint64_t(event.gaxis.which) << 8) | event.gaxis.axis, event.gaxis.value);
+    case SDL_EVENT_JOYSTICK_AXIS_MOTION:
+      return axis((uint64_t(event.jaxis.which) << 8) | 0x80 | event.jaxis.axis, event.jaxis.value);
+    case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:
+    case SDL_EVENT_SENSOR_UPDATE:
+    case SDL_EVENT_GAMEPAD_TOUCHPAD_MOTION:
+    case SDL_EVENT_JOYSTICK_BATTERY_UPDATED:
+      return false;
+    default:
+      return true;
+  }
+}
+
+// A controller's button, trigger or stick held (as ImGui last read them): the menus repeat, so keep drawing.
+bool GamepadHeld() {
+  for (int key = ImGuiKey_GamepadStart; key <= ImGuiKey_GamepadRStickDown; ++key) {
+    if (ImGui::IsKeyDown(ImGuiKey(key))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const char* FocusText(SDL_Window* window) {
   return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS ? "with the keyboard focus"
                                                              : "without the keyboard focus";
@@ -418,6 +481,12 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   uint64_t returned_at = 0;      // SDL_GetTicks() when the launcher came back from the game
   bool log_first_input = false;  // the first input after the game, and whether the window had the focus
   bool logged_unprimed = false;  // the controller still waits for its buttons to be up
+  std::unordered_map<uint64_t, bool> axes_outside;  // ChangesSomething's sticks and triggers outside the dead zone
+  uint64_t last_drawn = 0;                           // SDL_GetTicks() of the last frame drawn
+  // Drawing all the time for 10 s (the log says which events kept it so).
+  uint64_t window_start = 0;
+  uint32_t window_frames = 0;
+  std::unordered_map<uint32_t, uint32_t> window_events;
   launcher::Page logged_page = launcher::Page::kCount;
   bool hidden = false;  // the game's window is on screen
   bool shown = false;
@@ -425,6 +494,9 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   int idle_frames = 0;
   float scale = 0.0f;
   for (;;) {
+    // The watchdog's heartbeat (launcher_log.h); while the game runs the launcher waits for it on purpose.
+    launcher::Heartbeat();
+    launcher::SetWaiting(app.GameRunning());
     // Play: the game starts, and the launcher stays.
     if (app.result() == App::Result::kPlay) {
       if (!save()) {
@@ -505,13 +577,25 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     }
 
     // Nothing changed for a while: wait for input instead of drawing the same frame.
-    if (idle_frames > 30 && !app.Busy()) {
+    const bool idle = idle_frames > 30 && !app.Busy() && !GamepadHeld();
+    if (idle) {
       SDL_WaitEventTimeout(nullptr, 250);
     }
     bool input = false;
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-      input = true;
+      ++window_events[event.type];
+      input = ChangesSomething(event, axes_outside) || input;
+      if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+        launcher::Log("focus lost: the foreground is %s", ForegroundText().c_str());
+      } else if (event.type == SDL_EVENT_WINDOW_FOCUS_GAINED) {
+        launcher::Log("focus back");
+      } else if (event.type == SDL_EVENT_WINDOW_OCCLUDED || event.type == SDL_EVENT_WINDOW_MINIMIZED ||
+                 event.type == SDL_EVENT_WINDOW_RESTORED) {
+        launcher::Log("window %s", event.type == SDL_EVENT_WINDOW_OCCLUDED   ? "occluded"
+                                   : event.type == SDL_EVENT_WINDOW_MINIMIZED ? "minimized"
+                                                                              : "restored");
+      }
       if (event.type == SDL_EVENT_GAMEPAD_ADDED || event.type == SDL_EVENT_GAMEPAD_REMOVED) {
         const char* name = SDL_GetGamepadNameForID(event.gdevice.which);
         launcher::Log("controller %s: %s", event.type == SDL_EVENT_GAMEPAD_ADDED ? "connected" : "disconnected",
@@ -558,6 +642,11 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       break;
     }
     if (app.result() == App::Result::kPlay) {
+      continue;
+    }
+    // Idle, and what came changes nothing on screen (a controller's noise): no frame, unless a quarter of a second passed
+    // since the last one.
+    if (idle && !input && SDL_GetTicks() - last_drawn < 250) {
       continue;
     }
     if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
@@ -611,6 +700,27 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     ui::gfx::BeginFrame(ui::col::kBackground);
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
     ui::gfx::Present();
+    last_drawn = SDL_GetTicks();
+    // Drawing all the time for 10 s (more than 30 frames a second): which events kept it so.
+    ++window_frames;
+    if (last_drawn - window_start >= 10'000) {
+      if (window_frames > 300) {
+        std::string events;
+        for (const auto& [type, count] : window_events) {
+          char item[48];
+          std::snprintf(item, sizeof(item), "%s0x%X x%u", events.empty() ? "" : ", ", type, count);
+          events += item;
+        }
+        std::string busy = app.BusyReasons();
+        launcher::Log("drawing all the time: %u frames in %.1f s; busy: %s; a controller held: %s; events (SDL type x "
+                      "count): %s",
+                      window_frames, double(last_drawn - window_start) / 1000.0, busy.empty() ? "no" : busy.c_str(),
+                      GamepadHeld() ? "yes" : "no", events.empty() ? "none" : events.c_str());
+      }
+      window_start = last_drawn;
+      window_frames = 0;
+      window_events.clear();
+    }
     if (!shown) {
       SDL_ShowWindow(window);
       SDL_RaiseWindow(window);
