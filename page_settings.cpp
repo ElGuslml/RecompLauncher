@@ -360,7 +360,7 @@ void App::SettingsPage(const ImRect& rect) {
     // Frame generation (NativeXRenderer D123): AMD FSR 3.1's, with FSR 3.1 or DLSS (their 3D view and motion vectors),
     // where the game marks its views. With a frame rate row the rate chosen there is the one shown and the game runs at
     // half (the game's src/options.cpp): 120 FPS or more.
-    if (o.native && game::kHasDlaa) {
+    if (kFrameGenerationRow && o.native && game::kHasDlaa) {
       const bool rate_row = *game::kFrameRateCvar && !game::kFrameRateIsBool;
       OptionRow row;
       row.id = "framegen";

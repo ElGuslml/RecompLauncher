@@ -2,6 +2,13 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.11.2
+
+- The Frame generation row hidden in every game (`kFrameGenerationRow = false`, settings.h; Gustavo, 2026-11-04: GH
+  Metallica's note highway still shows artifacts with it, and the stage ghosts at camera cuts). The options file's
+  `native_x_renderer_frame_generation` is written back as it was read, so a test by hand stays; the V-Sync row and the
+  frame rate row's text are as without it.
+
 ## 3.11.1
 
 Gustavo, 2026-11-04: back from the game the launcher kept freezing for seconds and coming back; a CPU core was busy

@@ -704,7 +704,7 @@ void Settings::MonitorChanged() {
 }
 
 bool Settings::FrameGenerationPossible() const {
-  if (!game::kHasNativeXRenderer || !game::kHasDlaa || !o.native || !IsTemporal(o.upscaler)) {
+  if (!kFrameGenerationRow || !game::kHasNativeXRenderer || !game::kHasDlaa || !o.native || !IsTemporal(o.upscaler)) {
     return false;
   }
   bool rate_row = *game::kFrameRateCvar && !game::kFrameRateIsBool;
@@ -920,7 +920,9 @@ bool SaveOptions(const Settings& s) {
     if (game::kHasDlaa) {
       f << "# native_x_renderer_frame_generation: AMD FSR 3.1's, with FSR 3.1 or DLSS; the frame rate chosen is the\n"
            "# one shown, the game runs at half (experimental).\n";
-      f << "native_x_renderer_frame_generation = " << boolean(s.FrameGenerationOn()) << "\n";
+      // Without the row (kFrameGenerationRow), the value read is written back: a test by hand stays.
+      f << "native_x_renderer_frame_generation = "
+        << boolean(kFrameGenerationRow ? s.FrameGenerationOn() : o.frame_generation) << "\n";
     }
     // The shadow maps' resolution (D92): 0 = the internal resolution's, as everything else; 2 or 4 = at least twice
     // or four times the game's.

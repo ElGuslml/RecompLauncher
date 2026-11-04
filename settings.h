@@ -42,6 +42,11 @@ inline constexpr const char* kNativeAntialiasingNames[] = {"smaa", "fxaa", "off"
 //   (native_x_renderer_antialiasing: fsr_native / dlaa, fsr_quality / dlss_quality...). DLSS needs an NVIDIA RTX GPU;
 //   elsewhere NativeXRenderer falls back to SMAA.
 enum Upscaler : int { kUpscaleOff, kUpscaleFsr1, kUpscaleNis, kUpscaleFsr3, kUpscaleDlss, kUpscalerCount };
+// The Frame generation row (launcher 3.11): hidden for now in every game (Gustavo, 2026-11-04: GH Metallica's note
+// highway still shows artifacts and the stage ghosts at camera cuts). The options file's
+// native_x_renderer_frame_generation is then kept as it is, for tests by hand.
+inline constexpr bool kFrameGenerationRow = false;
+
 inline constexpr bool IsTemporal(int upscaler) { return upscaler == kUpscaleFsr3 || upscaler == kUpscaleDlss; }
 inline constexpr bool IsSpatial(int upscaler) { return upscaler == kUpscaleFsr1 || upscaler == kUpscaleNis; }
 
