@@ -357,6 +357,38 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o, qualities](int index) { o.upscale_quality = qualities[size_t(index)]; };
       rows.push_back(std::move(row));
     }
+    // Frame generation (NativeXRenderer D123): AMD FSR 3.1's, with FSR 3.1 or DLSS (their 3D view and motion vectors),
+    // where the game marks its views. With a frame rate row the rate chosen there is the one shown and the game runs at
+    // half (the game's src/options.cpp): 120 FPS or more.
+    if (o.native && game::kHasDlaa) {
+      const bool rate_row = *game::kFrameRateCvar && !game::kFrameRateIsBool;
+      OptionRow row;
+      row.id = "framegen";
+      row.title = t_.frame_generation;
+      row.sub = t_.frame_generation_hint;
+      row.help = rate_row ? t_.frame_generation_help : t_.frame_generation_help_fixed;
+      if (!settings_.FrameGenerationPossible()) {
+        row.locked = true;
+        row.locked_value = t_.off;
+        row.sub = !IsTemporal(o.upscaler) ? t_.frame_generation_needs_upscaler
+                  : rate_row             ? t_.frame_generation_needs_rate
+                                         : t_.frame_generation_needs_monitor;
+      } else {
+        char on_sub[160];
+        if (rate_row) {
+          std::snprintf(on_sub, sizeof(on_sub), t_.frame_generation_on_sub, o.frame_rate / 2, o.frame_rate);
+        } else {
+          std::snprintf(on_sub, sizeof(on_sub), "%s", t_.frame_generation_on_sub_fixed);
+        }
+        row.values = {t_.off, "AMD FSR 3.1"};
+        row.subs = {t_.frame_generation_hint, on_sub};
+        row.tags = {"", t_.experimental};
+        row.tag_accent = {false, false};
+        row.index = o.frame_generation ? 1 : 0;
+        row.apply = [&o](int index) { o.frame_generation = index == 1; };
+      }
+      rows.push_back(std::move(row));
+    }
     // Internal resolution: NativeXRenderer's (automatic, or a lower height; set by the upscaling's quality), or Xenos's
     // scale.
     {
@@ -447,8 +479,8 @@ void App::SettingsPage(const ImRect& rect) {
       OptionRow row;
       row.id = "fps";
       row.title = t_.framerate;
-      row.sub = t_.framerate_hint;
-      row.help = t_.framerate_hint;
+      row.sub = settings_.FrameGenerationOn() ? t_.framerate_with_generation : t_.framerate_hint;
+      row.help = row.sub;
       for (size_t i = 0; i < rates.size(); ++i) {
         row.values.push_back(std::to_string(rates[i].fps) + " FPS");
         row.tags.push_back(rates[i].fps > 60 ? t_.experimental : std::string());
@@ -468,6 +500,12 @@ void App::SettingsPage(const ImRect& rect) {
       row.values = {t_.on, t_.off};
       row.index = o.vsync ? 0 : 1;
       row.apply = [&o](int index) { o.vsync = index == 0; };
+      if (settings_.FrameGenerationOn()) {
+        // Its frames are shown a refresh apart (NativeXRenderer forces FIFO).
+        row.locked = true;
+        row.locked_value = t_.on;
+        row.sub = t_.vsync_by_frame_generation;
+      }
       rows.push_back(std::move(row));
     }
     // Antialiasing: NativeXRenderer's SMAA or FXAA (FSR 3.1 and DLSS, Video > Upscaling, do their own), or the game's

@@ -58,6 +58,7 @@ void ResetVideo(Options& o) {
   o.upscaler = defaults.upscaler;
   o.upscale_quality = defaults.upscale_quality;
   o.sharpness = defaults.sharpness;
+  o.frame_generation = defaults.frame_generation;
   o.scale = defaults.scale;
 }
 
@@ -368,6 +369,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
       if (IsSpatial(o.upscaler)) o.native_height = 0;
     }
     o.sharpness = SharpnessFromValue(o.upscaler, GetDouble(c, "native_x_renderer_sharpness", -1.0));
+    o.frame_generation = game::kHasDlaa && GetBool(c, "native_x_renderer_frame_generation", false);
   }
   // Without the key, the game's default (src/startup.cpp adds it to its base settings at the next start): 16x.
   // A value the row does not offer: -1 (only what the game asks: 4x on some textures) shows as 4x, 1 (1x)
@@ -701,6 +703,14 @@ void Settings::MonitorChanged() {
   }
 }
 
+bool Settings::FrameGenerationPossible() const {
+  if (!game::kHasNativeXRenderer || !game::kHasDlaa || !o.native || !IsTemporal(o.upscaler)) {
+    return false;
+  }
+  bool rate_row = *game::kFrameRateCvar && !game::kFrameRateIsBool;
+  return rate_row ? o.frame_rate >= 120 : CurrentMonitor().refresh >= 119;
+}
+
 void Settings::FitFrameRate() {
   std::vector<game::FrameRate> rates = FrameRates(CurrentMonitor());
   if (std::none_of(rates.begin(), rates.end(), [this](const game::FrameRate& r) { return r.value == o.frame_rate; })) {
@@ -793,13 +803,16 @@ bool SaveOptions(const Settings& s) {
   // its tearing flag, its Vulkan one without IMMEDIATE and FIFO_RELAXED), the game's vertical blank following the
   // monitor's (the SDK's vblank_follows_display, recomp change 61: the game never runs ahead of the display and its
   // frames do not queue); or each frame shown as it is ready (tearing; a G-Sync or FreeSync monitor follows the game).
+  // Frame generation shows its frames with V-Sync (NativeXRenderer forces FIFO): it keeps the game's vertical blank on
+  // the display's too.
+  const bool vsync = o.vsync || s.FrameGenerationOn();
   if (game::kHasNativeXRenderer) {
-    f << "native_x_renderer_present_mode = \"" << (o.vsync ? "vsync" : "immediate") << "\"\n";
+    f << "native_x_renderer_present_mode = \"" << (vsync ? "vsync" : "immediate") << "\"\n";
   }
-  f << "d3d12_allow_variable_refresh_rate_and_tearing = " << boolean(!o.vsync) << "\n";
-  f << "vulkan_allow_present_mode_immediate = " << boolean(!o.vsync) << "\n";
-  f << "vulkan_allow_present_mode_fifo_relaxed = " << boolean(!o.vsync) << "\n";
-  f << "vblank_follows_display = " << boolean(o.vsync) << "\n";
+  f << "d3d12_allow_variable_refresh_rate_and_tearing = " << boolean(!vsync) << "\n";
+  f << "vulkan_allow_present_mode_immediate = " << boolean(!vsync) << "\n";
+  f << "vulkan_allow_present_mode_fifo_relaxed = " << boolean(!vsync) << "\n";
+  f << "vblank_follows_display = " << boolean(vsync) << "\n";
   // The game's own options (game.h).
   if (*game::kFrameRateCvar) {
     // 60 FPS (src/framerate.cpp), or the emulated vblank's rate the game follows.
@@ -902,6 +915,13 @@ bool SaveOptions(const Settings& s) {
                       : prefix + std::string(kUpscaleQualityNames[std::clamp(quality, 0, kUpscaleQualityCount - 1)]);
     }
     f << "native_x_renderer_antialiasing = \"" << native_aa << "\"\n";
+    // Frame generation (D123), where FSR 3.1 and DLSS are offered: written as it applies (with FSR 3.1 or DLSS, and
+    // the frame rate it needs).
+    if (game::kHasDlaa) {
+      f << "# native_x_renderer_frame_generation: AMD FSR 3.1's, with FSR 3.1 or DLSS; the frame rate chosen is the\n"
+           "# one shown, the game runs at half (experimental).\n";
+      f << "native_x_renderer_frame_generation = " << boolean(s.FrameGenerationOn()) << "\n";
+    }
     // The shadow maps' resolution (D92): 0 = the internal resolution's, as everything else; 2 or 4 = at least twice
     // or four times the game's.
     if (game::kShadowQuality) {

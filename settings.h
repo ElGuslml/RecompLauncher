@@ -132,6 +132,10 @@ struct Options {
   int upscaler = kUpscaleOff;              // an Upscaler
   int upscale_quality = kQualityQuality;   // an UpscaleQuality (launcher_upscaling_quality)
   int sharpness = kSharpnessOff;           // a Sharpness
+  // native_x_renderer_frame_generation (NativeXRenderer D123): AMD FSR 3.1's, a frame between each two of the game's,
+  // with FSR 3.1 or DLSS where the game marks its views (game::kHasDlaa). The choice; Settings::FrameGenerationOn says
+  // whether it applies.
+  bool frame_generation = false;
   // native_x_renderer_shadow_scale (NativeXRenderer's D92): 0 = the shadow maps like everything else, 1 = at least
   // twice the game's resolution (2), 2 = at least four times (4).
   int shadow_quality = 0;
@@ -291,6 +295,11 @@ struct Settings {
   void MonitorChanged();
   // A frame rate the monitor does not reach goes back to the game's default.
   void FitFrameRate();
+  // Frame generation chosen and possible: NativeXRenderer with FSR 3.1 or DLSS, and twice the game's frames within the
+  // monitor's reach. With a frame rate row (a number), the rate chosen there is the one shown and the game runs at half
+  // (the game's src/options.cpp), so 120 FPS or more; a game at its own 60, a monitor of 120 Hz or more.
+  bool FrameGenerationPossible() const;
+  bool FrameGenerationOn() const { return o.frame_generation && FrameGenerationPossible(); }
 };
 
 // Reads the game's base settings and the options file next to the executable, and what the machine offers.

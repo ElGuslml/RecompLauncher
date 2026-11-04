@@ -139,6 +139,18 @@ struct Texts {
   const char* sharpness_low;
   const char* sharpness_medium;
   const char* sharpness_high;
+  // Launcher 3.11: frame generation (NativeXRenderer D123).
+  const char* frame_generation;
+  const char* frame_generation_hint;
+  const char* frame_generation_help;
+  const char* frame_generation_help_fixed;
+  const char* frame_generation_on_sub;  // %d the game's FPS, %d those shown
+  const char* frame_generation_on_sub_fixed;
+  const char* frame_generation_needs_upscaler;
+  const char* frame_generation_needs_rate;
+  const char* frame_generation_needs_monitor;
+  const char* framerate_with_generation;
+  const char* vsync_by_frame_generation;
 
   // Keyboard.
   const char* mnk;

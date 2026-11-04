@@ -2,6 +2,18 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.11.0
+
+- Settings > Video > **Frame generation** (where the game marks its views, `game::kHasDlaa`): Off or AMD FSR 3.1
+  (experimental), NativeXRenderer's D123 (`native_x_renderer_frame_generation`). Locked to Off without AMD FSR 3.1 or
+  NVIDIA DLSS in Upscaling; in a game with a frame rate row, below 120 FPS (the rate chosen there is the one shown and
+  the game runs at half: the game's `src/options.cpp`, GH Metallica's first); in a game at its own rate, on a monitor
+  under 120 Hz. On: the frame rate row says the rate is the one shown, V-Sync is locked on and written so
+  (`native_x_renderer_present_mode = "vsync"`, `vblank_follows_display`), and the value says "the game at 80 FPS, 160
+  on screen". Written as it applies (off when the upscaler or the rate does not allow it). Texts in five languages.
+  Checked on copies of GH Metallica's options (DLSS at 160: on, V-Sync written on over "immediate"; DLSS at 60 and SMAA
+  at 160: off).
+
 ## 3.10.0
 
 The launcher's own log and a watchdog (`launcher_log.{h,cpp}`). Gustavo, 2026-11-04: back from the game, the launcher
