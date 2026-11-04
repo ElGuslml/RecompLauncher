@@ -2,6 +2,15 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.11.3
+
+- Settings > Graphics > V-Sync's help, in five languages: On is the one recommended, also with G-Sync or FreeSync (it
+  never tears and, with the game's vertical blank following the display, adds none of V-Sync's usual delay: no queue);
+  Off can tear without them and moves less evenly with them. 3.4-3.11.2 said Off was for G-Sync and FreeSync monitors:
+  in GH Metallica, V-Sync off at 160 FPS on a 159.96 Hz G-Sync monitor tore (the game at the panel's ceiling), and at
+  the display's exact rate it did not tear but its frames reached the screen as the renderer finished them, less even
+  than with V-Sync (Gustavo, 2026-11-04).
+
 ## 3.11.2
 
 - The Frame generation row hidden in every game (`kFrameGenerationRow = false`, settings.h; Gustavo, 2026-11-04: GH
