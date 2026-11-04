@@ -202,6 +202,9 @@ class App {
   Page page_ = Page::kPlay;
   Result result_ = Result::kNone;
   bool gamepad_used_ = false;  // the last input came from a controller: the focus shows
+  // Each controller's sticks and triggers over OnEvent's threshold (by joystick << 8 | axis): one counts as the
+  // controller used when it crosses it, not while it rests over it (a guitar's whammy bar, launcher 3.11.4).
+  std::unordered_map<uint64_t, bool> axes_over_;
   // The buttons' glyphs: the controller or the keyboard used last (ui::SetGlyphStyle); until then, a connected
   // controller's, or the keyboard's.
   void UseGlyphsOf(SDL_GamepadType type);

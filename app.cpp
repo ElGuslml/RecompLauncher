@@ -586,15 +586,24 @@ void App::Frame(ImVec2 size) {
 bool App::OnEvent(const SDL_Event& event) {
   switch (event.type) {
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
-    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
-      if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ||
-          std::abs(int(event.gaxis.value)) > 16000) {
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
+      bool crossed = false;
+      if (event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION) {
+        // Its first report only records where it rests: a guitar's whammy bar rests fully over.
+        const uint64_t key = (uint64_t(event.gaxis.which) << 8) | event.gaxis.axis;
+        const bool over = std::abs(int(event.gaxis.value)) > 16000;
+        auto it = axes_over_.find(key);
+        crossed = it != axes_over_.end() && over && !it->second;
+        axes_over_[key] = over;
+      }
+      if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || crossed) {
         gamepad_used_ = true;
         // The glyphs of the controller pressed.
         UseGlyphsOf(SDL_GetGamepadTypeForID(event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ? event.gbutton.which
                                                                                           : event.gaxis.which));
       }
       break;
+    }
     case SDL_EVENT_MOUSE_MOTION:
       gamepad_used_ = false;
       break;

@@ -330,7 +330,7 @@ bool ChangesSomething(const SDL_Event& event, std::unordered_map<uint64_t, bool>
     bool& was = outside[key];
     bool changed = out != was;
     was = out;
-    return out || changed;
+    return changed;  // a stick held over is GamepadHeld's (the left one); the right one rests over on a guitar
   };
   switch (event.type) {
     case SDL_EVENT_GAMEPAD_AXIS_MOTION:
@@ -347,10 +347,17 @@ bool ChangesSomething(const SDL_Event& event, std::unordered_map<uint64_t, bool>
   }
 }
 
-// A controller's button, trigger or stick held (as ImGui last read them): the menus repeat, so keep drawing.
+// A control that navigates held (as ImGui last read them: the D-pad, the face buttons, LB and RB, the left stick): the
+// menus repeat, so keep drawing. Not the right stick or the triggers: a guitar's whammy bar rests on the right stick,
+// fully over, and kept the launcher drawing all the time (launcher 3.11.4).
 bool GamepadHeld() {
-  for (int key = ImGuiKey_GamepadStart; key <= ImGuiKey_GamepadRStickDown; ++key) {
-    if (ImGui::IsKeyDown(ImGuiKey(key))) {
+  constexpr ImGuiKey kNavigation[] = {
+      ImGuiKey_GamepadDpadUp,     ImGuiKey_GamepadDpadDown,    ImGuiKey_GamepadDpadLeft,  ImGuiKey_GamepadDpadRight,
+      ImGuiKey_GamepadFaceDown,   ImGuiKey_GamepadFaceRight,   ImGuiKey_GamepadFaceLeft,  ImGuiKey_GamepadFaceUp,
+      ImGuiKey_GamepadL1,         ImGuiKey_GamepadR1,          ImGuiKey_GamepadStart,     ImGuiKey_GamepadBack,
+      ImGuiKey_GamepadLStickUp,   ImGuiKey_GamepadLStickDown,  ImGuiKey_GamepadLStickLeft, ImGuiKey_GamepadLStickRight};
+  for (ImGuiKey key : kNavigation) {
+    if (ImGui::IsKeyDown(key)) {
       return true;
     }
   }
@@ -551,6 +558,9 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
           hidden = false;
         }
         BringToFront(hwnd);
+        // The screen as the game left it: a new swap chain (its flips stuck for minutes after the game's exclusive
+        // fullscreen, every Present waiting 3 s; launcher 3.11.4).
+        ui::gfx::RecreateSwapChain("back from the game");
         launcher::Log("back: %s, %s", GetForegroundWindow() == hwnd ? "in front" : "NOT in front (another window has it)",
                       FocusText(window));
         LogGamepads("after the game");

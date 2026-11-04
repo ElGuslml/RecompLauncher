@@ -2,6 +2,19 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.11.4
+
+Gustavo, 2026-11-04 (`launcher_007.log`): back from the game, every Present took exactly 3 s for half a minute, until
+another window came in front; with his guitar the only controller, the log said "a controller held" all the time, and
+the glyphs turned to the Xbox controller's at every mouse click.
+- The swap chain is made again when the launcher comes back from the game, and after a Present of half a second or more
+  (at most once every 5 s; `ui::gfx::RecreateSwapChain`, logged).
+- A controller "held" (keeps the launcher drawing, for the menus' repeat) is one of the controls that navigate: the
+  D-pad, the face buttons, LB, RB, Start, Back and the left stick. A guitar's whammy bar rests on the right stick, fully
+  over, and its tilt on a trigger. A stick or trigger event counts as input when it crosses the dead zone.
+- The glyphs follow a controller when a button is pressed or a stick or trigger crosses its threshold, not while it
+  rests over it (the whammy bar's noise switched them back at once after the mouse).
+
 ## 3.11.3
 
 - Settings > Graphics > V-Sync's help, in five languages: On is the one recommended, also with G-Sync or FreeSync (it

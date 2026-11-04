@@ -25,6 +25,8 @@ void Resize(int width, int height);
 // Clears the back buffer and binds it, then presents what ImGui drew (on the next vblank).
 void BeginFrame(ImU32 clear_color);
 void Present();
+// The window's swap chain made again (a stuck flip, the game's exit): `why` for the log.
+void RecreateSwapChain(const char* why);
 
 // RGBA pixels (straight alpha) as a texture ImGui can draw; 0 if it could not be created.
 ImTextureID CreateTexture(const uint8_t* rgba, int width, int height);
