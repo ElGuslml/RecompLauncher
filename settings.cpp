@@ -401,6 +401,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   o.device_remap = GetEscapedString(c, "gamepad_device_remap");
   if (game::kHasWhammy) {
     o.whammy_calibration = GetEscapedString(c, "gamepad_whammy_calibration");
+    o.tilt_calibration = GetEscapedString(c, "gamepad_tilt_calibration");
   }
   if (game::kHasMicrophones) {
     for (int i = 0; i < 2; ++i) {
@@ -956,6 +957,8 @@ bool SaveOptions(const Settings& s) {
   if (game::kHasWhammy) {
     // The whammy bars calibrated: each controller's axis, its value at rest and all the way ("<GUID>=rx:-32768:32767").
     f << "gamepad_whammy_calibration = \"" << Escaped(o.whammy_calibration) << "\"\n";
+    // The tilts assigned: each controller's axis, or ax ay az for its accelerometer, its value at rest and tilted.
+    f << "gamepad_tilt_calibration = \"" << Escaped(o.tilt_calibration) << "\"\n";
   }
   if (game::kHasMicrophones) {
     f << "# Singing: usb_microphone_1/2 are the recording devices of the game's two microphones (\"default\" = the\n"

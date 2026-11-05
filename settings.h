@@ -174,6 +174,8 @@ struct Options {
   // The whammy bars calibrated on the Controls tab (game::kHasWhammy): the SDK's gamepad_whammy_calibration (change
   // 60), "controller=axis:rest:full" comma-separated, a controller by its serial number or GUID.
   std::string whammy_calibration;
+  // The tilts assigned there: the SDK's gamepad_tilt_calibration (recomp change 72).
+  std::string tilt_calibration;
 
   // Singing (game::kHasMicrophones, the Controls tab): the recording device of each of the game's USB microphones
   // (the SDK's usb_microphone_1 and _2, recomp change 55: a device's name, kSystemMicrophone for the system's default,

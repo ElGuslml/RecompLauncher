@@ -479,7 +479,12 @@ struct Texts {
   const char* whammy_step_hold;
   const char* whammy_step_release;
   const char* whammy_failed;
+  // Launcher 3.13: the tilt's row, the same as the whammy bar's.
+  const char* tilt_name;
+  const char* tilt_step_hold;
+  const char* tilt_step_release;
   const char* help_tip_whammy;
+  const char* help_tip_tilt;
   const char* help_tip_fixed;
   const char* help_tip_escape;
   const char* help_tip_clear;

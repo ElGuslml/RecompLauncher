@@ -217,7 +217,12 @@ constexpr Sint16 kTriggerPressed = 29491;
 
 // --- The whammy bar (game::kHasWhammy): the SDK's gamepad_whammy_calibration (recomp change 60) ---
 
-constexpr const char* kAxisNames[] = {"lx", "ly", "rx", "ry", "lt", "rt"};  // SDL_GamepadAxis's order, the SDK's names
+// What a bar or a tilt can be on, as the SDK names them: SDL_GamepadAxis's order, then the accelerometer's axes.
+constexpr const char* kAxisNames[] = {"lx", "ly", "rx", "ry", "lt", "rt", "ax", "ay", "az"};
+constexpr int kAccelSource = SDL_GAMEPAD_AXIS_COUNT;
+// The SDK's gamepad_tilt_calibration: 32767 from a fifth short of the position held, as the game takes only the
+// axis's very end.
+constexpr double kTiltReachedAt = 0.8;
 
 // As the row shows it: LX ... RT.
 std::string AxisLabel(int axis) {
@@ -226,8 +231,11 @@ std::string AxisLabel(int axis) {
   return label;
 }
 
-// An axis's span of values: a stick's -32768 to 32767, a trigger's 0 to 32767.
-double AxisSpan(int axis) { return axis < SDL_GAMEPAD_AXIS_LEFT_TRIGGER ? 65535.0 : 32767.0; }
+// An axis's span of values: a stick's -32768 to 32767, a trigger's 0 to 32767, an accelerometer's about 2 g, in
+// thousandths of m/s2.
+double AxisSpan(int axis) {
+  return axis >= kAccelSource ? 20000.0 : axis < SDL_GAMEPAD_AXIS_LEFT_TRIGGER ? 65535.0 : 32767.0;
+}
 
 struct WhammyEntry {
   int axis = -1;  // -1: not calibrated
@@ -691,9 +699,10 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
     mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
     y += Px(44.0f) + Px(6.0f);
   }
-  // The whammy bar: a guitar's, or that of a controller playing guitar (a drum kit has none).
+  // The whammy bar and the tilt: a guitar's, or those of a controller playing guitar (a drum kit has neither).
   if (game::kHasWhammy && kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
-    y += WhammyRow(ImVec2(origin.x, y), width, id, kind);
+    y += AxisRow(ImVec2(origin.x, y), width, id, kind, false);
+    y += AxisRow(ImVec2(origin.x, y), width, id, kind, true);
   }
   for (int i = 0; i < int(rows.size()); ++i) {
     const Row& row = rows[size_t(i)];
@@ -752,40 +761,55 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
   return y - Px(6.0f) - origin.y;
 }
 
-float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickType kind) {
+float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickType kind, bool tilt) {
   using Clock = std::chrono::steady_clock;
   using namespace std::chrono_literals;
   const Clock::time_point now = Clock::now();
   const std::string key = PadKey(id);
+  std::string& assignments = tilt ? settings_.o.tilt_calibration : settings_.o.whammy_calibration;
+  const char* what = tilt ? "tilt" : "whammy bar";
   SDL_Gamepad* gamepad = SDL_GetGamepadFromID(id);
-  std::array<int, 6> axes{};
-  for (int a = 0; a < 6; ++a) {
+  std::array<int, WhammyCalibration::kSources> axes{};
+  for (int a = 0; a < kAccelSource; ++a) {
     axes[size_t(a)] = gamepad ? SDL_GetGamepadAxis(gamepad, SDL_GamepadAxis(a)) : 0;
   }
+  // A tilt may be on the accelerometer: a PS3 guitar's protocol has it nowhere else.
+  if (tilt && gamepad && SDL_GamepadHasSensor(gamepad, SDL_SENSOR_ACCEL)) {
+    SDL_SetGamepadSensorEnabled(gamepad, SDL_SENSOR_ACCEL, true);
+    float accel[3] = {};
+    if (SDL_GetGamepadSensorData(gamepad, SDL_SENSOR_ACCEL, accel, 3)) {
+      for (int a = 0; a < 3; ++a) axes[size_t(kAccelSource + a)] = int(std::lround(accel[a] * 1000.0f));
+    }
+  }
 
-  // The calibration: pushed all the way and held, then let go. Where each axis has stayed, and since when.
+  // The assignment: pushed all the way or tilted and held, then let go. Where each source has stayed, and since when.
   WhammyCalibration& cal = whammy_cal_;
-  const bool mine = cal.id == id && cal.step != WhammyCalibration::kOff;
+  const bool mine = cal.id == id && cal.tilt == tilt && cal.step != WhammyCalibration::kOff;
   if (mine && WhammyCalibrating()) {
     if (!gamepad) {
       cal.step = WhammyCalibration::kFailed;
       cal.since = now;
-      Log("the whammy bar's assignment: the controller is not open");
+      Log("the %s's assignment: the controller is not open", what);
     }
-    for (size_t a = 0; a < 6 && gamepad; ++a) {
-      if (std::abs(axes[a] - cal.still[a]) > 1024) {
+    // A bar goes through its axis; a tilt covers part of one.
+    const double reach = tilt ? 0.15 : 0.4;
+    for (size_t a = 0; a < axes.size() && gamepad; ++a) {
+      // An accelerometer's noise grows with its scale (a PS3 guitar's reads in steps of over 20 m/s2 through SDL).
+      const int still = a < size_t(kAccelSource) ? 1024 : std::max(600, std::abs(axes[a] - cal.start[a]) / 10);
+      if (std::abs(axes[a] - cal.still[a]) > still) {
         cal.still[a] = axes[a];
         cal.still_since[a] = now;
       }
     }
     if (cal.step == WhammyCalibration::kHold) {
-      // All the way: an axis 40 % of its span from where it began, still for 0.8 s. The right stick's X first: a
-      // guitar's tilt, on another axis, may move with the bar.
+      // All the way: a source far enough from where it began, still for 0.8 s. The axis the game reads first, then the
+      // others, then the accelerometer: a guitar's other axes may move with it.
+      const size_t usual = tilt ? SDL_GAMEPAD_AXIS_RIGHTY : SDL_GAMEPAD_AXIS_RIGHTX;
       double best = 0.0;
-      for (size_t a = 0; a < 6; ++a) {
+      for (size_t a = 0; a < axes.size(); ++a) {
         double moved = std::abs(cal.still[a] - cal.start[a]) / AxisSpan(int(a));
-        double rank = moved + (a == SDL_GAMEPAD_AXIS_RIGHTX ? 1.0 : 0.0);
-        if (moved >= 0.4 && now - cal.still_since[a] >= 800ms && rank > best) {
+        double rank = std::min(moved, 1.0) + (a == usual ? 2.0 : a < size_t(kAccelSource) ? 1.0 : 0.0);
+        if (moved >= reach && now - cal.still_since[a] >= 800ms && rank > best) {
           best = rank;
           cal.axis = int(a);
         }
@@ -795,23 +819,25 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
         cal.step = WhammyCalibration::kRelease;
         cal.since = now;
       }
-    } else {
-      // Let go: the axis 40 % of its span from all the way, still for 0.6 s, is at rest.
+    } else if (cal.step == WhammyCalibration::kRelease) {
+      // Let go: the source far enough from all the way, still for 0.6 s, is at rest.
       size_t a = size_t(cal.axis);
-      if (std::abs(cal.still[a] - cal.full) / AxisSpan(cal.axis) >= 0.4 && now - cal.still_since[a] >= 600ms) {
+      if (std::abs(cal.still[a] - cal.full) / AxisSpan(cal.axis) >= reach && now - cal.still_since[a] >= 600ms) {
         const std::string value =
             std::string(kAxisNames[a]) + ":" + std::to_string(cal.still[a]) + ":" + std::to_string(cal.full);
-        settings_.o.whammy_calibration = WithWhammyEntry(settings_.o.whammy_calibration, key, value);
-        Log("the whammy bar's assignment for %s: %s", key.c_str(), value.c_str());
+        assignments = WithWhammyEntry(assignments, key, value);
+        Log("the %s's assignment for %s: %s", what, key.c_str(), value.c_str());
         Changed();
         cal.step = WhammyCalibration::kDone;
         cal.since = now;
       }
     }
     if (WhammyCalibrating() && now - cal.since >= 10s) {
-      Log("the whammy bar's assignment for %s found no movement: axes %d %d %d %d %d %d from %d %d %d %d %d %d",
-          key.c_str(), axes[0], axes[1], axes[2], axes[3], axes[4], axes[5], cal.start[0], cal.start[1], cal.start[2],
-          cal.start[3], cal.start[4], cal.start[5]);
+      std::string moved;
+      for (size_t a = 0; a < axes.size(); ++a) {
+        moved += " " + std::to_string(cal.start[a]) + ">" + std::to_string(axes[a]);
+      }
+      Log("the %s's assignment for %s found no movement:%s", what, key.c_str(), moved.c_str());
       cal.step = WhammyCalibration::kFailed;
       cal.since = now;
     }
@@ -819,17 +845,20 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
     cal.step = WhammyCalibration::kOff;
   }
 
-  // How far the game reads the bar: calibrated, or as the SDK does by itself: a guitar's right stick's X from -32768
-  // (0 until it first moves: at rest), a controller's folded at its middle unless it rests at -32768 for a second (a
-  // guitar that reports itself as a gamepad).
-  WhammyEntry entry = WhammyEntryOf(settings_.o.whammy_calibration, key);
+  // How far the game reads it: assigned, or as the SDK does by itself. A guitar's right stick's X from -32768 (0 until
+  // it first moves: at rest), a controller's folded at its middle unless it rests at -32768 for a second (a guitar that
+  // reports itself as a gamepad); a tilt is the right stick's Y upward.
+  WhammyEntry entry = WhammyEntryOf(assignments, key);
   const bool assigned = entry.axis >= 0;
-  if (!assigned && IsPs3Guitar(id)) {
+  if (!assigned && !tilt && IsPs3Guitar(id)) {
     entry = {SDL_GAMEPAD_AXIS_RIGHTX, kPs3GuitarWhammyRest, kPs3GuitarWhammyFull};
   }
   double position = 0.0;
   if (entry.axis >= 0) {
-    position = std::clamp(double(axes[size_t(entry.axis)] - entry.rest) / double(entry.full - entry.rest), 0.0, 1.0);
+    position = double(axes[size_t(entry.axis)] - entry.rest) / double(entry.full - entry.rest);
+    position = std::clamp(tilt ? position / kTiltReachedAt : position, 0.0, 1.0);
+  } else if (tilt) {
+    position = std::clamp(-axes[SDL_GAMEPAD_AXIS_RIGHTY] / 32767.0, 0.0, 1.0);
   } else {
     int x = axes[SDL_GAMEPAD_AXIS_RIGHTX];
     RightXRest& rest = right_x_rest_[id];
@@ -849,16 +878,18 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
     }
   }
 
-  // The row: what it is (or the step), the bar's position, the calibration's chip.
+  // The row: what it is (or the step), its position, the assignment's chip.
   ImRect r(origin, ImVec2(origin.x + width, origin.y + Px(44.0f)));
   ImRect chip(ImVec2(r.Max.x - Px(6.0f) - Px(190.0f), r.Min.y + Px(4.0f)), ImVec2(r.Max.x - Px(6.0f), r.Max.y - Px(4.0f)));
   ImRect meter(ImVec2(chip.Min.x - Px(14.0f) - Px(120.0f), r.GetCenter().y - Px(4.0f)),
                ImVec2(chip.Min.x - Px(14.0f), r.GetCenter().y + Px(4.0f)));
   const bool active = mine && WhammyCalibrating();
-  std::string label = active ? (cal.step == WhammyCalibration::kHold ? t_.whammy_step_hold : t_.whammy_step_release)
+  const char* step_hold = tilt ? t_.tilt_step_hold : t_.whammy_step_hold;
+  const char* step_release = tilt ? t_.tilt_step_release : t_.whammy_step_release;
+  std::string label = active ? (cal.step == WhammyCalibration::kHold ? step_hold : step_release)
                       : mine && cal.step == WhammyCalibration::kFailed
                           ? t_.whammy_failed
-                          : std::string(t_.whammy_bar) + " \xC2\xB7 " +
+                          : std::string(tilt ? t_.tilt_name : t_.whammy_bar) + " \xC2\xB7 " +
                                 (assigned ? std::string(t_.whammy_calibrated) + " (" + AxisLabel(entry.axis) + ")"
                                           : std::string(t_.whammy_automatic));
   MappingRow(r, 0, label, meter.Min.x - Px(14.0f), active);
@@ -869,7 +900,7 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
   ChipLook look;
   look.text = active ? "..." : assigned ? t_.whammy_calibrate_again : t_.whammy_calibrate;
   look.listening = active;
-  ImGui::PushID("whammy");
+  ImGui::PushID(tilt ? "tilt" : "whammy");
   ItemState state = MappingChip("##chip", chip, look);
   ImGui::PopID();
   if (!mapping_first_) mapping_first_ = ImGui::GetItemID();
@@ -879,13 +910,14 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
     cal = WhammyCalibration{};
     cal.step = WhammyCalibration::kHold;
     cal.id = id;
+    cal.tilt = tilt;
     cal.since = now;
     cal.start = axes;
     cal.still = axes;
     cal.still_since.fill(now);
   } else if (!active && assigned && ClearPressed(state)) {
     // Cleared: the SDK's own judgment again.
-    settings_.o.whammy_calibration = WithWhammyEntry(settings_.o.whammy_calibration, key, "");
+    assignments = WithWhammyEntry(assignments, key, "");
     Changed();
   }
   return Px(44.0f) + Px(6.0f);
@@ -1150,7 +1182,10 @@ void App::ControlsPage(const ImRect& rect) {
     } else if (pad) {
       if (game::kHasMicrophones && !guitar && !drums) tips.push_back(t_.help_tip_part);
       if (*game::kKeyboardTapTarget && !guitar && !drums) tips.push_back(t_.help_tip_gamepad_tap);
-      if (game::kHasWhammy && !drums) tips.push_back(t_.help_tip_whammy);
+      if (game::kHasWhammy && !drums) {
+        tips.push_back(t_.help_tip_whammy);
+        tips.push_back(t_.help_tip_tilt);
+      }
       tips.push_back(t_.help_tip_this_controller);
       tips.push_back(t_.help_tip_fixed);
     } else {
@@ -1202,8 +1237,9 @@ void App::ControlsPage(const ImRect& rect) {
         settings_.o.microphone_channels = {};
         settings_.o.microphone_gains = {game::kMicrophoneGainDefault, game::kMicrophoneGainDefault};
       } else if (pad) {
-        // Back to the standard layout, for this controller, and its whammy bar to the SDK's own judgment.
+        // Back to the standard layout, for this controller, and its whammy bar and tilt to the SDK's own judgment.
         settings_.o.whammy_calibration = WithWhammyEntry(settings_.o.whammy_calibration, PadKey(pad->id), "");
+        settings_.o.tilt_calibration = WithWhammyEntry(settings_.o.tilt_calibration, PadKey(pad->id), "");
         std::string type_key = TypeKey(type);
         settings_.o.device_remap =
             WithDeviceLayout(settings_.o.device_remap, PadKey(pad->id), SourcesFor(settings_.o.gamepad_remap, type_key, false),

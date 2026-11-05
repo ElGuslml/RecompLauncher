@@ -2,6 +2,14 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.13.0
+
+- A Tilt row beside the Whammy bar's, on guitars and controllers playing guitar: how far the game reads it, and Assign:
+  tilt the neck up as for Star Power and hold it, then go back to your playing position. Any axis of the controller, or
+  its accelerometer (where a PS3 guitar's tilt is), becomes the right stick's Y (the SDK's `gamepad_tilt_calibration`,
+  recomp change 72). A Wii guitar's reported through a program that shows it as an Xbox 360 controller, whose tilt axis
+  ends with the neck straight up: the game takes only the axis's very end. X clears it, Reset too.
+
 ## 3.12.0
 
 A CRKD guitar's player, 2026-11-05: no whammy bar, or yellow and blue swapped, and the launcher deaf to the guitar on

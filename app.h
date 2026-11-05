@@ -150,8 +150,8 @@ class App {
   // row too (singing).
   float PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadType type, SDL_JoystickType kind,
                 bool with_part);
-  // The whammy bar's row (game::kHasWhammy): how far the game reads it, and its calibration.
-  float WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickType kind);
+  // The whammy bar's and the tilt's rows (game::kHasWhammy): how far the game reads it, and its assignment.
+  float AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickType kind, bool tilt);
   bool WhammyCalibrating() const {
     return whammy_cal_.step == WhammyCalibration::kHold || whammy_cal_.step == WhammyCalibration::kRelease;
   }
@@ -244,16 +244,18 @@ class App {
   SDL_JoystickID pad_listen_id_ = 0;  // the controller it waits on
   // Each trigger (left, right) was released when the wait began: only then can it be the button pressed.
   std::array<bool, 2> pad_trigger_free_{};
-  // The whammy bar's calibration (page_controls.cpp): pushed all the way and held (the axis that moved and stayed, its
-  // value there), then let go (its value at rest); the result shown for a moment. SDL's six axes, each one's value where
-  // the step began and where it has stayed since `still_since`.
+  // The assignment of a whammy bar or a tilt (page_controls.cpp): pushed all the way or tilted and held (the axis that
+  // moved and stayed, its value there), then let go (its value at rest); the result shown for a moment. SDL's six axes
+  // and the accelerometer's three, each one's value where the step began and where it has stayed since `still_since`.
   struct WhammyCalibration {
     enum Step { kOff, kHold, kRelease, kDone, kFailed } step = kOff;
+    static constexpr int kSources = 9;
     SDL_JoystickID id = 0;
+    bool tilt = false;
     std::chrono::steady_clock::time_point since;
-    std::array<int, 6> start{};
-    std::array<int, 6> still{};
-    std::array<std::chrono::steady_clock::time_point, 6> still_since{};
+    std::array<int, kSources> start{};
+    std::array<int, kSources> still{};
+    std::array<std::chrono::steady_clock::time_point, kSources> still_since{};
     int axis = -1;
     int full = 0;
   };
