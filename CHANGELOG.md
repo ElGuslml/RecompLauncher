@@ -2,6 +2,22 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.12.0
+
+A CRKD guitar's player, 2026-11-05: no whammy bar, or yellow and blue swapped, and the launcher deaf to the guitar on
+its P3 setting. Checked with SDL's virtual controllers, not yet with that guitar.
+- Every controller is kept open (`controllers.cpp`). SDL reports only an open controller's buttons and axes, and ImGui's
+  backend opens just the first, so the Controls page could assign nothing on any other and its whammy bar read 0 (the
+  calibration always ended in "no movement"). SDL lists HIDAPI controllers first: with a DualSense connected, a guitar
+  was never the first. Only the first still navigates, and only it changes the glyphs.
+- A PS3 Guitar Hero guitar (12BA:0100, as a CRKD guitar on P3 should be), as the SDK's `guitar_ps3_protocol` (recomp change 71):
+  yellow and blue put right in SDL's mapping, a mapping for it where SDL's PS3 driver did not take it (`game::kHasWhammy`
+  games), the Whammy bar row's reading from the middle of the axis.
+- The Whammy bar row assigns: "Assign" and "Assign again" for "Calibrate" and "Calibrate again", in five languages, and
+  the axis it is on ("Whammy bar · assigned (RT)"). The steps are the same.
+- The log: every joystick SDL sees with its gamepad type, kind, USB IDs and GUID, the ones without a gamepad mapping
+  too; the whammy bar's assignment, or where the axes were when it found no movement.
+
 ## 3.11.4
 
 Gustavo, 2026-11-04 (`launcher_007.log`): back from the game, every Present took exactly 3 s for half a minute, until

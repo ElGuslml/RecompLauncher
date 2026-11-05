@@ -26,6 +26,8 @@
 #include <vector>
 
 #include "app.h"
+#include "controllers.h"
+#include "launcher_log.h"
 #include "pages.h"
 
 namespace launcher {
@@ -216,6 +218,13 @@ constexpr Sint16 kTriggerPressed = 29491;
 // --- The whammy bar (game::kHasWhammy): the SDK's gamepad_whammy_calibration (recomp change 60) ---
 
 constexpr const char* kAxisNames[] = {"lx", "ly", "rx", "ry", "lt", "rt"};  // SDL_GamepadAxis's order, the SDK's names
+
+// As the row shows it: LX ... RT.
+std::string AxisLabel(int axis) {
+  std::string label = kAxisNames[axis];
+  for (char& c : label) c = char(std::toupper(static_cast<unsigned char>(c)));
+  return label;
+}
 
 // An axis's span of values: a stick's -32768 to 32767, a trigger's 0 to 32767.
 double AxisSpan(int axis) { return axis < SDL_GAMEPAD_AXIS_LEFT_TRIGGER ? 65535.0 : 32767.0; }
@@ -758,7 +767,12 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
   WhammyCalibration& cal = whammy_cal_;
   const bool mine = cal.id == id && cal.step != WhammyCalibration::kOff;
   if (mine && WhammyCalibrating()) {
-    for (size_t a = 0; a < 6; ++a) {
+    if (!gamepad) {
+      cal.step = WhammyCalibration::kFailed;
+      cal.since = now;
+      Log("the whammy bar's assignment: the controller is not open");
+    }
+    for (size_t a = 0; a < 6 && gamepad; ++a) {
       if (std::abs(axes[a] - cal.still[a]) > 1024) {
         cal.still[a] = axes[a];
         cal.still_since[a] = now;
@@ -785,15 +799,19 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
       // Let go: the axis 40 % of its span from all the way, still for 0.6 s, is at rest.
       size_t a = size_t(cal.axis);
       if (std::abs(cal.still[a] - cal.full) / AxisSpan(cal.axis) >= 0.4 && now - cal.still_since[a] >= 600ms) {
-        settings_.o.whammy_calibration =
-            WithWhammyEntry(settings_.o.whammy_calibration, key,
-                            std::string(kAxisNames[a]) + ":" + std::to_string(cal.still[a]) + ":" + std::to_string(cal.full));
+        const std::string value =
+            std::string(kAxisNames[a]) + ":" + std::to_string(cal.still[a]) + ":" + std::to_string(cal.full);
+        settings_.o.whammy_calibration = WithWhammyEntry(settings_.o.whammy_calibration, key, value);
+        Log("the whammy bar's assignment for %s: %s", key.c_str(), value.c_str());
         Changed();
         cal.step = WhammyCalibration::kDone;
         cal.since = now;
       }
     }
     if (WhammyCalibrating() && now - cal.since >= 10s) {
+      Log("the whammy bar's assignment for %s found no movement: axes %d %d %d %d %d %d from %d %d %d %d %d %d",
+          key.c_str(), axes[0], axes[1], axes[2], axes[3], axes[4], axes[5], cal.start[0], cal.start[1], cal.start[2],
+          cal.start[3], cal.start[4], cal.start[5]);
       cal.step = WhammyCalibration::kFailed;
       cal.since = now;
     }
@@ -805,6 +823,10 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
   // (0 until it first moves: at rest), a controller's folded at its middle unless it rests at -32768 for a second (a
   // guitar that reports itself as a gamepad).
   WhammyEntry entry = WhammyEntryOf(settings_.o.whammy_calibration, key);
+  const bool assigned = entry.axis >= 0;
+  if (!assigned && IsPs3Guitar(id)) {
+    entry = {SDL_GAMEPAD_AXIS_RIGHTX, kPs3GuitarWhammyRest, kPs3GuitarWhammyFull};
+  }
   double position = 0.0;
   if (entry.axis >= 0) {
     position = std::clamp(double(axes[size_t(entry.axis)] - entry.rest) / double(entry.full - entry.rest), 0.0, 1.0);
@@ -837,14 +859,15 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
                       : mine && cal.step == WhammyCalibration::kFailed
                           ? t_.whammy_failed
                           : std::string(t_.whammy_bar) + " \xC2\xB7 " +
-                                (entry.axis >= 0 ? t_.whammy_calibrated : t_.whammy_automatic);
+                                (assigned ? std::string(t_.whammy_calibrated) + " (" + AxisLabel(entry.axis) + ")"
+                                          : std::string(t_.whammy_automatic));
   MappingRow(r, 0, label, meter.Min.x - Px(14.0f), active);
   FillRect(meter, Hex(0xFFFFFF, 26), 4.0f);
   if (position > 0.0) {
     FillRect(ImRect(meter.Min, ImVec2(meter.Min.x + float(position) * meter.GetWidth(), meter.Max.y)), col::kAccent, 4.0f);
   }
   ChipLook look;
-  look.text = active ? "..." : entry.axis >= 0 ? t_.whammy_calibrate_again : t_.whammy_calibrate;
+  look.text = active ? "..." : assigned ? t_.whammy_calibrate_again : t_.whammy_calibrate;
   look.listening = active;
   ImGui::PushID("whammy");
   ItemState state = MappingChip("##chip", chip, look);
@@ -860,7 +883,7 @@ float App::WhammyRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_Joystick
     cal.start = axes;
     cal.still = axes;
     cal.still_since.fill(now);
-  } else if (!active && entry.axis >= 0 && ClearPressed(state)) {
+  } else if (!active && assigned && ClearPressed(state)) {
     // Cleared: the SDK's own judgment again.
     settings_.o.whammy_calibration = WithWhammyEntry(settings_.o.whammy_calibration, key, "");
     Changed();

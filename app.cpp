@@ -18,6 +18,7 @@
 #include <ctime>
 #include <iterator>
 
+#include "controllers.h"
 #include "game.h"
 #include "launcher_log.h"
 #include "launcher_version.h"
@@ -596,11 +597,13 @@ bool App::OnEvent(const SDL_Event& event) {
         crossed = it != axes_over_.end() && over && !it->second;
         axes_over_[key] = over;
       }
-      if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || crossed) {
+      const SDL_JoystickID which =
+          event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ? event.gbutton.which : event.gaxis.which;
+      // The glyphs of the controller pressed, if it is the one that navigates: the others are open for the Controls
+      // page, and a guitar's tilt, on its triggers, crosses this all the time.
+      if ((event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || crossed) && NavigatesWith(which)) {
         gamepad_used_ = true;
-        // The glyphs of the controller pressed.
-        UseGlyphsOf(SDL_GetGamepadTypeForID(event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ? event.gbutton.which
-                                                                                          : event.gaxis.which));
+        UseGlyphsOf(SDL_GetGamepadTypeForID(which));
       }
       break;
     }

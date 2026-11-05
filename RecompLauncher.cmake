@@ -37,6 +37,7 @@ function(recomp_launcher_add target)
       "${dir}/page_play.cpp"
       "${dir}/page_settings.cpp"
       "${dir}/page_controls.cpp"
+      "${dir}/controllers.cpp"
       "${dir}/page_keyboard.cpp"
       "${dir}/page_microphone.cpp"
       "${dir}/page_updates.cpp"

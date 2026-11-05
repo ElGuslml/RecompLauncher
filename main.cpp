@@ -47,6 +47,7 @@
 
 #include "app.h"
 #include "game.h"
+#include "controllers.h"
 #include "launcher_log.h"
 #include "launcher_version.h"
 #include "ui/gfx.h"
@@ -267,19 +268,7 @@ std::string WindowsVersion() {
 }
 
 // The controllers SDL has, in its order: ImGui navigates with the first (ImGui_ImplSDL3_GamepadMode_AutoFirst).
-void LogGamepads(const char* when) {
-  int count = 0;
-  SDL_JoystickID* pads = SDL_GetGamepads(&count);
-  std::string list;
-  for (int i = 0; pads && i < count; ++i) {
-    const char* name = SDL_GetGamepadNameForID(pads[i]);
-    const char* type = SDL_GetGamepadStringForType(SDL_GetGamepadTypeForID(pads[i]));
-    list += std::string(i ? ", " : "") + std::to_string(i + 1) + ". " + (name ? name : "?") + " (" +
-            (type ? type : "?") + ")";
-  }
-  SDL_free(pads);
-  launcher::Log("controllers %s: %s", when, list.empty() ? "none" : list.c_str());
-}
+void LogGamepads(const char* when) { launcher::Log("controllers %s: %s", when, launcher::ControllersText().c_str()); }
 
 // The kind of an input event, for the log's first input after the game; null for the others.
 const char* InputKind(uint32_t type) {
@@ -482,6 +471,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     }
     return launcher::SaveOptions(app.settings());
   };
+  launcher::OpenControllers();
   LogGamepads("at the start");
   GameProcess game;
   uint64_t game_started_at = 0;  // SDL_GetTicks()
@@ -511,6 +501,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       }
       // The controllers are the game's while it runs (both reading a DualSense would also set its lights twice).
       ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_Manual, nullptr, 0);
+      launcher::CloseControllers();
       SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
       std::filesystem::path exe = exe_dir / launcher::game::kRecompExecutable;
       bool found = std::filesystem::exists(exe);
@@ -530,6 +521,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         launcher::Log("the game did not start");
         SDL_InitSubSystem(SDL_INIT_GAMEPAD);
         ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_AutoFirst, nullptr, 0);
+        launcher::OpenControllers();
         app.GameExited(0);
       }
     }
@@ -543,6 +535,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         game.Close();
         SDL_InitSubSystem(SDL_INIT_GAMEPAD);
         ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_AutoFirst, nullptr, 0);
+        launcher::OpenControllers();
         SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
         // The releases of the key or click that started the game went unseen (the launcher took no input since).
         io.ClearInputKeys();
@@ -605,6 +598,10 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         launcher::Log("window %s", event.type == SDL_EVENT_WINDOW_OCCLUDED   ? "occluded"
                                    : event.type == SDL_EVENT_WINDOW_MINIMIZED ? "minimized"
                                                                               : "restored");
+      }
+      if (event.type == SDL_EVENT_JOYSTICK_ADDED || event.type == SDL_EVENT_GAMEPAD_ADDED ||
+          event.type == SDL_EVENT_GAMEPAD_REMOVED) {
+        launcher::OpenControllers();
       }
       if (event.type == SDL_EVENT_GAMEPAD_ADDED || event.type == SDL_EVENT_GAMEPAD_REMOVED) {
         const char* name = SDL_GetGamepadNameForID(event.gdevice.which);
