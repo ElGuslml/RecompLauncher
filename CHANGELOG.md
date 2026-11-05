@@ -9,7 +9,12 @@ its P3 setting. Checked with SDL's virtual controllers, not yet with that guitar
 - Every controller is kept open (`controllers.cpp`). SDL reports only an open controller's buttons and axes, and ImGui's
   backend opens just the first, so the Controls page could assign nothing on any other and its whammy bar read 0 (the
   calibration always ended in "no movement"). SDL lists HIDAPI controllers first: with a DualSense connected, a guitar
-  was never the first. Only the first still navigates, and only it changes the glyphs.
+  was never the first.
+- The last controller that pressed a button navigates (at first SDL's first, as before): one at a time, not merged, as a
+  guitar's whammy bar and tilt rest over. Before, only the first did, so a guitar behind another controller looked dead.
+- A trigger is no longer "a button held" (`ui::AnyGamepadButtonDown`). A guitar's tilt rests on one past ImGui's
+  threshold (an Xbox 360 guitar's right trigger at half), so after a button was assigned on it the launcher waited for
+  all to be up forever: no navigation and no shortcuts on any controller until it was closed.
 - A PS3 Guitar Hero guitar (12BA:0100, as a CRKD guitar on P3 should be), as the SDK's `guitar_ps3_protocol` (recomp change 71):
   yellow and blue put right in SDL's mapping, a mapping for it where SDL's PS3 driver did not take it (`game::kHasWhammy`
   games), the Whammy bar row's reading from the middle of the axis.

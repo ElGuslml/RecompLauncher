@@ -734,7 +734,9 @@ ItemState Item(const char* id, const ImRect& rect, bool enabled) { return Item(I
 
 bool AnyGamepadButtonDown() {
   for (int key = ImGuiKey_GamepadStart; key <= ImGuiKey_GamepadR3; ++key) {
-    if (ImGui::IsKeyDown(ImGuiKey(key))) {
+    // Not the triggers: they press nothing here, and a guitar's tilt rests on one, past ImGui's threshold, which held
+    // the controller locked for good after a button was assigned on it.
+    if (key != ImGuiKey_GamepadL2 && key != ImGuiKey_GamepadR2 && ImGui::IsKeyDown(ImGuiKey(key))) {
       return true;
     }
   }

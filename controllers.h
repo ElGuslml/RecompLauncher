@@ -1,8 +1,10 @@
 // The controllers connected: kept open, so that each of them reports its buttons and axes.
 //
-// SDL reports only an open controller's, and ImGui's backend opens just the first one (the one that navigates). The
-// Controls page listens to the controller it shows, whichever that is, so anything after the first assigned nothing
-// and its whammy bar read 0: a DualSense, which SDL lists before any XInput device, left a guitar deaf.
+// SDL reports only an open controller's, and ImGui's backend, left to itself, opens just the first one. The Controls
+// page listens to the controller it shows, whichever that is, so anything after the first assigned nothing and its
+// whammy bar read 0: a DualSense, which SDL lists before any XInput device, left a guitar deaf.
+//
+// ImGui navigates with one controller at a time: not all of them merged, a guitar's whammy bar and tilt rest over.
 
 #pragma once
 
@@ -18,8 +20,9 @@ void OpenControllers();
 // Before the gamepad subsystem quits (the controllers are the game's while it runs).
 void CloseControllers();
 
-// The controller ImGui navigates with: SDL's first.
+// The controller ImGui navigates with: the last one that pressed a button, at first SDL's first.
 bool NavigatesWith(SDL_JoystickID id);
+void NavigateWith(SDL_JoystickID id);
 
 // A PS3 Guitar Hero guitar in a game with a whammy bar: USB 12BA:0100, as a CRKD guitar on its P3 setting should be.
 // As the SDK's guitar_ps3_protocol (recomp change 71, thirdparty/rexglue-sdk/src/input/sdl/sdl_input_driver.cpp),

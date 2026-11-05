@@ -267,7 +267,7 @@ std::string WindowsVersion() {
          std::to_string(version.dwBuildNumber);
 }
 
-// The controllers SDL has, in its order: ImGui navigates with the first (ImGui_ImplSDL3_GamepadMode_AutoFirst).
+// The controllers SDL has, in its order.
 void LogGamepads(const char* when) { launcher::Log("controllers %s: %s", when, launcher::ControllersText().c_str()); }
 
 // The kind of an input event, for the log's first input after the game; null for the others.
@@ -500,7 +500,6 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         ShowError(Formatted(app.texts().save_failed, launcher::game::kOptionsFile).c_str());
       }
       // The controllers are the game's while it runs (both reading a DualSense would also set its lights twice).
-      ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_Manual, nullptr, 0);
       launcher::CloseControllers();
       SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
       std::filesystem::path exe = exe_dir / launcher::game::kRecompExecutable;
@@ -520,7 +519,6 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       } else {
         launcher::Log("the game did not start");
         SDL_InitSubSystem(SDL_INIT_GAMEPAD);
-        ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_AutoFirst, nullptr, 0);
         launcher::OpenControllers();
         app.GameExited(0);
       }
@@ -534,7 +532,6 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
                       double(SDL_GetTicks() - game_started_at) / 1000.0);
         game.Close();
         SDL_InitSubSystem(SDL_INIT_GAMEPAD);
-        ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_AutoFirst, nullptr, 0);
         launcher::OpenControllers();
         SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
         // The releases of the key or click that started the game went unseen (the launcher took no input since).

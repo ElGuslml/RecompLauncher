@@ -599,8 +599,11 @@ bool App::OnEvent(const SDL_Event& event) {
       }
       const SDL_JoystickID which =
           event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ? event.gbutton.which : event.gaxis.which;
-      // The glyphs of the controller pressed, if it is the one that navigates: the others are open for the Controls
-      // page, and a guitar's tilt, on its triggers, crosses this all the time.
+      // A button makes its controller the one that navigates. A stick or trigger does not, and only that controller's
+      // change the glyphs: a guitar's tilt, on its triggers, crosses this all the time.
+      if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
+        NavigateWith(which);
+      }
       if ((event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || crossed) && NavigatesWith(which)) {
         gamepad_used_ = true;
         UseGlyphsOf(SDL_GetGamepadTypeForID(which));

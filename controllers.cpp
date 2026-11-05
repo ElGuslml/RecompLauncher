@@ -5,6 +5,8 @@
 #include <SDL3/SDL_guid.h>
 #include <SDL3/SDL_stdinc.h>
 
+#include <imgui_impl_sdl3.h>
+
 #include <cstdio>
 #include <unordered_map>
 
@@ -16,6 +18,12 @@ namespace launcher {
 namespace {
 
 std::unordered_map<SDL_JoystickID, SDL_Gamepad*> g_open;
+SDL_JoystickID g_navigating = 0;
+
+void SetNavigating(SDL_JoystickID id, SDL_Gamepad* gamepad) {
+  g_navigating = id;
+  ImGui_ImplSDL3_SetGamepadMode(ImGui_ImplSDL3_GamepadMode_Manual, gamepad ? &gamepad : nullptr, gamepad ? 1 : 0);
+}
 
 // The same report through DirectInput, for a guitar SDL's PS3 driver did not take (it asks the device for a feature
 // report first): without a mapping of its own it is no gamepad at all.
@@ -80,8 +88,10 @@ void OpenControllers() {
   SDL_free(joysticks);
 
   std::unordered_map<SDL_JoystickID, SDL_Gamepad*> open;
+  SDL_JoystickID first = 0;
   SDL_JoystickID* pads = SDL_GetGamepads(&count);
   for (int i = 0; i < count; ++i) {
+    if (i == 0) first = pads[i];
     auto it = g_open.find(pads[i]);
     if (it != g_open.end()) {
       open[pads[i]] = it->second;
@@ -93,6 +103,11 @@ void OpenControllers() {
     }
   }
   SDL_free(pads);
+  // Before the ones gone close: ImGui holds a pointer to the one it reads.
+  if (!open.count(g_navigating)) {
+    auto it = open.find(first);
+    SetNavigating(it != open.end() ? first : 0, it != open.end() ? it->second : nullptr);
+  }
   for (const auto& gone : g_open) {
     SDL_CloseGamepad(gone.second);
   }
@@ -100,18 +115,20 @@ void OpenControllers() {
 }
 
 void CloseControllers() {
+  SetNavigating(0, nullptr);
   for (const auto& pad : g_open) {
     SDL_CloseGamepad(pad.second);
   }
   g_open.clear();
 }
 
-bool NavigatesWith(SDL_JoystickID id) {
-  int count = 0;
-  SDL_JoystickID* pads = SDL_GetGamepads(&count);
-  const bool first = pads && count > 0 && pads[0] == id;
-  SDL_free(pads);
-  return first;
+bool NavigatesWith(SDL_JoystickID id) { return g_navigating == id; }
+
+void NavigateWith(SDL_JoystickID id) {
+  auto it = g_open.find(id);
+  if (id != g_navigating && it != g_open.end()) {
+    SetNavigating(id, it->second);
+  }
 }
 
 bool IsPs3Guitar(SDL_JoystickID id) {
