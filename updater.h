@@ -25,12 +25,18 @@ namespace launcher {
 struct Version {
   int major = 0, minor = 0, patch = 0;
   bool valid = false;
-  // "v1.2.3", "1.2.3" or "1.2" (a suffix after the numbers, "-beta", is ignored).
+  bool prerelease = false;  // a suffix after the numbers ("1.2.3-beta.1"): before 1.2.3, as in Semantic Versioning
+  // "v1.2.3", "1.2.3" or "1.2", with or without a suffix.
   static Version Parse(const std::string& text);
   bool operator<(const Version& o) const {
-    return major != o.major ? major < o.major : minor != o.minor ? minor < o.minor : patch < o.patch;
+    if (major != o.major) return major < o.major;
+    if (minor != o.minor) return minor < o.minor;
+    if (patch != o.patch) return patch < o.patch;
+    return prerelease && !o.prerelease;
   }
-  bool operator==(const Version& o) const { return major == o.major && minor == o.minor && patch == o.patch; }
+  bool operator==(const Version& o) const {
+    return major == o.major && minor == o.minor && patch == o.patch && prerelease == o.prerelease;
+  }
 };
 
 struct Release {

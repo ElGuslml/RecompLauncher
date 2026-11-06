@@ -2,6 +2,12 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.13.1
+
+- A version with a suffix ("0.3.1-beta.1") comes before the same numbers without one, as in Semantic Versioning: the
+  suffix was ignored, so a player on a beta was never offered that version's final release. Pre-releases themselves are
+  still not offered by the Updates page.
+
 ## 3.13.0
 
 - A Tilt row beside the Whammy bar's, on guitars and controllers playing guitar: how far the game reads it, and Assign:

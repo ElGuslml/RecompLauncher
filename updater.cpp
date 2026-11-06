@@ -130,6 +130,7 @@ Version Version::Parse(const std::string& text) {
   v.minor = parts[1];
   v.patch = parts[2];
   v.valid = count >= 2;
+  v.prerelease = at < text.size() && text[at] == '-';
   return v;
 }
 
