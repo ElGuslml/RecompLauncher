@@ -475,7 +475,7 @@ void App::SettingsPage(const ImRect& rect) {
     }
     // The frame rate: the rates the monitor reaches; those above 60 are experimental.
     if (*game::kFrameRateCvar) {
-      std::vector<game::FrameRate> rates = FrameRates(settings_.CurrentMonitor());
+      std::vector<game::FrameRate> rates = FrameRates(settings_.CurrentMonitor(), o.any_frame_rate);
       OptionRow row;
       row.id = "fps";
       row.title = t_.framerate;

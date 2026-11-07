@@ -118,6 +118,7 @@ struct Options {
   Size window{kGuestWidth, kGuestHeight};  // window size in physical pixels
   int scale = 0;                           // 0 = automatic; 1..kMaxScale = chosen
   int frame_rate = game::kFrameRateDefault;  // game::kFrameRateCvar's value (a game::kFrameRates value)
+  bool any_frame_rate = false;  // launcher_any_frame_rate: every rate, also those above the monitor's refresh rate
   bool no_msaa = false;                    // game::kNoMsaaCvar (src/msaa.cpp)
   int anisotropic = 5;                     // anisotropic_override (SDK): 5 = 16x, 4 = 8x, 3 = 4x, 2 = 2x, 0 = off
   bool vulkan = false;                     // gpu_backend = "vulkan" (otherwise "d3d12")
@@ -233,8 +234,9 @@ struct Monitor {
 // EnumDisplayMonitors order (SDL_windowsmodes.c, WIN_AddDisplays).
 std::vector<Monitor> EnumerateMonitors();
 
-// The frame rates the monitor reaches (game::kFrameRates, those above 60 only up to its refresh rate).
-std::vector<game::FrameRate> FrameRates(const Monitor& monitor);
+// The frame rates the monitor reaches (game::kFrameRates, those above 60 only up to its refresh rate), or with `any`
+// all of them (the options file's launcher_any_frame_rate: with V-Sync off a game can run above its monitor).
+std::vector<game::FrameRate> FrameRates(const Monitor& monitor, bool any = false);
 // The Windows display language's entry of game::kLanguages, or 0.
 int SystemGameLanguage();
 

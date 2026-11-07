@@ -2,6 +2,14 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.13.2
+
+- `launcher_any_frame_rate = true` in a game's options file offers every frame rate the game has, also those above the
+  monitor's refresh rate, and keeps the one chosen (`FrameRates(monitor, any)`). Before, a rate above the monitor's was
+  never offered, and `FitFrameRate()` reset one written in the file to 60 when the launcher opened (GH5 at 240 on a
+  165 Hz monitor, 2026-11-07). Off by default, and written back only when on. Such a rate needs V-Sync off: with V-Sync
+  on GH5 at 240 ran at 156 FPS on that monitor, with 20 ms frames.
+
 ## 3.13.1
 
 - A version with a suffix ("0.3.1-beta.1") comes before the same numbers without one, as in Semantic Versioning: the

@@ -93,10 +93,10 @@ void ResetGame(Options& o) {
   }
 }
 
-std::vector<game::FrameRate> FrameRates(const Monitor& monitor) {
+std::vector<game::FrameRate> FrameRates(const Monitor& monitor, bool any) {
   std::vector<game::FrameRate> rates;
   for (const game::FrameRate& rate : game::kFrameRates) {
-    if (rate.fps <= 60 || rate.fps <= monitor.refresh + 1) {
+    if (any || rate.fps <= 60 || rate.fps <= monitor.refresh + 1) {
       rates.push_back(rate);
     }
   }
@@ -414,6 +414,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
     o.device_subtypes = GetString(c, "gamepad_device_subtypes");
   }
 
+  o.any_frame_rate = GetBool(c, "launcher_any_frame_rate", false);
   o.launcher_language = uint32_t(std::max(GetInt(c, "launcher_language", 0), 0));
   if (TextsLanguage(o.launcher_language) != o.launcher_language) o.launcher_language = 0;
   o.check_updates = GetBool(c, "launcher_check_updates", true);
@@ -713,7 +714,7 @@ bool Settings::FrameGenerationPossible() const {
 }
 
 void Settings::FitFrameRate() {
-  std::vector<game::FrameRate> rates = FrameRates(CurrentMonitor());
+  std::vector<game::FrameRate> rates = FrameRates(CurrentMonitor(), o.any_frame_rate);
   if (std::none_of(rates.begin(), rates.end(), [this](const game::FrameRate& r) { return r.value == o.frame_rate; })) {
     o.frame_rate = game::kFrameRateDefault;
   }
@@ -814,6 +815,9 @@ bool SaveOptions(const Settings& s) {
   f << "vulkan_allow_present_mode_immediate = " << boolean(!vsync) << "\n";
   f << "vulkan_allow_present_mode_fifo_relaxed = " << boolean(!vsync) << "\n";
   f << "vblank_follows_display = " << boolean(vsync) << "\n";
+  if (o.any_frame_rate) {
+    f << "launcher_any_frame_rate = true\n";
+  }
   // The game's own options (game.h).
   if (*game::kFrameRateCvar) {
     // 60 FPS (src/framerate.cpp), or the emulated vblank's rate the game follows.
