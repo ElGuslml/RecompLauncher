@@ -2,6 +2,18 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.14.0
+
+- "Compiling shaders" before Play, for a game with NativeXRenderer's pipeline list (`game::kHasPipelineList`, its D129;
+  `pipelines.h`, `page_pipelines.cpp`). The game ships `<TITLEID>.pipelines.list` beside its executable, the pipelines its
+  developers' play made, named by hash; Play first runs the game's `--native_x_renderer_prepare_pipelines`, which rebuilds
+  the shaders from the player's copy of the game and compiles them and the player's own stored pipelines for this GPU and
+  driver, with a progress bar and Skip (B, Escape or a click: the game then compiles as it draws, as before). It runs
+  again only when the game's executable, the SDK's libraries, the list or the graphics driver changed (the stamp the game
+  leaves, `<user data>/cache/native_x_renderer/<TITLEID>.prepared`; the driver read through the Vulkan loader, without its
+  implicit layers), and only when the game draws with NativeXRenderer. GH Metallica on an RTX 4070 Ti: 0.7 s.
+- Every game's `game.h` needs `kHasPipelineList` (false for a game without a list).
+
 ## 3.13.2
 
 - `launcher_any_frame_rate = true` in a game's options file offers every frame rate the game has, also those above the

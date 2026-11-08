@@ -102,7 +102,7 @@ bool App::Busy() const {
          std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
          profile_games_loading_.valid() ||
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
-         dlc_install_.Get().state == DlcInstall::State::kRunning || mic_meter_.stream ||
+         dlc_install_.Get().state == DlcInstall::State::kRunning || mic_meter_.stream || preparing_ ||
          (installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning));
 }
 
@@ -429,6 +429,11 @@ void App::Frame(ImVec2 size) {
 
   if (installing_) {
     InstallScreen(size);
+    ImGui::End();
+    return;
+  }
+  if (preparing_) {
+    PreparingScreen(size);
     ImGui::End();
     return;
   }

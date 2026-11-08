@@ -499,6 +499,11 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       if (!save()) {
         ShowError(Formatted(app.texts().save_failed, launcher::game::kOptionsFile).c_str());
       }
+      // NativeXRenderer's pipelines first, when this executable, its list or the driver has not had them compiled
+      // (pipelines.h): the game's tool reads the options just saved. Play comes back when it is done or skipped.
+      if (app.PreparePipelinesFirst(ArgumentsWithout({L"--launcher_"}))) {
+        continue;
+      }
       // The controllers are the game's while it runs (both reading a DualSense would also set its lights twice).
       launcher::CloseControllers();
       SDL_QuitSubSystem(SDL_INIT_GAMEPAD);

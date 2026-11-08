@@ -28,6 +28,7 @@
 #include "dlc.h"
 #include "install.h"
 #include "picture.h"
+#include "pipelines.h"
 #include "profile_store.h"
 #include "updater.h"
 #include "settings.h"
@@ -89,6 +90,9 @@ class App {
   // Before the graphics device goes: the achievement icons' and the games' icons' textures.
   void ReleaseTextures();
 
+  // Play, before the game starts (main.cpp): true when NativeXRenderer's pipelines are compiled first ("Compiling
+  // shaders", pipelines.h; the launcher's screen until then, and Play again after). False the second time.
+  bool PreparePipelinesFirst(const std::wstring& arguments);
   // Play started the game (main.cpp): until its window shows, the launcher draws "Starting the game…" over its
   // page and takes no input.
   void GameStarted();
@@ -183,6 +187,9 @@ class App {
   // Opens a page; `focus` puts the controller's focus on its first control (a tab changed with LB/RB).
   void Navigate(Page page, bool focus);
   void StartingOverlay(ImVec2 size);
+  // "Compiling shaders" (page_pipelines.cpp), and its end: Play.
+  void PreparingScreen(ImVec2 size);
+  void PollPreparation();
 
   // The keyboard's key being assigned (page_keyboard.cpp).
   bool OnKeyCapture(const SDL_Event& event);
@@ -225,7 +232,10 @@ class App {
   bool focus_page_ = false;    // focus page_focus_ on the next frame (back from the game)
   int focus_page_wait_ = 0;    // frames focus_page_ waited for a page with nothing to focus
   bool game_running_ = false;
-  uint32_t game_exit_code_ = 0;  // the last game's, when not 0: a notice on the Play page
+  uint32_t game_exit_code_ = 0;
+  // NativeXRenderer's pipelines being compiled before Play, and compiled (or skipped) for the Play that follows.
+  PipelinePreparation preparation_;
+  bool preparing_ = false, prepared_ = false;  // the last game's, when not 0: a notice on the Play page
 
   // The Controls tab's keyboard.
   int listen_bind_ = -1;  // the Bind whose key is being assigned, or -1

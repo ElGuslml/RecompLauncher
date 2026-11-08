@@ -298,6 +298,13 @@ struct Texts {
   // Errors.
   const char* game_missing;  // %s: the game's executable, %s: the launcher
   const char* starting_game;      // over the launcher until the game's window shows
+  // "Compiling shaders" before Play (page_pipelines.cpp): the title, what it does, the count (%d of %d), Skip and
+  // what skipping does.
+  const char* compiling_title;
+  const char* compiling_text;
+  const char* compiling_count;
+  const char* compiling_skip;
+  const char* compiling_skip_hint;
   const char* game_closed_error;  // %s: the exit code
   const char* open_logs;
   const char* save_failed;  // %s: the options file
