@@ -70,4 +70,14 @@ struct GameControlGroup {
   std::vector<GameControl> controls;
 };
 
+// The profile's optional settings: what a game whose game.h does not define one gets. A game.h's own definition in
+// launcher::game hides the default here, because a qualified name (game::kArtTitleSize) finds a namespace's own
+// declaration before looking in the namespaces it uses; so the launcher's code names them qualified, always.
+namespace defaults {
+// The Play page's title (kArtTitle) in dp: 96, the mockups'. Smaller where the launcher's display font makes the name
+// wider than in the game's mockup and it runs over the art (Band Hero's 84).
+inline constexpr float kArtTitleSize = 96.0f;
+}  // namespace defaults
+using namespace defaults;
+
 }  // namespace launcher::game

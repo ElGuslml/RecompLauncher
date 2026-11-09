@@ -2,6 +2,13 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.14.1
+
+- The Play page's title size per game: `kArtTitleSize` in a game's `game.h`, in dp. Optional: without it the title is
+  96 dp as before (`game_types.h`'s `defaults`, which a game's own definition hides), so no other game changes. Band
+  Hero's 84: Oswald draws "BAND HERO" 464 dp wide at 96, past the start of its art's bass at 1280x760, where its mockup's
+  narrower font ended beside it.
+
 ## 3.14.0
 
 - "Compiling shaders" before Play, for a game with NativeXRenderer's pipeline list (`game::kHasPipelineList`, its D129;

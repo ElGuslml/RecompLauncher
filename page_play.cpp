@@ -173,11 +173,11 @@ void App::PlayPage(const ImRect& rect) {
 
   // The game's name and the buttons: 56 dp from the left, their foot 44 dp above the footer.
   constexpr Type kKicker{Font::kBold, 14, 0.24f};
-  constexpr Type kName{Font::kDisplayBold, 96, 0.01f};
+  constexpr Type kName{Font::kDisplayBold, game::kArtTitleSize, 0.01f};
   constexpr Type kTagline{Font::kRegular, 16};
   constexpr Type kSession{Font::kRegular, 13};
   float left = rect.Min.x + Px(56.0f);
-  float name_box = Px(96.0f) * 0.95f;  // "line-height: 0.95"
+  float name_box = Px(game::kArtTitleSize) * 0.95f;  // "line-height: 0.95"
   float buttons_height = Px(68.0f);
   float bottom = rect.Max.y - Px(44.0f);
   float session_y = bottom - LineHeight(kSession);
