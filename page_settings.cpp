@@ -152,7 +152,7 @@ void App::SettingsPage(const ImRect& rect) {
       rows.push_back(std::move(row));
     }
 #ifdef _WIN32
-    {
+    if (game::kHasLowLatencyAudio) {
       OptionRow row;
       row.id = "audio_exclusive";
       row.title = t_.audio_exclusive;

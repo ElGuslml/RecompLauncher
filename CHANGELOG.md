@@ -2,6 +2,13 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.14.2
+
+- The Game page's "Low latency audio" row per game: `kHasLowLatencyAudio` in a game's `game.h`, false to hide it where
+  the sound's delay does not matter (Pirates of the Caribbean: At World's End: no rhythm to play to, no audio
+  calibration). Such a game reads and writes `audio_wasapi_exclusive` as off, whatever an older launcher left in its
+  options file. Optional, as `kArtTitleSize`: without it the row is there as before, so no other game changes.
+
 ## 3.14.1
 
 - The Play page's title size per game: `kArtTitleSize` in a game's `game.h`, in dp. Optional: without it the title is

@@ -328,7 +328,8 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   for (size_t i = 0; i < game::kToggles.size(); ++i) {
     o.toggles[i] = GetBool(c, game::kToggles[i].cvar, game::kToggles[i].default_value);
   }
-  o.audio_exclusive = GetBool(c, "audio_wasapi_exclusive", false);
+  // Off where the game has no such row (game::kHasLowLatencyAudio), whatever an older launcher left in the file.
+  o.audio_exclusive = game::kHasLowLatencyAudio && GetBool(c, "audio_wasapi_exclusive", false);
   o.debug_hotkeys = GetBool(c, "debug_hotkeys", false);
   o.native = game::kHasNativeXRenderer && GetBool(c, "native_x_renderer", game::kNativeXRendererDefault);
   if (game::kShadowQuality) {

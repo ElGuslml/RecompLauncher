@@ -77,6 +77,9 @@ namespace defaults {
 // The Play page's title (kArtTitle) in dp: 96, the mockups'. Smaller where the launcher's display font makes the name
 // wider than in the game's mockup and it runs over the art (Band Hero's 84).
 inline constexpr float kArtTitleSize = 96.0f;
+// The Game page's "Low latency audio" row (the SDK's audio_wasapi_exclusive). False for a game where the sound's delay
+// does not matter (no rhythm to play to, no audio calibration): the row is hidden and the option written off.
+inline constexpr bool kHasLowLatencyAudio = true;
 }  // namespace defaults
 using namespace defaults;
 
