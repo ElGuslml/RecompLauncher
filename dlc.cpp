@@ -418,7 +418,6 @@ std::vector<InstalledDlc> ListInstalledDlc(const std::filesystem::path& exe_dir)
           dlc.display_name = name;
         }
       }
-      dlc.bytes = FolderBytes(entry.path());
       result.push_back(std::move(dlc));
       paths.push_back(entry.path());
       names.push_back(GameDisplayName(exe_dir, folder));
@@ -426,7 +425,8 @@ std::vector<InstalledDlc> ListInstalledDlc(const std::filesystem::path& exe_dir)
     }
   }
   // A package on that the game does not read goes off, unless the player turned it on. Only the manifests of packages
-  // the game reads count, so turning one it does not read off changes no other's answer.
+  // the game reads count, so turning one it does not read off changes no other's answer. The sizes after: a big
+  // collection's take seconds, and the game may be started meanwhile.
   std::vector<bool> fits = CheckPackages(paths, names, on);
   std::set<std::string> turned_on = ReadTurnedOn(exe_dir);
   for (size_t i = 0; i < result.size(); ++i) {
@@ -436,6 +436,10 @@ std::vector<InstalledDlc> ListInstalledDlc(const std::filesystem::path& exe_dir)
       dlc.on = false;
       dlc.turned_off_now = true;
     }
+  }
+  for (size_t i = 0; i < result.size(); ++i) {
+    InstalledDlc& dlc = result[i];
+    dlc.bytes = FolderBytes((dlc.on ? DlcFolder(exe_dir) : DisabledDlcFolder(exe_dir)) / paths[i].filename());
   }
   std::sort(result.begin(), result.end(),
             [](const InstalledDlc& a, const InstalledDlc& b) { return a.display_name < b.display_name; });

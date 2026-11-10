@@ -79,6 +79,11 @@ void App::ListDlc() {
 }
 
 void App::PollDlc() {
+  // A game that checks its packages (game::kDlcRule) has them checked when the launcher opens, not only when the page
+  // is shown: a package it does not read is off before the player presses Play.
+  if (game::kHasDlcPage && !dlc_listed_ && (!game::kDlcRule.files.empty() || game::kDlcRule.manifest_prefix)) {
+    ListDlc();
+  }
   {
     std::optional<std::string> chosen;
     {
