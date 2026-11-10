@@ -80,6 +80,11 @@ inline constexpr float kArtTitleSize = 96.0f;
 // The Game page's "Low latency audio" row (the SDK's audio_wasapi_exclusive). False for a game where the sound's delay
 // does not matter (no rhythm to play to, no audio calibration): the row is hidden and the option written off.
 inline constexpr bool kHasLowLatencyAudio = true;
+// The Video page's AMD FSR 3.1 and NVIDIA DLSS, in a game that has them (kHasDlaa). False: the Upscaling row offers Off,
+// FSR 1 and NIS only, and FSR 3.1 or DLSS stays an option of the options file (native_x_renderer_antialiasing =
+// fsr_native, dlaa, fsr_quality, dlss_quality...): the row shows it while it is the one in use, the launcher writes it
+// back as it is, and it goes once the player chooses another.
+inline constexpr bool kOffersTemporalUpscalers = true;
 }  // namespace defaults
 using namespace defaults;
 

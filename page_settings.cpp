@@ -301,10 +301,14 @@ void App::SettingsPage(const ImRect& rect) {
       row.help = t_.scaling_help;
       row.values = {t_.scaling_off, "AMD FSR 1", "NVIDIA NIS"};
       row.subs = {t_.scaling_off_sub, t_.scaling_fsr_sub, t_.scaling_nis_sub};
-      if (game::kHasDlaa) {
+      // A game that does not offer them (game::kOffersTemporalUpscalers) shows the one its options file chose, while it
+      // is in use.
+      if (game::kHasDlaa && (game::kOffersTemporalUpscalers || o.upscaler == kUpscaleFsr3)) {
         upscalers.push_back(kUpscaleFsr3);
         row.values.push_back("AMD FSR 3.1");
         row.subs.push_back(t_.scaling_fsr3_sub);
+      }
+      if (game::kHasDlaa && (game::kOffersTemporalUpscalers || o.upscaler == kUpscaleDlss)) {
         upscalers.push_back(kUpscaleDlss);
         row.values.push_back("NVIDIA DLSS");
         row.subs.push_back(t_.scaling_dlss_sub);
@@ -514,7 +518,7 @@ void App::SettingsPage(const ImRect& rect) {
       OptionRow row;
       row.id = "aa";
       row.title = t_.antialiasing;
-      row.sub = game::kHasDlaa ? t_.antialiasing_hint : t_.antialiasing_hint_no_dlaa;
+      row.sub = game::kHasDlaa && game::kOffersTemporalUpscalers ? t_.antialiasing_hint : t_.antialiasing_hint_no_dlaa;
       row.help = row.sub;
       row.values = {"SMAA", "FXAA", t_.none};
       row.index = std::clamp(o.native_aa, 0, kNativeAntialiasingCount - 1);
