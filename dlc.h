@@ -28,6 +28,8 @@ struct LibraryDlc {
   std::filesystem::path path;
   std::string relative;      // its path in the folder, UTF-8: the key of the player's choice
   std::string display_name;  // UTF-8; the file's name when the package has none
+  uint32_t title_id = 0;     // the game it was made for (the page groups by it)
+  std::string title_name;    // that game's name in the header, UTF-8 (may be empty)
   uint64_t bytes = 0;
   bool fits = true;  // the game reads it (game::kDlcRule)
   bool on = false;   // in the game's list: by default when it fits, else by the player's choice

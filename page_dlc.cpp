@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cwchar>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -62,6 +63,18 @@ struct DlcRow {
   bool on = false;
   bool fits = true;
   bool copy = false;  // an extracted copy of a package of the DLC folder
+};
+
+// A group of the list: the packages made for one game (by the header's title ID), or the extracted copies.
+constexpr uint64_t kInstalledGroup = uint64_t(1) << 32;
+struct DlcGroup {
+  uint64_t key = 0;  // the title ID, or kInstalledGroup
+  bool installed = false;
+  std::string name;
+  std::map<std::string, int> names;  // its game's names in the headers, and how often
+  std::vector<DlcRow> rows;
+  size_t on = 0;
+  bool fits = false;  // the game reads one of them at least
 };
 
 }  // namespace
@@ -185,9 +198,68 @@ void App::DlcPage(const ImRect& rect) {
     constexpr Type kText{Font::kRegular, 15};
     y += DrawParagraph(kText, ImVec2(x, y), width, 1.55f, col::kTextSoft, t_.dlc_library_text) + Px(16.0f);
 
-    // The buttons at the foot, the folder's box between.
+    // The buttons at the foot, the folder's box between, and under it the extracted copies of the folder's packages:
+    // how many and their size, with Remove copies (its dialog); or, once deleted, what was freed.
     float buttons_y = folder_card.Max.y - Px(24.0f) - Px(52.0f);
-    ImRect zone(ImVec2(x, y), ImVec2(x + width, buttons_y - Px(16.0f)));
+    constexpr Type kNotice{Font::kRegular, 14};
+    size_t copy_count = dlc_library_ ? dlc_library_->Copies() : 0;
+    bool freeing = dlc_freeing_.valid();
+    std::string notice;
+    if (freeing) {
+      notice = t_.dlc_freeing;
+    } else if (copy_count > 0 && !scanning) {
+      char line[256];
+      std::string size_text = SizeText(dlc_library_->CopyBytes(), t_.decimal_separator);
+      if (copy_count == 1) {
+        std::snprintf(line, sizeof(line), t_.dlc_copies_one, size_text.c_str());
+      } else {
+        std::snprintf(line, sizeof(line), t_.dlc_copies_many, int(copy_count), size_text.c_str());
+      }
+      notice = line;
+    } else if (!dlc_freed_text_.empty()) {
+      notice = dlc_freed_text_;
+    }
+    bool with_button = copy_count > 0 && !scanning && !freeing;
+    KeyButtonSpec remove_spec;
+    remove_spec.look = KeyLook::kDanger;
+    remove_spec.height = 40;
+    remove_spec.padding = 16;
+    remove_spec.type = Type{Font::kSemiBold, 14};
+    // The notice: its icon, the text beside it, Remove copies at its right; as tall as its text or the button.
+    float remove_width = with_button ? KeyButtonWidth(remove_spec, t_.dlc_remove_copies) : 0.0f;
+    float notice_text_width =
+        width - Px(14.0f) - Px(28.0f) - Px(14.0f) - (with_button ? remove_width + Px(12.0f) : 0.0f);
+    float notice_text_height =
+        notice.empty() ? 0.0f : DrawParagraph(kNotice, ImVec2(0, 0), notice_text_width, 1.45f, 0, notice, false);
+    float notice_height =
+        notice.empty() ? 0.0f : std::max(notice_text_height, with_button ? Px(40.0f) : 0.0f) + Px(24.0f);
+
+    // The folder's box. No folder chosen: the drop zone, its icon above two lines, down to the buttons. A folder chosen
+    // (or being read): one row, the icon and then the folder and what it holds, as tall as that; the notice under it.
+    constexpr Type kZoneTitle{Font::kBold, 15};
+    constexpr Type kZoneSub{Font::kRegular, 13};
+    bool compact = has_folder || scanning;
+    float lines_height = LineHeight(kZoneTitle) + Px(4.0f) + LineHeight(kZoneSub);
+    ImRect zone(ImVec2(x, y), ImVec2(x + width, y + Px(18.0f) + std::max(Px(30.0f), lines_height) + Px(18.0f)));
+    if (!compact) {
+      zone.Max.y = buttons_y - Px(16.0f) - (notice.empty() ? 0.0f : notice_height + Px(16.0f));
+    }
+    if (!notice.empty()) {
+      ImRect box(ImVec2(x, zone.Max.y + Px(16.0f)), ImVec2(x + width, zone.Max.y + Px(16.0f) + notice_height));
+      bool done = copy_count == 0 && !freeing;
+      ImU32 tone = done ? col::kSuccess : col::kGlyphX;
+      FillRect(box, Fade(tone, 0.1f), 10.0f);
+      DrawIcon(done ? Icon::kCheck : Icon::kInfo, ImVec2(box.Min.x + Px(14.0f), box.GetCenter().y - Px(9.0f)), 18.0f, tone,
+               2.0f);
+      DrawParagraph(kNotice, ImVec2(box.Min.x + Px(14.0f) + Px(28.0f), box.GetCenter().y - notice_text_height * 0.5f),
+                    notice_text_width, 1.45f, col::kTextSoft, notice);
+      if (with_button &&
+          KeyButton("##dlc_remove_copies", ImVec2(box.Max.x - Px(12.0f) - remove_width, box.GetCenter().y - Px(20.0f)),
+                    remove_spec, t_.dlc_remove_copies)
+              .pressed) {
+        dlc_free_confirm_ = true;
+      }
+    }
     ImU32 border = Hex(0xFFFFFF, 51);
     ImU32 fill = Hex(0xFFFFFF, 8);
     Icon zone_icon = Icon::kUpload;
@@ -230,27 +302,39 @@ void App::DlcPage(const ImRect& rect) {
     DashedRect(zone, border, 12.0f, 6.0f, 4.0f);
     DashedRect(ImRect(ImVec2(zone.Min.x + Px(1.0f), zone.Min.y + Px(1.0f)), ImVec2(zone.Max.x - Px(1.0f), zone.Max.y - Px(1.0f))),
                border, 11.0f, 6.0f, 4.0f);
-    constexpr Type kZoneTitle{Font::kBold, 15};
-    constexpr Type kZoneSub{Font::kRegular, 13};
-    float block = Px(30.0f) + Px(10.0f) + LineHeight(kZoneTitle) + Px(10.0f) + LineHeight(kZoneSub);
-    float zy = zone.GetCenter().y - block * 0.5f;
-    float cx = zone.GetCenter().x;
-    if (scanning) {
-      // A spinning arc.
-      ImDrawList* draw = ImGui::GetWindowDrawList();
-      ImVec2 c(cx, zy + Px(15.0f));
-      float start = float(ImGui::GetTime()) * 5.0f;
-      draw->PathArcTo(c, Px(11.0f), start, start + 4.7f, 32);
-      draw->PathStroke(col::kAccent, ImDrawFlags_None, Px(2.4f));
+    // The icon (or a spinning arc while the folder is read) in its 30 dp box at `icon_pos`.
+    auto draw_icon = [&](ImVec2 icon_pos) {
+      if (scanning) {
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        ImVec2 c(icon_pos.x + Px(15.0f), icon_pos.y + Px(15.0f));
+        float start = float(ImGui::GetTime()) * 5.0f;
+        draw->PathArcTo(c, Px(11.0f), start, start + 4.7f, 32);
+        draw->PathStroke(col::kAccent, ImDrawFlags_None, Px(2.4f));
+      } else {
+        DrawIcon(zone_icon, icon_pos, 30.0f, icon_color, zone_icon == Icon::kCheck ? 2.6f : 1.6f);
+      }
+    };
+    if (compact) {
+      float icon_x = zone.Min.x + Px(18.0f);
+      draw_icon(ImVec2(icon_x, zone.GetCenter().y - Px(15.0f)));
+      float text_x = icon_x + Px(30.0f) + Px(16.0f);
+      float text_width = zone.Max.x - Px(18.0f) - text_x;
+      float ty = zone.GetCenter().y - lines_height * 0.5f;
+      DrawLabel(kZoneTitle, ImVec2(text_x, ty), col::kText, Ellipsize(kZoneTitle, title, text_width));
+      DrawLabel(kZoneSub, ImVec2(text_x, ty + LineHeight(kZoneTitle) + Px(4.0f)), sub_color,
+                Ellipsize(kZoneSub, sub, text_width));
     } else {
-      DrawIcon(zone_icon, ImVec2(cx - Px(15.0f), zy), 30.0f, icon_color, zone_icon == Icon::kCheck ? 2.6f : 1.6f);
+      float block = Px(30.0f) + Px(10.0f) + LineHeight(kZoneTitle) + Px(10.0f) + LineHeight(kZoneSub);
+      float zy = zone.GetCenter().y - block * 0.5f;
+      float cx = zone.GetCenter().x;
+      draw_icon(ImVec2(cx - Px(15.0f), zy));
+      zy += Px(30.0f) + Px(10.0f);
+      std::string shown_title = Ellipsize(kZoneTitle, title, zone.GetWidth() - Px(32.0f));
+      DrawLabel(kZoneTitle, ImVec2(cx - MeasureText(kZoneTitle, shown_title).x * 0.5f, zy), col::kText, shown_title);
+      zy += LineHeight(kZoneTitle) + Px(10.0f);
+      std::string shown_sub = Ellipsize(kZoneSub, sub, zone.GetWidth() - Px(32.0f));
+      DrawLabel(kZoneSub, ImVec2(cx - MeasureText(kZoneSub, shown_sub).x * 0.5f, zy), sub_color, shown_sub);
     }
-    zy += Px(30.0f) + Px(10.0f);
-    std::string shown_title = Ellipsize(kZoneTitle, title, zone.GetWidth() - Px(32.0f));
-    DrawLabel(kZoneTitle, ImVec2(cx - MeasureText(kZoneTitle, shown_title).x * 0.5f, zy), col::kText, shown_title);
-    zy += LineHeight(kZoneTitle) + Px(10.0f);
-    std::string shown_sub = Ellipsize(kZoneSub, sub, zone.GetWidth() - Px(32.0f));
-    DrawLabel(kZoneSub, ImVec2(cx - MeasureText(kZoneSub, shown_sub).x * 0.5f, zy), sub_color, shown_sub);
 
     // Choose a folder… (A), and the folder in Explorer (the DLC folder, else the content folder of the extracted).
     constexpr Type kChoose{Font::kDisplayBold, 18, 0.05f};
@@ -293,7 +377,8 @@ void App::DlcPage(const ImRect& rect) {
     }
   }
 
-  // The game's DLC: the folder's packages and the extracted ones, by name, each with its switch.
+  // The game's DLC, grouped by the game each package was made for (the extracted copies apart): each group folds open
+  // or shut, with its count and a switch for all of it; in it, each package with its switch.
   {
     FillRect(list_card, col::kPanel, 14.0f);
     StrokeRect(list_card, col::kHairline, 14.0f);
@@ -302,93 +387,83 @@ void App::DlcPage(const ImRect& rect) {
     float y = list_card.Min.y + Px(24.0f);
     // A package of the folder with an extracted copy installed shows as its copy: the copy is what the game reads.
     std::set<std::string> copies;
-    std::vector<DlcRow> rows;
+    if (dlc_library_) {
+      for (const LibraryDlc& p : dlc_library_->packages) {
+        if (!p.copy_folder.empty()) copies.insert(p.copy_folder);
+      }
+    }
+    std::vector<DlcGroup> groups;
+    auto group_for = [&groups](uint64_t key) -> DlcGroup& {
+      for (DlcGroup& g : groups) {
+        if (g.key == key) return g;
+      }
+      groups.emplace_back();
+      groups.back().key = key;
+      return groups.back();
+    };
     if (dlc_library_) {
       for (size_t i = 0; i < dlc_library_->packages.size(); ++i) {
         const LibraryDlc& p = dlc_library_->packages[i];
-        if (!p.copy_folder.empty()) {
-          copies.insert(p.copy_folder);
-          continue;
-        }
-        rows.push_back({true, i, &p.display_name, p.bytes, p.on, p.fits});
+        if (!p.copy_folder.empty()) continue;
+        DlcGroup& g = group_for(p.title_id);
+        g.rows.push_back({true, i, &p.display_name, p.bytes, p.on, p.fits});
+        if (!p.title_name.empty()) ++g.names[p.title_name];
       }
     }
     if (dlc_installed_) {
       for (size_t i = 0; i < dlc_installed_->size(); ++i) {
         const InstalledDlc& d = (*dlc_installed_)[i];
-        rows.push_back({false, i, &d.display_name, d.bytes, d.on, d.fits, copies.count(d.folder) != 0});
+        DlcGroup& g = group_for(kInstalledGroup);
+        g.installed = true;
+        g.rows.push_back({false, i, &d.display_name, d.bytes, d.on, d.fits, copies.count(d.folder) != 0});
       }
     }
-    std::stable_sort(rows.begin(), rows.end(), [](const DlcRow& a, const DlcRow& b) { return *a.name < *b.name; });
+    size_t total = 0;
+    for (DlcGroup& g : groups) {
+      std::stable_sort(g.rows.begin(), g.rows.end(), [](const DlcRow& a, const DlcRow& b) { return *a.name < *b.name; });
+      for (const DlcRow& r : g.rows) {
+        g.on += r.on;
+        g.fits = g.fits || r.fits;
+      }
+      total += g.rows.size();
+      // Its game's name: the one its headers give most (they spell it several ways), else the title ID.
+      if (g.installed) {
+        g.name = t_.dlc_group_installed;
+      } else if (!g.names.empty()) {
+        g.name = std::max_element(g.names.begin(), g.names.end(),
+                                  [](const auto& a, const auto& b) { return a.second < b.second; })
+                     ->first;
+      } else {
+        char id[16];
+        std::snprintf(id, sizeof(id), "%08X", uint32_t(g.key));
+        g.name = id;
+      }
+    }
+    // This game's own first, then the copies installed, then the games whose packages it reads, then the rest.
+    auto rank = [](const DlcGroup& g) {
+      if (!g.installed && uint32_t(g.key) == game::kTitleId) return 0;
+      if (g.installed) return 1;
+      return g.fits ? 2 : 3;
+    };
+    std::stable_sort(groups.begin(), groups.end(), [&rank](const DlcGroup& a, const DlcGroup& b) {
+      return rank(a) != rank(b) ? rank(a) < rank(b) : a.name < b.name;
+    });
+
     DrawLabel(kHeading, ImVec2(x, y), col::kText, Upper(t_.dlc_list_title));
     char count[64];
-    std::snprintf(count, sizeof(count), rows.size() == 1 ? t_.dlc_count_one : t_.dlc_count, int(rows.size()));
+    std::snprintf(count, sizeof(count), total == 1 ? t_.dlc_count_one : t_.dlc_count, int(total));
     constexpr Type kCount{Font::kRegular, 14};
     DrawLabel(kCount, ImVec2(x + width - MeasureText(kCount, count).x, y + Px(24.0f) * 1.193f - Px(14.0f) * 1.024f),
               col::kTabText, count);
-    y += LineHeight(kHeading) + Px(14.0f);
+    y += LineHeight(kHeading) + Px(6.0f);
+    // Where the game shows the songs: a line under the title.
     if (const char* where = game::GameTextsFor(language_).dlc_where) {
       constexpr Type kWhere{Font::kRegular, 14};
-      float text_height = DrawParagraph(kWhere, ImVec2(0, 0), width - Px(28.0f) - Px(28.0f), 1.45f, 0, where, false);
-      ImRect note(ImVec2(x, y), ImVec2(x + width, y + text_height + Px(24.0f)));
-      FillRect(note, Fade(col::kGlyphX, 0.1f), 10.0f);
-      DrawIcon(Icon::kInfo, ImVec2(note.Min.x + Px(14.0f), note.Min.y + Px(13.0f)), 18.0f, col::kGlyphX, 2.0f);
-      DrawParagraph(kWhere, ImVec2(note.Min.x + Px(14.0f) + Px(28.0f), note.Min.y + Px(12.0f)), width - Px(28.0f) - Px(28.0f),
-                    1.45f, col::kTextSoft, where);
-      y = note.Max.y + Px(14.0f);
+      y += DrawParagraph(kWhere, ImVec2(x, y), width, 1.4f, col::kTabText, where);
     }
-    // The extracted copies of the folder's packages: how many and their size, and Remove copies (its dialog); or, once
-    // deleted, what was freed.
-    {
-      constexpr Type kBanner{Font::kRegular, 14};
-      size_t count = dlc_library_ ? dlc_library_->Copies() : 0;
-      std::string text;
-      bool freeing = dlc_freeing_.valid();
-      if (freeing) {
-        text = t_.dlc_freeing;
-      } else if (count > 0 && !scanning) {
-        char line[256];
-        std::string size_text = SizeText(dlc_library_->CopyBytes(), t_.decimal_separator);
-        if (count == 1) {
-          std::snprintf(line, sizeof(line), t_.dlc_copies_one, size_text.c_str());
-        } else {
-          std::snprintf(line, sizeof(line), t_.dlc_copies_many, int(count), size_text.c_str());
-        }
-        text = line;
-      } else if (!dlc_freed_text_.empty()) {
-        text = dlc_freed_text_;
-      }
-      if (!text.empty()) {
-        KeyButtonSpec spec;
-        spec.look = KeyLook::kDanger;
-        spec.height = 40;
-        spec.padding = 16;
-        spec.type = Type{Font::kSemiBold, 14};
-        bool with_button = count > 0 && !scanning && !freeing;
-        float button_width = with_button ? KeyButtonWidth(spec, t_.dlc_remove_copies) : 0.0f;
-        float text_width = width - Px(28.0f) - Px(28.0f) - (with_button ? button_width + Px(14.0f) : 0.0f);
-        float text_height = DrawParagraph(kBanner, ImVec2(0, 0), text_width, 1.45f, 0, text, false);
-        float box_height = std::max(text_height, with_button ? Px(40.0f) : 0.0f) + Px(24.0f);
-        ImRect box(ImVec2(x, y), ImVec2(x + width, y + box_height));
-        bool done = count == 0 && !freeing;
-        ImU32 tone = done ? col::kSuccess : col::kGlyphX;
-        FillRect(box, Fade(tone, 0.1f), 10.0f);
-        DrawIcon(done ? Icon::kCheck : Icon::kInfo, ImVec2(box.Min.x + Px(14.0f), box.GetCenter().y - Px(9.0f)), 18.0f, tone,
-                 2.0f);
-        DrawParagraph(kBanner, ImVec2(box.Min.x + Px(14.0f) + Px(28.0f), box.GetCenter().y - text_height * 0.5f),
-                      text_width, 1.45f, col::kTextSoft, text);
-        if (with_button &&
-            KeyButton("##dlc_remove_copies",
-                      ImVec2(box.Max.x - Px(12.0f) - button_width, box.GetCenter().y - Px(20.0f)), spec,
-                      t_.dlc_remove_copies)
-                .pressed) {
-          dlc_free_confirm_ = true;
-        }
-        y = box.Max.y + Px(14.0f);
-      }
-    }
+    y += Px(14.0f);
     ImRect area(ImVec2(x, y), ImVec2(x + width, list_card.Max.y - Px(24.0f)));
-    if (rows.empty()) {
+    if (groups.empty()) {
       constexpr Type kEmptyTitle{Font::kBold, 16};
       constexpr Type kEmptyText{Font::kRegular, 14};
       bool reading = scanning || dlc_listing_.valid();
@@ -406,6 +481,7 @@ void App::DlcPage(const ImRect& rect) {
       ImVec2 origin = ImGui::GetCursorScreenPos();
       float row_width = area.GetWidth() - (ImGui::GetCurrentWindow()->ScrollbarY ? Px(12.0f) : 0.0f);
       float row_y = origin.y;
+      constexpr Type kGroup{Font::kBold, 17};
       constexpr Type kName{Font::kBold, 16};
       constexpr Type kMeta{Font::kRegular, 13};
       constexpr Type kNote{Font::kRegular, 13};
@@ -413,107 +489,166 @@ void App::DlcPage(const ImRect& rect) {
       std::string removed;
       const DlcRow* switched = nullptr;
       bool switched_on = false;
-      for (size_t i = 0; i < rows.size(); ++i) {
-        const DlcRow& dlc = rows[i];
-        // A package the game does not read: what the game does with it on (game::kDlcRule), below its name.
-        const char* note = nullptr;
-        if (!dlc.fits) {
-          switch (game::kDlcRule.foreign) {
-            case game::DlcForeign::kUnused: note = t_.dlc_foreign_unused; break;
-            case game::DlcForeign::kDamaged: note = t_.dlc_foreign_damaged; break;
-            case game::DlcForeign::kDisablesAll: note = t_.dlc_foreign_all; break;
-          }
+      const DlcGroup* group_switched = nullptr;
+      bool group_switched_on = false;
+      // A small list opens every group; a big one starts folded. The player's clicks are kept.
+      bool open_by_default = total <= 12;
+      for (size_t gi = 0; gi < groups.size(); ++gi) {
+        const DlcGroup& group = groups[gi];
+        ImGui::PushID(int(gi));
+        auto known = dlc_group_open_.find(group.key);
+        bool open = known != dlc_group_open_.end() ? known->second : open_by_default;
+        // The group's header: the chevron, its game, how many are on, and the switch for all of it.
+        float header_height = Px(56.0f);
+        ImRect header(ImVec2(origin.x, row_y), ImVec2(origin.x + row_width, row_y + header_height));
+        bool all_on = group.on == group.rows.size();
+        ImVec2 group_toggle(header.Max.x - Px(12.0f) - Px(52.0f), header.GetCenter().y - Px(15.0f));
+        ImRect fold(header.Min, ImVec2(group_toggle.x - Px(8.0f), header.Max.y));
+        ItemState fold_state = Item("##fold", fold);
+        FillRect(header, fold_state.hovered ? Hex(0xFFFFFF, 22) : Hex(0xFFFFFF, 14), 10.0f);
+        StrokeRect(header, col::kHairline, 10.0f);
+        if (fold_state.focused) FocusRing(header, 10.0f);
+        if (fold_state.pressed) {
+          dlc_group_open_[group.key] = !open;
         }
-        // An extracted copy of a package of the DLC folder: says so (Remove copies above deletes it).
-        const char* copy_note = dlc.copy ? t_.dlc_copy_note : nullptr;
-        float top_height = Px(12.0f) * 2.0f + Px(44.0f);
-        float text_left = Px(14.0f) + Px(44.0f) + Px(14.0f);
-        float note_width = row_width - text_left - Px(14.0f);
-        float note_height = note ? DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, note, false) + Px(12.0f) : 0.0f;
-        float copy_height =
-            copy_note ? DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, copy_note, false) + Px(12.0f) : 0.0f;
-        float height = top_height + note_height + copy_height;
-        ImRect row(ImVec2(origin.x, row_y), ImVec2(origin.x + row_width, row_y + height));
-        float center_y = row.Min.y + top_height * 0.5f;
-        FillRect(row, Hex(0xFFFFFF, 10), 10.0f);
-        StrokeRect(row, col::kHairline, 10.0f);
-        ImRect tile(ImVec2(row.Min.x + Px(14.0f), row.Min.y + Px(12.0f)),
-                    ImVec2(row.Min.x + Px(58.0f), row.Min.y + top_height - Px(12.0f)));
-        FillRect(tile, dlc.on ? col::kAccentTint : Hex(0xFFFFFF, 10), 8.0f);
-        // A music note.
-        DrawIconSvg("note", "<path d='M9 18V5l11-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='17' cy='16' r='3'/>",
-                    ImVec2(tile.Min.x + Px(11.0f), tile.Min.y + Px(11.0f)), 22.0f, dlc.on ? col::kAccent : col::kTabText,
-                    1.8f);
-        ImGui::PushID(int(i));
-        float right = row.Max.x - Px(12.0f);
-        // Remove: only an extracted package (the folder's are the player's files, never deleted), pressed twice.
-        if (!dlc.library) {
-          const std::string& folder = (*dlc_installed_)[dlc.index].folder;
-          bool confirming = dlc_confirm_ == folder;
-          const char* label = confirming ? t_.dlc_remove_confirm : t_.dlc_remove;
-          float remove_width = Px(14.0f) * 2.0f + Px(16.0f) + Px(8.0f) + MeasureText(kRemove, label).x;
-          ImRect remove(ImVec2(right - remove_width, center_y - Px(20.0f)), ImVec2(right, center_y + Px(20.0f)));
-          ItemState state = Item("##remove", remove);
-          ImU32 background = confirming ? col::kAccent : col::kGhostFill;
-          if (state.hovered) background = Brighten(background);
-          FillRect(remove, background, 8.0f);
-          StrokeRect(remove, confirming ? col::kAccent : Hex(0xFFFFFF, 41), 8.0f);
-          ImU32 ink = confirming ? col::kOnAccent : col::kText;
-          DrawIcon(Icon::kTrash, ImVec2(remove.Min.x + Px(14.0f), remove.GetCenter().y - Px(8.0f)), 16.0f, ink, 2.0f);
-          DrawLabel(kRemove, ImVec2(remove.Min.x + Px(14.0f) + Px(24.0f), remove.Min.y), ink, label, remove.GetHeight());
-          if (state.focused) FocusRing(remove, 8.0f);
-          if (state.pressed) {
-            if (confirming) {
-              removed = folder;
-            } else {
-              dlc_confirm_ = folder;
+        DrawIcon(open ? Icon::kChevronDown : Icon::kChevronRight,
+                 ImVec2(header.Min.x + Px(16.0f), header.GetCenter().y - Px(9.0f)), 18.0f, col::kText, 2.2f);
+        char on_text[64];
+        std::snprintf(on_text, sizeof(on_text), t_.dlc_group_on, int(group.on), int(group.rows.size()));
+        float on_width = MeasureText(kMeta, on_text).x;
+        float name_x = header.Min.x + Px(16.0f) + Px(18.0f) + Px(12.0f);
+        float on_x = group_toggle.x - Px(16.0f) - on_width;
+        DrawLabel(kGroup, ImVec2(name_x, header.Min.y), group.fits ? col::kText : col::kTextSoft,
+                  Ellipsize(kGroup, group.name, on_x - Px(16.0f) - name_x), header.GetHeight());
+        DrawLabel(kMeta, ImVec2(on_x, header.Min.y), col::kTabText, on_text, header.GetHeight());
+        bool group_value = all_on;
+        if (Toggle("##group_on", group_toggle, &group_value, !(scanning && !group.installed))) {
+          group_switched = &group;
+          group_switched_on = group_value;
+        }
+        row_y += header_height + Px(8.0f);
+        if (!open) {
+          ImGui::PopID();
+          continue;
+        }
+        for (size_t i = 0; i < group.rows.size(); ++i) {
+          const DlcRow& dlc = group.rows[i];
+          // A package the game does not read: what the game does with it on (game::kDlcRule), below its name.
+          const char* note = nullptr;
+          if (!dlc.fits) {
+            switch (game::kDlcRule.foreign) {
+              case game::DlcForeign::kUnused: note = t_.dlc_foreign_unused; break;
+              case game::DlcForeign::kDamaged: note = t_.dlc_foreign_damaged; break;
+              case game::DlcForeign::kDisablesAll: note = t_.dlc_foreign_all; break;
             }
           }
-          right = remove.Min.x - Px(14.0f);
+          // An extracted copy of a package of the DLC folder: says so (Remove copies, left, deletes it).
+          const char* copy_note = dlc.copy ? t_.dlc_copy_note : nullptr;
+          float indent = Px(24.0f);
+          float top_height = Px(12.0f) * 2.0f + Px(44.0f);
+          float text_left = Px(14.0f) + Px(44.0f) + Px(14.0f);
+          float item_width = row_width - indent;
+          float note_width = item_width - text_left - Px(14.0f);
+          float note_height = note ? DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, note, false) + Px(12.0f) : 0.0f;
+          float copy_height =
+              copy_note ? DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, copy_note, false) + Px(12.0f) : 0.0f;
+          float height = top_height + note_height + copy_height;
+          ImRect row(ImVec2(origin.x + indent, row_y), ImVec2(origin.x + row_width, row_y + height));
+          float center_y = row.Min.y + top_height * 0.5f;
+          FillRect(row, Hex(0xFFFFFF, 10), 10.0f);
+          StrokeRect(row, col::kHairline, 10.0f);
+          ImRect tile(ImVec2(row.Min.x + Px(14.0f), row.Min.y + Px(12.0f)),
+                      ImVec2(row.Min.x + Px(58.0f), row.Min.y + top_height - Px(12.0f)));
+          FillRect(tile, dlc.on ? col::kAccentTint : Hex(0xFFFFFF, 10), 8.0f);
+          // A music note.
+          DrawIconSvg("note", "<path d='M9 18V5l11-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='17' cy='16' r='3'/>",
+                      ImVec2(tile.Min.x + Px(11.0f), tile.Min.y + Px(11.0f)), 22.0f, dlc.on ? col::kAccent : col::kTabText,
+                      1.8f);
+          ImGui::PushID(int(i));
+          float right = row.Max.x - Px(12.0f);
+          // Remove: only an extracted package (the folder's are the player's files, never deleted), pressed twice.
+          if (!dlc.library) {
+            const std::string& folder = (*dlc_installed_)[dlc.index].folder;
+            bool confirming = dlc_confirm_ == folder;
+            const char* label = confirming ? t_.dlc_remove_confirm : t_.dlc_remove;
+            float remove_width = Px(14.0f) * 2.0f + Px(16.0f) + Px(8.0f) + MeasureText(kRemove, label).x;
+            ImRect remove(ImVec2(right - remove_width, center_y - Px(20.0f)), ImVec2(right, center_y + Px(20.0f)));
+            ItemState state = Item("##remove", remove);
+            ImU32 background = confirming ? col::kAccent : col::kGhostFill;
+            if (state.hovered) background = Brighten(background);
+            FillRect(remove, background, 8.0f);
+            StrokeRect(remove, confirming ? col::kAccent : Hex(0xFFFFFF, 41), 8.0f);
+            ImU32 ink = confirming ? col::kOnAccent : col::kText;
+            DrawIcon(Icon::kTrash, ImVec2(remove.Min.x + Px(14.0f), remove.GetCenter().y - Px(8.0f)), 16.0f, ink, 2.0f);
+            DrawLabel(kRemove, ImVec2(remove.Min.x + Px(14.0f) + Px(24.0f), remove.Min.y), ink, label, remove.GetHeight());
+            if (state.focused) FocusRing(remove, 8.0f);
+            if (state.pressed) {
+              if (confirming) {
+                removed = folder;
+              } else {
+                dlc_confirm_ = folder;
+              }
+            }
+            right = remove.Min.x - Px(14.0f);
+          }
+          // On: the game reads it; off: kept out of the game's sight. The folder's wait while it is read.
+          bool on = dlc.on;
+          ImVec2 toggle_pos(right - Px(52.0f), center_y - Px(15.0f));
+          if (Toggle("##on", toggle_pos, &on, !(dlc.library && scanning))) {
+            switched = &dlc;
+            switched_on = on;
+          }
+          ImGui::PopID();
+          right = toggle_pos.x - Px(14.0f);
+          float text_x = tile.Max.x + Px(14.0f);
+          float text_width = right - text_x;
+          float text_y = center_y - (LineHeight(kName) + Px(2.0f) + LineHeight(kMeta)) * 0.5f;
+          DrawLabel(kName, ImVec2(text_x, text_y), dlc.on ? col::kText : col::kTextSoft,
+                    Ellipsize(kName, *dlc.name, text_width));
+          std::string meta = SizeText(dlc.bytes, t_.decimal_separator);
+          if (dlc.library) meta += std::string(" · ") + t_.dlc_in_folder;
+          DrawLabel(kMeta, ImVec2(text_x, text_y + LineHeight(kName) + Px(2.0f)), col::kTabText,
+                    Ellipsize(kMeta, meta, text_width));
+          if (note) {
+            DrawParagraph(kNote, ImVec2(row.Min.x + text_left, row.Min.y + top_height - Px(4.0f)), note_width, 1.4f,
+                          col::kError, note);
+          }
+          if (copy_note) {
+            DrawParagraph(kNote, ImVec2(row.Min.x + text_left, row.Min.y + top_height + note_height - Px(4.0f)),
+                          note_width, 1.4f, col::kTextSoft, copy_note);
+          }
+          row_y += height + Px(8.0f);
         }
-        // On: the game reads it; off: kept out of the game's sight. The folder's wait while it is read.
-        bool on = dlc.on;
-        ImVec2 toggle_pos(right - Px(52.0f), center_y - Px(15.0f));
-        if (Toggle("##on", toggle_pos, &on, !(dlc.library && scanning))) {
-          switched = &dlc;
-          switched_on = on;
-        }
+        row_y += Px(6.0f);
         ImGui::PopID();
-        right = toggle_pos.x - Px(14.0f);
-        float text_x = tile.Max.x + Px(14.0f);
-        float text_width = right - text_x;
-        float text_y = center_y - (LineHeight(kName) + Px(2.0f) + LineHeight(kMeta)) * 0.5f;
-        DrawLabel(kName, ImVec2(text_x, text_y), dlc.on ? col::kText : col::kTextSoft,
-                  Ellipsize(kName, *dlc.name, text_width));
-        std::string meta = SizeText(dlc.bytes, t_.decimal_separator);
-        if (dlc.library) meta += std::string(" · ") + t_.dlc_in_folder;
-        DrawLabel(kMeta, ImVec2(text_x, text_y + LineHeight(kName) + Px(2.0f)), col::kTabText,
-                  Ellipsize(kMeta, meta, text_width));
-        if (note) {
-          DrawParagraph(kNote, ImVec2(row.Min.x + text_left, row.Min.y + top_height - Px(4.0f)), note_width, 1.4f,
-                        col::kError, note);
-        }
-        if (copy_note) {
-          DrawParagraph(kNote, ImVec2(row.Min.x + text_left, row.Min.y + top_height + note_height - Px(4.0f)), note_width,
-                        1.4f, col::kTextSoft, copy_note);
-        }
-        row_y += height + Px(8.0f);
       }
       ImGui::SetCursorScreenPos(origin);
       ImGui::Dummy(ImVec2(row_width, row_y - origin.y));
       EndScroll();
-      if (switched) {
-        if (switched->library) {
+      // A package's switch, or a group's (each of its packages set the same way).
+      std::vector<std::pair<const DlcRow*, bool>> changes;
+      if (switched) changes.push_back({switched, switched_on});
+      if (group_switched) {
+        for (const DlcRow& r : group_switched->rows) {
+          if (r.on != group_switched_on) changes.push_back({&r, group_switched_on});
+        }
+      }
+      bool relist = false;
+      for (const auto& [row, value] : changes) {
+        if (row->library) {
           // The choice kept and the game's list written at once: a few lines.
-          SetLibraryDlcOn(exe_dir_, *dlc_library_, switched->index, switched_on);
+          SetLibraryDlcOn(exe_dir_, *dlc_library_, row->index, value);
         } else {
           // A rename, at once; the list read again shows where it is (a failed move, the game running, leaves it).
-          InstalledDlc& d = (*dlc_installed_)[switched->index];
-          if (SetDlcOn(exe_dir_, d.folder, switched_on)) {
-            d.on = switched_on;
+          InstalledDlc& d = (*dlc_installed_)[row->index];
+          if (SetDlcOn(exe_dir_, d.folder, value)) {
+            d.on = value;
           }
-          ListDlc();
+          relist = true;
         }
+      }
+      if (relist) {
+        ListDlc();
       }
       if (!removed.empty()) {
         RemoveDlc(exe_dir_, removed);

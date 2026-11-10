@@ -27,6 +27,7 @@ namespace {
 constexpr size_t kHeaderSizeOffset = 0x340;
 constexpr size_t kContentTypeOffset = 0x344;
 constexpr size_t kContentSizeOffset = 0x34C;
+constexpr size_t kTitleIdOffset = 0x360;
 constexpr size_t kVolumeDescriptorOffset = 0x379;  // flags at +2; table block count (LE 16) +3, first block (LE 24) +5
 constexpr size_t kVolumeTypeOffset = 0x3A9;        // 0: STFS, 1: SVOD
 constexpr size_t kDisplayNameOffset = 0x411;  // 18 languages of 0x80 bytes, UTF-16, English first
@@ -78,6 +79,8 @@ bool IsPackage(const uint8_t* magic) {
 struct PackageInfo {
   uint32_t content_type = 0;
   uint64_t content_size = 0;    // the header's: its files' blocks (an extracted copy holds up to 1 % less)
+  uint32_t title_id = 0;
+  std::string title_name;       // UTF-8
   std::string display_name;     // UTF-8: the first language's name the header has, else the file's name
   std::wstring game_name;       // the name the game gets: the header's English one as is (the SDK's), else the file's
   std::vector<std::wstring> root_files;  // the files at its root, in lower case
@@ -124,6 +127,8 @@ bool ReadPackageInfo(const std::filesystem::path& path, PackageInfo& out) {
   }
   out.content_type = ReadU32(&header[kContentTypeOffset]);
   out.content_size = uint64_t(ReadU32(&header[kContentSizeOffset])) << 32 | ReadU32(&header[kContentSizeOffset + 4]);
+  out.title_id = ReadU32(&header[kTitleIdOffset]);
+  out.title_name = Utf16BeToUtf8(&header[kTitleNameOffset], kNameBytes);
   for (size_t i = 0; i < kLanguages && out.display_name.empty(); ++i) {
     out.display_name = Utf16BeToUtf8(&header[kDisplayNameOffset + i * kNameBytes], kNameBytes);
   }
@@ -747,6 +752,8 @@ DlcLibrary ScanDlcLibrary(const std::filesystem::path& exe_dir) {
     package.path = it->path();
     package.relative = Utf8(it->path().lexically_relative(library.folder).wstring());
     package.display_name = info.display_name;
+    package.title_id = info.title_id;
+    package.title_name = info.title_name;
     package.bytes = it->file_size(file_ec);
     package.fits = FitsByNames(info.root_files, info.game_name);
     package.on = package.fits ? !settings.off.count(package.relative) : settings.on.count(package.relative) != 0;

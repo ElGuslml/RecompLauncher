@@ -440,6 +440,8 @@ const Texts kEnglish = {
     .dlc_free_delete = "Delete",
     .dlc_freeing = "Deleting the copies…",
     .dlc_freed = "%d copies deleted: %s freed.",
+    .dlc_group_on = "%d of %d on",
+    .dlc_group_installed = "Installed copies",
 
     .updates_checking_title = "Checking…",
     .updates_checking_sub = "Asking the release server.",
@@ -992,6 +994,8 @@ const Texts kGerman = {
     .dlc_free_delete = "Löschen",
     .dlc_freeing = "Kopien werden gelöscht…",
     .dlc_freed = "%d Kopien gelöscht: %s frei.",
+    .dlc_group_on = "%d von %d an",
+    .dlc_group_installed = "Installierte Kopien",
 
     .updates_checking_title = "Wird gesucht…",
     .updates_checking_sub = "Der Versionsserver wird abgefragt.",
@@ -1544,6 +1548,8 @@ const Texts kFrench = {
     .dlc_free_delete = "Supprimer",
     .dlc_freeing = "Suppression des copies…",
     .dlc_freed = "%d copies supprimées : %s libérés.",
+    .dlc_group_on = "%d sur %d activés",
+    .dlc_group_installed = "Copies installées",
 
     .updates_checking_title = "Recherche…",
     .updates_checking_sub = "Interrogation du serveur des versions.",
@@ -2095,6 +2101,8 @@ const Texts kSpanish = {
     .dlc_free_delete = "Eliminar",
     .dlc_freeing = "Eliminando las copias…",
     .dlc_freed = "Se eliminaron %d copias: %s liberados.",
+    .dlc_group_on = "%d de %d encendidos",
+    .dlc_group_installed = "Copias instaladas",
 
     .updates_checking_title = "Buscando…",
     .updates_checking_sub = "Consultando el servidor de versiones.",
@@ -2646,6 +2654,8 @@ const Texts kItalian = {
     .dlc_free_delete = "Elimina",
     .dlc_freeing = "Eliminazione delle copie…",
     .dlc_freed = "%d copie eliminate: %s liberati.",
+    .dlc_group_on = "%d di %d attivi",
+    .dlc_group_installed = "Copie installate",
 
     .updates_checking_title = "Ricerca…",
     .updates_checking_sub = "Interrogazione del server delle versioni.",

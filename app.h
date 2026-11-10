@@ -384,7 +384,8 @@ class App {
   std::future<FreedDlc> dlc_freeing_;
   bool dlc_free_confirm_ = false;  // the dialog shown
   bool dlc_free_opened_ = false;
-  std::string dlc_freed_text_;  // what the last removal freed, shown above the list
+  std::string dlc_freed_text_;  // what the last removal freed, shown under the folder
+  std::map<uint64_t, bool> dlc_group_open_;  // the list's groups the player opened or shut (page_dlc.cpp's keys)
   std::future<std::vector<InstalledDlc>> dlc_listing_;
   std::optional<std::vector<InstalledDlc>> dlc_installed_;
   std::string dlc_confirm_;  // the installed folder whose Remove waits for a second press

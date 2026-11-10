@@ -19,7 +19,13 @@ The launcher's versions (`launcher_version.h`). Each game shows its own version 
   95-100 % of its content size) shows as one row, the copy's, with a note; the package stays out of the game's list
   while the copy is there (no song twice). "Remove copies" above the list (with their count and size) asks "Are you
   sure you want to delete these files?", saying which copies and where, and that the originals are not touched; then
-  deletes the copies (`RemoveDlcCopies`) and the folder's packages take their place. Installing by extraction is gone,
+  deletes the copies (`RemoveDlcCopies`) and the folder's packages take their place.
+- The list is grouped by the game each package was made for (the header's title ID; the extracted copies a group of
+  their own): a header that folds the group open or shut, the game's name as its headers spell it most, "N of M on",
+  and a switch for the whole group; this game's group first, then the copies, then the games it reads, then the rest;
+  folded from the start past 12 packages. The game's "where" text is a line under the title, and the copies' notice
+  with Remove copies sits in the folder's card under the folder (a row: the icon, the folder and what it holds), so the
+  list keeps the card's height. Installing by extraction is gone,
   with its texts (`dlc_install_*`, `dlc_installing_short`, `dlc_installed_*`, `dlc_failed`, `dlc_listed_hint`,
   `dlc_all_installed`, `dlc_new_tag`, `dlc_turned_off_*`); new: `dlc_library_*`, `dlc_list_title`,
   `dlc_change_folder`, `dlc_in_folder`.

@@ -458,6 +458,9 @@ struct Texts {
   const char* dlc_free_delete;
   const char* dlc_freeing;
   const char* dlc_freed;  // %d copies, %s: freed
+  // The list's groups: by the game a package was made for.
+  const char* dlc_group_on;  // %d on, %d packages
+  const char* dlc_group_installed;
   // Launcher 3.0: the Updates tab (page_updates.cpp).
   const char* updates_checking_title;
   const char* updates_checking_sub;
