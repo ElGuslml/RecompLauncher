@@ -461,6 +461,19 @@ struct Texts {
   // The list's groups: by the game a package was made for.
   const char* dlc_group_on;  // %d on, %d packages
   const char* dlc_group_installed;
+  // kInstall (game::kDlcMode): the DLC page that extracts the packages, as before 3.16 (page_dlc_install.cpp).
+  const char* dlc_install_title;
+  const char* dlc_install_text;
+  const char* dlc_installed_title;
+  const char* dlc_failed;            // %s: their names
+  const char* dlc_installing_short;  // %s: the package, %d of %d
+  const char* dlc_installed_one;
+  const char* dlc_installed_many;  // %d: packages
+  const char* dlc_listed_hint;
+  const char* dlc_all_installed;
+  const char* dlc_new_tag;          // a badge, upper case when drawn
+  const char* dlc_turned_off_one;   // after an install
+  const char* dlc_turned_off_many;  // %d: packages
   // Launcher 3.0: the Updates tab (page_updates.cpp).
   const char* updates_checking_title;
   const char* updates_checking_sub;

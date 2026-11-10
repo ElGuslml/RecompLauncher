@@ -95,6 +95,17 @@ struct DlcRule {
   DlcForeign foreign = DlcForeign::kUnused;
 };
 
+// How the DLC page gives the game its downloadable content (game.h's kDlcMode).
+enum class DlcMode {
+  // The packages of a folder the player chooses are extracted into the game's content folder, each by the game itself
+  // (its --install_content tool mode, the SDK's change 44), as the launchers before 3.16 did.
+  kInstall,
+  // The player's DLC folder, every game's packages in one place, read by the game where they are (the SDK's
+  // content_packages.txt, its change 80: nothing copied); the packages extracted before are still read. The Guitar
+  // Heroes.
+  kFolder,
+};
+
 // The profile's optional settings: what a game whose game.h does not define one gets. A game.h's own definition in
 // launcher::game hides the default here, because a qualified name (game::kArtTitleSize) finds a namespace's own
 // declaration before looking in the namespaces it uses; so the launcher's code names them qualified, always.
@@ -107,6 +118,9 @@ inline constexpr float kArtTitleSize = 96.0f;
 inline constexpr bool kHasLowLatencyAudio = true;
 // The DLC page's check of installed packages: none, every package stays on.
 inline constexpr DlcRule kDlcRule{};
+// The DLC page's mode: extracting the packages, as before 3.16 (kFolder where the game has been tried reading them in
+// place).
+inline constexpr DlcMode kDlcMode = DlcMode::kInstall;
 // The Video page's AMD FSR 3.1 and NVIDIA DLSS, in a game that has them (kHasDlaa). False: the Upscaling row offers Off,
 // FSR 1 and NIS only, and FSR 3.1 or DLSS stays an option of the options file (native_x_renderer_antialiasing =
 // fsr_native, dlaa, fsr_quality, dlss_quality...): the row shows it while it is the one in use, the launcher writes it

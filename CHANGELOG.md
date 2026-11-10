@@ -2,6 +2,16 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.17.0
+
+- The DLC page's mode per game: `kDlcMode` in a game's `game.h` (`game_types.h`'s `DlcMode`). `kFolder` is 3.16's
+  DLC folder, read by the game where it is (it needs the SDK's change 80); `kInstall`, the default, is 3.15's page
+  back: the packages of a folder the player chooses extracted by the game (`--install_content`), each with its switch
+  (`page_dlc_install.cpp`; `DlcPackage`, `FindDlcPackages`, `DlcInstall` and their texts again, in a block of their
+  own). So a game whose DLC has not been tried in place keeps extracting it; the Guitar Heroes set `kFolder`
+  (Gustavo, 2026-11-10). `DlcPage` and `PollDlc` choose by it, and a folder dropped on the page goes to either.
+- With main's 3.14.3 (`kOffersTemporalUpscalers`), merged into this branch: one launcher for every game again.
+
 ## 3.16.0
 
 - The DLC page's folder is the player's DLC folder: their Xbox 360 packages (LIVE, PIRS, CON), as many games' as they

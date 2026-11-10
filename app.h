@@ -367,14 +367,18 @@ class App {
   double rate_ = 0.0;  // bytes per second, smoothed
   SDL_Window* window_ = nullptr;
 
-  // The DLC page (page_dlc.cpp, dlc.h): the player's DLC folder (the folder dialog, or a folder dropped on the window),
-  // its packages read by the game where they are, each on or off; and the packages extracted by launchers before 3.16.
-  // Both are read when the launcher opens (a package the game does not read is off before Play) and after a change.
+  // The DLC page (dlc.h), in the game's mode (game::kDlcMode); the folder dialog, or a folder dropped on the window.
+  // Both modes list the packages extracted into the game's content folder (ListDlc), each on or off.
   void BrowseDlc();
-  void ChooseDlcLibrary(const std::string& path);  // UTF-8
-  void ReadDlcLibrary();
   void ListDlc();
   void PollDlc();
+  // kFolder (page_dlc.cpp): the player's DLC folder, its packages read by the game where they are, each on or off; and
+  // the packages extracted by launchers before 3.16. Both read when the launcher opens (a package the game does not
+  // read is off before Play) and after a change.
+  void DlcFolderPage(const ImRect& rect);
+  void PollDlcFolder();
+  void ChooseDlcLibrary(const std::string& path);  // UTF-8
+  void ReadDlcLibrary();
   // "Remove copies": the extracted copies of the folder's packages, deleted once the player confirms (its dialog).
   void DlcFreeDialog();
   std::shared_ptr<DialogResult> dlc_dialog_ = std::make_shared<DialogResult>();
@@ -391,6 +395,18 @@ class App {
   std::string dlc_confirm_;  // the installed folder whose Remove waits for a second press
   bool dlc_listed_ = false;  // read once, and after each change
   bool dlc_relist_ = false;  // a change while the list was read: read it again
+  // kInstall (page_dlc_install.cpp): the packages found in the folder chosen, installed by the game at once.
+  void DlcInstallPage(const ImRect& rect);
+  void PollDlcInstall();
+  void SearchDlc(const std::string& path);  // UTF-8
+  std::string dlc_searched_;                // the folder searched, UTF-8
+  std::future<std::vector<DlcPackage>> dlc_search_;
+  std::optional<std::vector<DlcPackage>> dlc_found_;
+  DlcInstall dlc_install_;
+  bool dlc_refresh_after_install_ = false;
+  std::set<std::string> dlc_turned_off_;  // packages the game does not read, turned off this session (game::kDlcRule)
+  std::vector<std::string> dlc_installing_names_;  // the folders of the packages being installed
+  std::set<std::string> dlc_new_;                  // installed this session: marked "New" in the list
 
   // The profiles (page_profile.cpp, profile_store.h): the first profile's dialog when there is none, and this
   // installation's saves from before the profiles copied into the current one.

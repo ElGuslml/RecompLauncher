@@ -50,6 +50,8 @@ constexpr int kMaxEntries = 20000;
 
 uint32_t ReadU32(const uint8_t* p) { return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3]; }
 
+uint64_t ReadU64(const uint8_t* p) { return uint64_t(ReadU32(p)) << 32 | ReadU32(p + 4); }
+
 std::string Utf8(const std::wstring& wide) {
   if (wide.empty()) return {};
   int length = WideCharToMultiByte(CP_UTF8, 0, wide.data(), int(wide.size()), nullptr, 0, nullptr, nullptr);
@@ -73,6 +75,37 @@ std::string Utf16BeToUtf8(const uint8_t* p, size_t bytes) {
 
 bool IsPackage(const uint8_t* magic) {
   return !std::memcmp(magic, "LIVE", 4) || !std::memcmp(magic, "PIRS", 4) || !std::memcmp(magic, "CON ", 4);
+}
+
+// kInstall: a package's header, for FindDlcPackages.
+bool ReadPackage(const std::filesystem::path& path, DlcPackage& out) {
+  std::error_code ec;
+  if (!std::filesystem::is_regular_file(path, ec) || std::filesystem::file_size(path, ec) < kHeaderBytes) {
+    return false;
+  }
+  std::array<uint8_t, kHeaderBytes> header{};
+  {
+    std::ifstream file(path, std::ios::binary);
+    if (!file.read(reinterpret_cast<char*>(header.data()), header.size())) {
+      return false;
+    }
+  }
+  if (!IsPackage(header.data())) {
+    return false;
+  }
+  out.path = path;
+  out.file_name = Utf8(path.filename().wstring());
+  out.content_type = ReadU32(&header[kContentTypeOffset]);
+  out.content_size = ReadU64(&header[kContentSizeOffset]);
+  out.title_id = ReadU32(&header[kTitleIdOffset]);
+  for (size_t i = 0; i < kLanguages && out.display_name.empty(); ++i) {
+    out.display_name = Utf16BeToUtf8(&header[kDisplayNameOffset + i * kNameBytes], kNameBytes);
+  }
+  if (out.display_name.empty()) {
+    out.display_name = out.file_name;
+  }
+  out.title_name = Utf16BeToUtf8(&header[kTitleNameOffset], kNameBytes);
+  return true;
 }
 
 // What the DLC folder's scan reads of a package file.
@@ -791,6 +824,132 @@ FreedDlc RemoveDlcCopies(const std::filesystem::path& exe_dir, const DlcLibrary&
     }
   }
   return freed;
+}
+
+
+// kInstall (page_dlc_install.cpp).
+
+std::vector<DlcPackage> FindDlcPackages(const std::filesystem::path& path, const std::filesystem::path& exe_dir) {
+  std::vector<DlcPackage> result;
+  std::error_code ec;
+  DlcPackage package;
+  if (std::filesystem::is_regular_file(path, ec)) {
+    if (ReadPackage(path, package)) {
+      result.push_back(package);
+    }
+  } else {
+    int entries = 0;
+    for (auto it = std::filesystem::recursive_directory_iterator(
+             path, std::filesystem::directory_options::skip_permission_denied, ec);
+         !ec && it != std::filesystem::recursive_directory_iterator() && entries < kMaxEntries; it.increment(ec)) {
+      ++entries;
+      if (it.depth() >= kMaxDepth) {
+        it.disable_recursion_pending();
+      }
+      if (ReadPackage(it->path(), package)) {
+        result.push_back(package);
+        package = {};
+      }
+    }
+  }
+  std::filesystem::path installed = DlcFolder(exe_dir);
+  std::filesystem::path disabled = DisabledDlcFolder(exe_dir);
+  for (DlcPackage& p : result) {
+    p.installed = std::filesystem::is_directory(installed / p.path.filename(), ec) ||
+                  std::filesystem::is_directory(disabled / p.path.filename(), ec);
+  }
+  std::sort(result.begin(), result.end(),
+            [](const DlcPackage& a, const DlcPackage& b) { return a.display_name < b.display_name; });
+  return result;
+}
+
+DlcInstall::~DlcInstall() {
+  if (worker_.joinable()) {
+    worker_.join();
+  }
+}
+
+void DlcInstall::Start(const std::filesystem::path& exe_dir, std::vector<DlcPackage> packages) {
+  if (worker_.joinable()) {
+    worker_.join();
+  }
+  {
+    std::lock_guard lock(mutex_);
+    progress_ = {};
+    progress_.state = State::kRunning;
+    progress_.count = packages.size();
+    for (const DlcPackage& p : packages) {
+      progress_.total += p.content_size;
+    }
+  }
+  worker_ = std::thread(&DlcInstall::Run, this, exe_dir, std::move(packages));
+}
+
+DlcInstall::Progress DlcInstall::Get() const {
+  std::lock_guard lock(mutex_);
+  return progress_;
+}
+
+void DlcInstall::Reset() {
+  std::lock_guard lock(mutex_);
+  if (progress_.state == State::kDone) {
+    progress_ = {};
+  }
+}
+
+void DlcInstall::Run(std::filesystem::path exe_dir, std::vector<DlcPackage> packages) {
+  std::filesystem::path game = exe_dir / game::kRecompExecutable;
+  std::filesystem::path dlc_folder = DlcFolder(exe_dir);
+  uint64_t base = 0;
+  for (size_t i = 0; i < packages.size(); ++i) {
+    const DlcPackage& package = packages[i];
+    {
+      std::lock_guard lock(mutex_);
+      progress_.index = i;
+      progress_.current = package.display_name;
+      progress_.done = base;
+    }
+    std::wstring folder = package.path.filename().wstring();
+    std::filesystem::path header = HeaderPath(exe_dir, folder);
+    std::error_code ec;
+    std::filesystem::remove(header, ec);  // written last: its presence afterwards is the success
+    std::wstring command_line =
+        L"\"" + game.wstring() + L"\" \"--install_content=" + package.path.wstring() + L"\"";
+    STARTUPINFOW startup = {sizeof(startup)};
+    PROCESS_INFORMATION process = {};
+    bool ok = false;
+    if (CreateProcessW(game.c_str(), command_line.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
+                       exe_dir.c_str(), &startup, &process)) {
+      CloseHandle(process.hThread);
+      // The game extracts the package: its folder grows towards the package's content size. A package of a few GB
+      // takes a minute or two on a hard disk; one that has not finished in 30 minutes has failed.
+      auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(30);
+      while (WaitForSingleObject(process.hProcess, 250) == WAIT_TIMEOUT) {
+        if (std::chrono::steady_clock::now() > deadline) {
+          TerminateProcess(process.hProcess, 1);
+          WaitForSingleObject(process.hProcess, 5000);
+          break;
+        }
+        uint64_t bytes = std::min(FolderBytes(dlc_folder / folder), package.content_size);
+        std::lock_guard lock(mutex_);
+        progress_.done = base + bytes;
+      }
+      DWORD exit_code = 1;
+      GetExitCodeProcess(process.hProcess, &exit_code);
+      CloseHandle(process.hProcess);
+      ok = exit_code == 0 && std::filesystem::exists(header, ec);
+    }
+    base += package.content_size;
+    std::lock_guard lock(mutex_);
+    progress_.done = base;
+    if (ok) {
+      ++progress_.installed;
+    } else {
+      progress_.failed.push_back(package.display_name);
+    }
+  }
+  std::lock_guard lock(mutex_);
+  progress_.state = State::kDone;
 }
 
 }  // namespace launcher

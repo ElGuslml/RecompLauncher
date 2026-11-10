@@ -44,6 +44,7 @@ function(recomp_launcher_add target)
       "${dir}/page_achievements.cpp"
       "${dir}/page_install.cpp"
       "${dir}/page_dlc.cpp"
+      "${dir}/page_dlc_install.cpp"
       "${dir}/dlc.cpp"
       "${dir}/page_pipelines.cpp"
       "${dir}/pipelines.cpp"

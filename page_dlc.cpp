@@ -1,6 +1,7 @@
-// The DLC tab (dlc.h; Gustavo's 2026-10-28 mockup): a card for the player's DLC folder, whose packages the game reads
-// where they are (the folder dialog, or a folder dropped on the window), and the list of the game's DLC: the folder's
-// packages and the ones extracted by launchers before 3.16, each with its switch (and Remove for the extracted).
+// The DLC tab (dlc.h; Gustavo's 2026-10-28 mockup), in the game's mode (game::kDlcMode). kFolder, here: a card for the
+// player's DLC folder, whose packages the game reads where they are (the folder dialog, or a folder dropped on the
+// window), and the list of the game's DLC: the folder's packages and the ones extracted by launchers before 3.16, each
+// with its switch (and Remove for the extracted). kInstall: page_dlc_install.cpp.
 
 #include <windows.h>
 
@@ -121,10 +122,29 @@ void App::ListDlc() {
   }
 }
 
+void App::DlcPage(const ImRect& rect) {
+  if constexpr (game::kDlcMode == game::DlcMode::kFolder) {
+    DlcFolderPage(rect);
+  } else {
+    DlcInstallPage(rect);
+  }
+}
+
 void App::PollDlc() {
+  if (!game::kHasDlcPage) {
+    return;
+  }
+  if constexpr (game::kDlcMode == game::DlcMode::kFolder) {
+    PollDlcFolder();
+  } else {
+    PollDlcInstall();
+  }
+}
+
+void App::PollDlcFolder() {
   // Read when the launcher opens, not only when the page is shown: the DLC folder's new packages are in the game's list,
   // and a package the game does not read (game::kDlcRule) is off before the player presses Play.
-  if (game::kHasDlcPage && !dlc_listed_) {
+  if (!dlc_listed_) {
     ListDlc();
     ReadDlcLibrary();
   }
@@ -166,7 +186,7 @@ void App::PollDlc() {
   }
 }
 
-void App::DlcPage(const ImRect& rect) {
+void App::DlcFolderPage(const ImRect& rect) {
   if (!dlc_listed_) {
     ListDlc();
     ReadDlcLibrary();

@@ -1,15 +1,34 @@
-// Downloadable content (the DLC page, page_dlc.cpp): the player's DLC folder, Xbox 360 content packages the game reads
-// where they are (the SDK's content_packages.txt, its change 80: nothing copied, one folder for every game), each
-// turned on or off for the game; and the packages installed before 3.16, extracted into the user data's content folder.
+// Downloadable content (the DLC page), in the game's mode (game::kDlcMode):
+// - kFolder (page_dlc.cpp): the player's DLC folder, Xbox 360 content packages the game reads where they are (the SDK's
+//   content_packages.txt, its change 80: nothing copied, one folder for every game), each turned on or off for the
+//   game; and the packages extracted before, into the user data's content folder.
+// - kInstall (page_dlc_install.cpp): the packages of a folder the player chooses, extracted into the content folder
+//   by the game itself (its --install_content tool mode), each turned on or off.
 
 #pragma once
 
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace launcher {
+
+// An Xbox 360 content package (an STFS file: LIVE, PIRS or CON) found to install (kInstall), from its header.
+struct DlcPackage {
+  std::filesystem::path path;
+  std::string file_name;     // the package's file name: the folder it is installed in
+  std::string display_name;  // UTF-8; the file name when the package has none
+  std::string title_name;    // the game it was made for, UTF-8 (may be empty)
+  uint32_t title_id = 0;
+  uint32_t content_type = 0;
+  uint64_t content_size = 0;  // the data inside, about the installed size
+  bool installed = false;     // a folder of its name is in the DLC folder already
+  // Downloadable content (Marketplace content, type 2): the only kind the page installs.
+  bool IsDlc() const { return content_type == 2; }
+};
 
 // Content installed for the game: a folder in the DLC folder, named after its package, or in the folder of DLC turned
 // off beside it (the launchers before 3.16 extracted each package).
@@ -89,5 +108,40 @@ struct FreedDlc {
   uint64_t bytes = 0;
 };
 FreedDlc RemoveDlcCopies(const std::filesystem::path& exe_dir, const DlcLibrary& library);
+
+// kInstall: the packages in `path` (a package itself, or a folder and its subfolders, a few levels deep), with
+// `installed` set against the DLC folder and the folder of DLC turned off. Reads a few KB of each file: run it off the
+// UI thread.
+std::vector<DlcPackage> FindDlcPackages(const std::filesystem::path& path, const std::filesystem::path& exe_dir);
+
+// kInstall: packages installed one after another, on a thread of its own: the game in its --install_content tool mode
+// for each (no window), its progress the installed folder's size against the package's content size.
+class DlcInstall {
+ public:
+  enum class State { kIdle, kRunning, kDone };
+  struct Progress {
+    State state = State::kIdle;
+    size_t index = 0;  // the package being installed
+    size_t count = 0;
+    std::string current;  // its name, UTF-8
+    uint64_t done = 0;    // bytes of the packages so far
+    uint64_t total = 0;
+    size_t installed = 0;
+    std::vector<std::string> failed;  // the names of those not installed
+  };
+
+  ~DlcInstall();
+  void Start(const std::filesystem::path& exe_dir, std::vector<DlcPackage> packages);
+  Progress Get() const;
+  // Back to kIdle once its result has been shown.
+  void Reset();
+
+ private:
+  void Run(std::filesystem::path exe_dir, std::vector<DlcPackage> packages);
+
+  std::thread worker_;
+  mutable std::mutex mutex_;
+  Progress progress_;
+};
 
 }  // namespace launcher

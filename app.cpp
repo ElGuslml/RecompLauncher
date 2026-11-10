@@ -102,7 +102,8 @@ bool App::Busy() const {
          std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
          profile_games_loading_.valid() ||
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
-         dlc_freeing_.valid() || dlc_free_confirm_ || mic_meter_.stream || preparing_ ||
+         dlc_freeing_.valid() || dlc_free_confirm_ || dlc_search_.valid() ||
+         dlc_install_.Get().state == DlcInstall::State::kRunning || mic_meter_.stream || preparing_ ||
          (installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning));
 }
 
@@ -125,7 +126,9 @@ std::string App::BusyReasons() const {
   add(update == Update::State::kDownloading || update == Update::State::kVerifying ||
           update == Update::State::kInstalling,
       "an update");
-  add(dlc_scan_.valid() || dlc_listing_.valid() || dlc_freeing_.valid() || dlc_free_confirm_, "the DLC");
+  add(dlc_scan_.valid() || dlc_listing_.valid() || dlc_freeing_.valid() || dlc_free_confirm_ || dlc_search_.valid() ||
+          dlc_install_.Get().state == DlcInstall::State::kRunning,
+      "the DLC");
   add(mic_meter_.stream != nullptr, "the microphone's meter");
   add(installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning), "the install");
   return reasons;
@@ -355,6 +358,7 @@ void App::WaitForTasks() {
   wait(iso_check_, "the ISO check");
   wait(dlc_scan_, "the DLC folder's reading");
   wait(dlc_freeing_, "the DLC copies' removal");
+  wait(dlc_search_, "the DLC search");
   wait(dlc_listing_, "the installed DLC's listing");
   wait(profile_games_loading_, "the profile's games");
 }
@@ -632,9 +636,13 @@ bool App::OnEvent(const SDL_Event& event) {
       if (installing_ && install_step_ == InstallStep::kChooseIso && event.drop.data) {
         ChooseIso(event.drop.data);
       }
-      // A folder dropped on the DLC page: the DLC folder.
+      // A folder dropped on the DLC page: the DLC folder (kFolder), or searched for packages to install (kInstall).
       if (!installing_ && page_ == Page::kDlc && event.drop.data) {
-        ChooseDlcLibrary(event.drop.data);
+        if constexpr (game::kDlcMode == game::DlcMode::kFolder) {
+          ChooseDlcLibrary(event.drop.data);
+        } else {
+          SearchDlc(event.drop.data);
+        }
       }
       return true;
     default:
