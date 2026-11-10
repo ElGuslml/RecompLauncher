@@ -23,10 +23,11 @@ namespace launcher {
 
 namespace {
 
-// An STFS header's fields (Free60's layout; the SDK's StfsHeader): all big-endian.
+// An STFS header's fields (Free60's layout; the SDK's StfsHeader): big-endian unless noted.
+constexpr size_t kHeaderSizeOffset = 0x340;
 constexpr size_t kContentTypeOffset = 0x344;
-constexpr size_t kContentSizeOffset = 0x34C;
-constexpr size_t kTitleIdOffset = 0x360;
+constexpr size_t kVolumeDescriptorOffset = 0x379;  // flags at +2; table block count (LE 16) +3, first block (LE 24) +5
+constexpr size_t kVolumeTypeOffset = 0x3A9;        // 0: STFS, 1: SVOD
 constexpr size_t kDisplayNameOffset = 0x411;  // 18 languages of 0x80 bytes, UTF-16, English first
 constexpr size_t kTitleNameOffset = 0x1691;   // 0x80 bytes, UTF-16
 constexpr size_t kNameBytes = 0x80;
@@ -37,13 +38,15 @@ constexpr size_t kThumbnailOffset = 0x171A;
 constexpr size_t kTitleThumbnailOffset = 0x571A;
 constexpr size_t kThumbnailBytes = 0x4000;
 constexpr size_t kLanguages = 18;
+// STFS: 4 KB blocks; a level-0 hash table (170 entries of 24 bytes: a SHA-1, then the status and the next block in
+// the chain) after every 170 data blocks; a directory entry of 64 bytes.
+constexpr uint32_t kBlockSize = 0x1000;
+constexpr uint32_t kDirectoryEntryBytes = 0x40;
 // A folder is searched this deep, and this many entries at most (a drive chosen by mistake).
-constexpr int kMaxDepth = 5;
+constexpr int kMaxDepth = 6;
 constexpr int kMaxEntries = 20000;
 
 uint32_t ReadU32(const uint8_t* p) { return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3]; }
-
-uint64_t ReadU64(const uint8_t* p) { return uint64_t(ReadU32(p)) << 32 | ReadU32(p + 4); }
 
 std::string Utf8(const std::wstring& wide) {
   if (wide.empty()) return {};
@@ -70,33 +73,98 @@ bool IsPackage(const uint8_t* magic) {
   return !std::memcmp(magic, "LIVE", 4) || !std::memcmp(magic, "PIRS", 4) || !std::memcmp(magic, "CON ", 4);
 }
 
-bool ReadPackage(const std::filesystem::path& path, DlcPackage& out) {
+// What the DLC folder's scan reads of a package file.
+struct PackageInfo {
+  uint32_t content_type = 0;
+  std::string display_name;     // UTF-8: the first language's name the header has, else the file's name
+  std::wstring game_name;       // the name the game gets: the header's English one as is (the SDK's), else the file's
+  std::vector<std::wstring> root_files;  // the files at its root, in lower case
+};
+
+// An STFS block's offset in the package: the hash tables before it skipped (the SDK's BlockToOffsetSTFS).
+uint64_t BlockOffset(uint32_t header_size, uint64_t block, uint32_t tables_per_level) {
+  uint64_t base = 170;
+  uint64_t physical = block;
+  for (int level = 0; level < 3; ++level) {
+    physical += ((block + base) / base) * tables_per_level;
+    if (block < base) break;
+    base *= 170;
+  }
+  return ((uint64_t(header_size) + kBlockSize - 1) & ~uint64_t(kBlockSize - 1)) + (physical << 12);
+}
+
+// The block after `block` in its chain: its entry in the level-0 hash table that covers it (the SDK's
+// BlockToHashBlockNumberSTFS, level 0; the primary table, as every read-only package has only that one).
+uint32_t NextBlock(std::ifstream& file, uint32_t header_size, uint32_t block, uint32_t tables_per_level) {
+  uint64_t table = 0;
+  if (block >= 170) {
+    table = (block / 170) * (170 + tables_per_level) + ((block / 28900) + 1) * tables_per_level;
+    if (block >= 28900) table += tables_per_level;
+  }
+  uint64_t offset = ((uint64_t(header_size) + kBlockSize - 1) & ~uint64_t(kBlockSize - 1)) + (table << 12) +
+                    (block % 170) * 24 + 20;
+  uint8_t info[4] = {};
+  file.seekg(std::streamoff(offset));
+  file.read(reinterpret_cast<char*>(info), 4);
+  return file ? ReadU32(info) & 0xFFFFFF : 0xFFFFFF;
+}
+
+// A package file's header and the names at its root (its file table, along the hash tables' chain): a few KB.
+bool ReadPackageInfo(const std::filesystem::path& path, PackageInfo& out) {
   std::error_code ec;
   if (!std::filesystem::is_regular_file(path, ec) || std::filesystem::file_size(path, ec) < kHeaderBytes) {
     return false;
   }
+  std::ifstream file(path, std::ios::binary);
   std::array<uint8_t, kHeaderBytes> header{};
-  {
-    std::ifstream file(path, std::ios::binary);
-    if (!file.read(reinterpret_cast<char*>(header.data()), header.size())) {
-      return false;
-    }
-  }
-  if (!IsPackage(header.data())) {
+  if (!file.read(reinterpret_cast<char*>(header.data()), header.size()) || !IsPackage(header.data())) {
     return false;
   }
-  out.path = path;
-  out.file_name = Utf8(path.filename().wstring());
   out.content_type = ReadU32(&header[kContentTypeOffset]);
-  out.content_size = ReadU64(&header[kContentSizeOffset]);
-  out.title_id = ReadU32(&header[kTitleIdOffset]);
   for (size_t i = 0; i < kLanguages && out.display_name.empty(); ++i) {
     out.display_name = Utf16BeToUtf8(&header[kDisplayNameOffset + i * kNameBytes], kNameBytes);
   }
   if (out.display_name.empty()) {
-    out.display_name = out.file_name;
+    out.display_name = Utf8(path.filename().wstring());
   }
-  out.title_name = Utf16BeToUtf8(&header[kTitleNameOffset], kNameBytes);
+  for (size_t i = 0; i + 1 < kNameBytes; i += 2) {
+    wchar_t c = wchar_t(header[kDisplayNameOffset + i] << 8 | header[kDisplayNameOffset + i + 1]);
+    if (!c) break;
+    out.game_name.push_back(c);
+  }
+  if (out.game_name.empty()) {
+    out.game_name = path.filename().wstring();
+  }
+  if (ReadU32(&header[kVolumeTypeOffset]) != 0) {
+    return true;  // SVOD: no file table to read here
+  }
+  uint32_t header_size = ReadU32(&header[kHeaderSizeOffset]);
+  const uint8_t* descriptor = &header[kVolumeDescriptorOffset];
+  uint32_t tables_per_level = (descriptor[2] & 1) ? 1 : 2;  // read-only packages keep one copy of each table
+  uint32_t table_blocks = uint32_t(descriptor[3] | descriptor[4] << 8);
+  uint32_t block = uint32_t(descriptor[5] | descriptor[6] << 8 | descriptor[7] << 16);
+  std::array<uint8_t, kBlockSize> directory{};
+  for (uint32_t n = 0; n < table_blocks && n < 1024 && block != 0xFFFFFF; ++n) {
+    file.seekg(std::streamoff(BlockOffset(header_size, block, tables_per_level)));
+    if (!file.read(reinterpret_cast<char*>(directory.data()), directory.size())) {
+      break;
+    }
+    for (size_t i = 0; i < kBlockSize / kDirectoryEntryBytes; ++i) {
+      const uint8_t* entry = &directory[i * kDirectoryEntryBytes];
+      if (!entry[0]) break;
+      uint8_t flags = entry[40];
+      bool is_directory = flags & 0x80;
+      uint16_t parent = uint16_t(entry[50] << 8 | entry[51]);
+      if (!is_directory && parent == 0xFFFF) {
+        std::wstring name;
+        for (size_t c = 0; c < size_t(flags & 0x3F); ++c) {
+          name.push_back(wchar_t(std::towlower(entry[c])));
+        }
+        out.root_files.push_back(std::move(name));
+      }
+    }
+    block = n + 1 < table_blocks ? NextBlock(file, header_size, block, tables_per_level) : 0xFFFFFF;
+  }
   return true;
 }
 
@@ -301,7 +369,101 @@ std::vector<bool> CheckPackages(const std::vector<std::filesystem::path>& packag
   return result;
 }
 
+// The rule by the names of a package file (the DLC folder's): one of its files at the root, or the key of the name the
+// game gets in the game's own list or as the package's own manifest at its root. A package named only in another
+// package's manifest is not seen here (every official pack carries its own). root_files: lower case.
+bool FitsByNames(const std::vector<std::wstring>& root_files, const std::wstring& game_name) {
+  const game::DlcRule& rule = game::kDlcRule;
+  if (rule.files.empty() && !rule.manifest_prefix) {
+    return true;
+  }
+  auto has = [&root_files](const std::wstring& name) {
+    return std::find(root_files.begin(), root_files.end(), name) != root_files.end();
+  };
+  for (const char* file : rule.files) {
+    std::wstring name = WideFromUtf8(file);
+    std::transform(name.begin(), name.end(), name.begin(), ::towlower);
+    if (has(name)) return true;
+  }
+  if (!rule.manifest_prefix) {
+    return false;
+  }
+  uint32_t key = PackageKey(game_name, rule.name_length);
+  if (std::find(rule.known_names.begin(), rule.known_names.end(), key) != rule.known_names.end()) {
+    return true;
+  }
+  std::wstring own = WideFromUtf8(rule.manifest_prefix);
+  std::transform(own.begin(), own.end(), own.begin(), ::towlower);
+  wchar_t hex[16];
+  std::swprintf(hex, std::size(hex), L"%x", key);
+  return has(own + hex + L".pak.xen");
+}
+
+// The DLC folder and the player's choices (dlc_library.txt): "folder=", then "on=" / "off=" lines, paths in the
+// folder, UTF-8.
+struct LibrarySettings {
+  std::filesystem::path folder;
+  std::set<std::string> on;   // turned on although the game does not read them
+  std::set<std::string> off;  // turned off although it does
+};
+
+std::filesystem::path LibrarySettingsPath(const std::filesystem::path& exe_dir) {
+  return DlcFolder(exe_dir).parent_path() / L"dlc_library.txt";
+}
+
+// The game's list of package files to read in place (the SDK's ContentManager::kContentPackagesFileName).
+std::filesystem::path ContentPackagesPath(const std::filesystem::path& exe_dir) {
+  return DlcFolder(exe_dir).parent_path() / L"content_packages.txt";
+}
+
+LibrarySettings ReadLibrarySettings(const std::filesystem::path& exe_dir) {
+  LibrarySettings settings;
+  std::ifstream file(LibrarySettingsPath(exe_dir), std::ios::binary);
+  std::string line;
+  while (std::getline(file, line)) {
+    while (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.rfind("folder=", 0) == 0) {
+      settings.folder = WideFromUtf8(line.substr(7));
+    } else if (line.rfind("on=", 0) == 0) {
+      settings.on.insert(line.substr(3));
+    } else if (line.rfind("off=", 0) == 0) {
+      settings.off.insert(line.substr(4));
+    }
+  }
+  return settings;
+}
+
+void WriteLibrarySettings(const std::filesystem::path& exe_dir, const LibrarySettings& settings) {
+  std::error_code ec;
+  std::filesystem::create_directories(LibrarySettingsPath(exe_dir).parent_path(), ec);
+  std::ofstream file(LibrarySettingsPath(exe_dir), std::ios::binary | std::ios::trunc);
+  file << "# The DLC page's folder and the player's choices (paths in the folder).\r\n";
+  file << "folder=" << Utf8(settings.folder.wstring()) << "\r\n";
+  for (const std::string& name : settings.on) file << "on=" << name << "\r\n";
+  for (const std::string& name : settings.off) file << "off=" << name << "\r\n";
+}
+
+// The game's list: the folder's packages turned on, by their full paths. No folder: no list.
+void WriteContentPackages(const std::filesystem::path& exe_dir, const DlcLibrary& library) {
+  std::error_code ec;
+  if (library.folder.empty()) {
+    std::filesystem::remove(ContentPackagesPath(exe_dir), ec);
+    return;
+  }
+  std::filesystem::create_directories(ContentPackagesPath(exe_dir).parent_path(), ec);
+  std::ofstream file(ContentPackagesPath(exe_dir), std::ios::binary | std::ios::trunc);
+  file << "# Written by the launcher's DLC page: the packages of " << Utf8(library.folder.wstring())
+       << " turned on for this game, read where they are.\r\n";
+  for (const LibraryDlc& package : library.packages) {
+    if (package.on) file << Utf8(package.path.wstring()) << "\r\n";
+  }
+}
+
 }  // namespace
+
+size_t DlcLibrary::Fitting() const {
+  return size_t(std::count_if(packages.begin(), packages.end(), [](const LibraryDlc& p) { return p.fits; }));
+}
 
 std::vector<uint8_t> PackageTitleThumbnail(const std::filesystem::path& path) {
   std::vector<uint8_t> header(kTitleThumbnailOffset + kThumbnailBytes);
@@ -355,40 +517,6 @@ std::filesystem::path DlcFolder(const std::filesystem::path& exe_dir) {
 
 std::filesystem::path DisabledDlcFolder(const std::filesystem::path& exe_dir) {
   return DlcFolder(exe_dir).parent_path() / L"Disabled DLC";
-}
-
-std::vector<DlcPackage> FindDlcPackages(const std::filesystem::path& path, const std::filesystem::path& exe_dir) {
-  std::vector<DlcPackage> result;
-  std::error_code ec;
-  DlcPackage package;
-  if (std::filesystem::is_regular_file(path, ec)) {
-    if (ReadPackage(path, package)) {
-      result.push_back(package);
-    }
-  } else {
-    int entries = 0;
-    for (auto it = std::filesystem::recursive_directory_iterator(
-             path, std::filesystem::directory_options::skip_permission_denied, ec);
-         !ec && it != std::filesystem::recursive_directory_iterator() && entries < kMaxEntries; it.increment(ec)) {
-      ++entries;
-      if (it.depth() >= kMaxDepth) {
-        it.disable_recursion_pending();
-      }
-      if (ReadPackage(it->path(), package)) {
-        result.push_back(package);
-        package = {};
-      }
-    }
-  }
-  std::filesystem::path installed = DlcFolder(exe_dir);
-  std::filesystem::path disabled = DisabledDlcFolder(exe_dir);
-  for (DlcPackage& p : result) {
-    p.installed = std::filesystem::is_directory(installed / p.path.filename(), ec) ||
-                  std::filesystem::is_directory(disabled / p.path.filename(), ec);
-  }
-  std::sort(result.begin(), result.end(),
-            [](const DlcPackage& a, const DlcPackage& b) { return a.display_name < b.display_name; });
-  return result;
 }
 
 std::vector<InstalledDlc> ListInstalledDlc(const std::filesystem::path& exe_dir) {
@@ -489,93 +617,70 @@ bool RemoveDlc(const std::filesystem::path& exe_dir, const std::string& folder) 
   return removed;
 }
 
-DlcInstall::~DlcInstall() {
-  if (worker_.joinable()) {
-    worker_.join();
-  }
+std::filesystem::path DlcLibraryFolder(const std::filesystem::path& exe_dir) {
+  return ReadLibrarySettings(exe_dir).folder;
 }
 
-void DlcInstall::Start(const std::filesystem::path& exe_dir, std::vector<DlcPackage> packages) {
-  if (worker_.joinable()) {
-    worker_.join();
-  }
-  {
-    std::lock_guard lock(mutex_);
-    progress_ = {};
-    progress_.state = State::kRunning;
-    progress_.count = packages.size();
-    for (const DlcPackage& p : packages) {
-      progress_.total += p.content_size;
-    }
-  }
-  worker_ = std::thread(&DlcInstall::Run, this, exe_dir, std::move(packages));
+void SetDlcLibraryFolder(const std::filesystem::path& exe_dir, const std::filesystem::path& folder) {
+  LibrarySettings settings = ReadLibrarySettings(exe_dir);
+  settings.folder = folder;
+  WriteLibrarySettings(exe_dir, settings);
 }
 
-DlcInstall::Progress DlcInstall::Get() const {
-  std::lock_guard lock(mutex_);
-  return progress_;
+DlcLibrary ScanDlcLibrary(const std::filesystem::path& exe_dir) {
+  DlcLibrary library;
+  LibrarySettings settings = ReadLibrarySettings(exe_dir);
+  library.folder = settings.folder;
+  if (library.folder.empty()) {
+    WriteContentPackages(exe_dir, library);
+    return library;
+  }
+  std::error_code ec;
+  library.available = std::filesystem::is_directory(library.folder, ec);
+  if (!library.available) {
+    return library;  // its drive not connected: the game's list stays (the game passes missing files by)
+  }
+  int entries = 0;
+  for (auto it = std::filesystem::recursive_directory_iterator(
+           library.folder, std::filesystem::directory_options::skip_permission_denied, ec);
+       !ec && it != std::filesystem::recursive_directory_iterator() && entries < kMaxEntries; it.increment(ec)) {
+    ++entries;
+    if (it.depth() >= kMaxDepth) {
+      it.disable_recursion_pending();
+    }
+    PackageInfo info;
+    std::error_code file_ec;
+    if (!it->is_regular_file(file_ec) || !ReadPackageInfo(it->path(), info) || info.content_type != 2) {
+      continue;  // not a package, or not downloadable content (an avatar item, a save)
+    }
+    LibraryDlc package;
+    package.path = it->path();
+    package.relative = Utf8(it->path().lexically_relative(library.folder).wstring());
+    package.display_name = info.display_name;
+    package.bytes = it->file_size(file_ec);
+    package.fits = FitsByNames(info.root_files, info.game_name);
+    package.on = package.fits ? !settings.off.count(package.relative) : settings.on.count(package.relative) != 0;
+    library.packages.push_back(std::move(package));
+  }
+  std::sort(library.packages.begin(), library.packages.end(),
+            [](const LibraryDlc& a, const LibraryDlc& b) { return a.display_name < b.display_name; });
+  WriteContentPackages(exe_dir, library);
+  return library;
 }
 
-void DlcInstall::Reset() {
-  std::lock_guard lock(mutex_);
-  if (progress_.state == State::kDone) {
-    progress_ = {};
+void SetLibraryDlcOn(const std::filesystem::path& exe_dir, DlcLibrary& library, size_t index, bool on) {
+  if (index >= library.packages.size()) {
+    return;
   }
-}
-
-void DlcInstall::Run(std::filesystem::path exe_dir, std::vector<DlcPackage> packages) {
-  std::filesystem::path game = exe_dir / game::kRecompExecutable;
-  std::filesystem::path dlc_folder = DlcFolder(exe_dir);
-  uint64_t base = 0;
-  for (size_t i = 0; i < packages.size(); ++i) {
-    const DlcPackage& package = packages[i];
-    {
-      std::lock_guard lock(mutex_);
-      progress_.index = i;
-      progress_.current = package.display_name;
-      progress_.done = base;
-    }
-    std::wstring folder = package.path.filename().wstring();
-    std::filesystem::path header = HeaderPath(exe_dir, folder);
-    std::error_code ec;
-    std::filesystem::remove(header, ec);  // written last: its presence afterwards is the success
-    std::wstring command_line =
-        L"\"" + game.wstring() + L"\" \"--install_content=" + package.path.wstring() + L"\"";
-    STARTUPINFOW startup = {sizeof(startup)};
-    PROCESS_INFORMATION process = {};
-    bool ok = false;
-    if (CreateProcessW(game.c_str(), command_line.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
-                       exe_dir.c_str(), &startup, &process)) {
-      CloseHandle(process.hThread);
-      // The game extracts the package: its folder grows towards the package's content size. A package of a few GB
-      // takes a minute or two on a hard disk; one that has not finished in 30 minutes has failed.
-      auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(30);
-      while (WaitForSingleObject(process.hProcess, 250) == WAIT_TIMEOUT) {
-        if (std::chrono::steady_clock::now() > deadline) {
-          TerminateProcess(process.hProcess, 1);
-          WaitForSingleObject(process.hProcess, 5000);
-          break;
-        }
-        uint64_t bytes = std::min(FolderBytes(dlc_folder / folder), package.content_size);
-        std::lock_guard lock(mutex_);
-        progress_.done = base + bytes;
-      }
-      DWORD exit_code = 1;
-      GetExitCodeProcess(process.hProcess, &exit_code);
-      CloseHandle(process.hProcess);
-      ok = exit_code == 0 && std::filesystem::exists(header, ec);
-    }
-    base += package.content_size;
-    std::lock_guard lock(mutex_);
-    progress_.done = base;
-    if (ok) {
-      ++progress_.installed;
-    } else {
-      progress_.failed.push_back(package.display_name);
-    }
-  }
-  std::lock_guard lock(mutex_);
-  progress_.state = State::kDone;
+  LibraryDlc& package = library.packages[index];
+  package.on = on;
+  LibrarySettings settings = ReadLibrarySettings(exe_dir);
+  settings.on.erase(package.relative);
+  settings.off.erase(package.relative);
+  if (on && !package.fits) settings.on.insert(package.relative);
+  if (!on && package.fits) settings.off.insert(package.relative);
+  WriteLibrarySettings(exe_dir, settings);
+  WriteContentPackages(exe_dir, library);
 }
 
 }  // namespace launcher

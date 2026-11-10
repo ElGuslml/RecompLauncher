@@ -2,6 +2,22 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.16.0
+
+- The DLC page's folder is the player's DLC folder: their Xbox 360 packages (LIVE, PIRS, CON), as many games' as they
+  like, read by the game where they are (the SDK's `content_packages.txt`, its change 80), so nothing is copied and
+  every game's launcher can use the same folder. Choose it (or drop it on the window); the launcher reads each
+  package's header and file table (`ReadPackageInfo`: the names at its root, along the hash tables' chain), checks it
+  against `kDlcRule` by those names (`FitsByNames`: the rule's files, the package's own manifest, the disc's list),
+  and writes the game's list with the packages on: those the game reads, unless the player turned them off, and
+  those it does not read that the player turned on (`dlc_library.txt`: the folder and the choices, by the path in the
+  folder). Read again when the launcher opens, so new packages come in before Play.
+- The list shows the folder's packages and those extracted by earlier launchers, each with its switch; Remove only on
+  the extracted (the folder's are the player's files, never written or deleted). Installing by extraction is gone,
+  with its texts (`dlc_install_*`, `dlc_installing_short`, `dlc_installed_*`, `dlc_failed`, `dlc_listed_hint`,
+  `dlc_all_installed`, `dlc_new_tag`, `dlc_turned_off_*`); new: `dlc_library_*`, `dlc_list_title`,
+  `dlc_change_folder`, `dlc_in_folder`.
+
 ## 3.15.0
 
 - The DLC page turns packages on and off: a switch on each installed package. Off, the package's folder waits in

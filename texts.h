@@ -314,12 +314,11 @@ struct Texts {
   const char* nav_dlc;
   const char* dlc_title;
   const char* dlc_subtitle;
-  const char* dlc_install_title;
-  const char* dlc_install_text;
+  const char* dlc_library_title;
+  const char* dlc_library_text;
   const char* dlc_choose_folder;
   const char* dlc_open_folder;
-  const char* dlc_failed;      // %s: their names
-  const char* dlc_installed_title;
+  const char* dlc_list_title;
   const char* dlc_remove;
   const char* dlc_remove_confirm;
 
@@ -434,13 +433,7 @@ struct Texts {
   const char* dlc_drop_here;
   const char* dlc_drop_or;
   const char* dlc_searching_short;
-  const char* dlc_installing_short;  // %s: the package, %d of %d
-  const char* dlc_installed_one;
-  const char* dlc_installed_many;  // %d: packages
-  const char* dlc_listed_hint;
   const char* dlc_none_found_short;
-  const char* dlc_all_installed;
-  const char* dlc_new_tag;  // a badge, upper case when drawn
   const char* dlc_count_one;
   const char* dlc_count;  // %d: packages
   const char* dlc_empty_title;
@@ -450,8 +443,11 @@ struct Texts {
   const char* dlc_foreign_unused;
   const char* dlc_foreign_damaged;
   const char* dlc_foreign_all;
-  const char* dlc_turned_off_one;   // after an install
-  const char* dlc_turned_off_many;  // %d: packages
+  // Launcher 3.16: the DLC folder.
+  const char* dlc_library_found;  // %d packages, %d the game reads
+  const char* dlc_library_unavailable;
+  const char* dlc_change_folder;
+  const char* dlc_in_folder;  // after a package's size
   // Launcher 3.0: the Updates tab (page_updates.cpp).
   const char* updates_checking_title;
   const char* updates_checking_sub;

@@ -298,12 +298,15 @@ const Texts kEnglish = {
     .nav_dlc = "DLC",
     .dlc_title = "Downloadable content",
     .dlc_subtitle = "Xbox 360 content packages for the game: extra songs and more.",
-    .dlc_install_title = "Install DLC",
-    .dlc_install_text = "Choose the folder where your packages are (Xbox 360 files: LIVE, PIRS or CON). The launcher looks in it and its subfolders, and installs each package for the game; your files stay where they are. You can also drop the folder on this window.",
+    .dlc_library_title = "Your DLC folder",
+    .dlc_library_text =
+        "Choose the folder where you keep your Xbox 360 packages (LIVE, PIRS or CON files), as many games' as "
+        "you like: the launcher looks in it and its subfolders. The game reads them from there, so nothing is "
+        "copied, and the other games' launchers can use the same folder. Packages made for another game come "
+        "turned off. You can also drop the folder on this window.",
     .dlc_choose_folder = "Choose folder…",
     .dlc_open_folder = "Open the DLC folder",
-    .dlc_failed = "Not installed: %s. The game's log (logs folder) says why.",
-    .dlc_installed_title = "Installed",
+    .dlc_list_title = "Your DLC",
     .dlc_remove = "Remove",
     .dlc_remove_confirm = "Remove it?",
 
@@ -411,13 +414,7 @@ const Texts kEnglish = {
     .dlc_drop_here = "Drop the folder here",
     .dlc_drop_or = "or use the Choose folder… button",
     .dlc_searching_short = "Searching for packages…",
-    .dlc_installing_short = "Installing %s (%d of %d)",
-    .dlc_installed_one = "1 package installed",
-    .dlc_installed_many = "%d packages installed",
-    .dlc_listed_hint = "They now show in the installed list.",
     .dlc_none_found_short = "No packages found",
-    .dlc_all_installed = "They were already installed",
-    .dlc_new_tag = "New",
     .dlc_count_one = "1 package",
     .dlc_count = "%d packages",
     .dlc_empty_title = "No DLC installed yet",
@@ -427,8 +424,10 @@ const Texts kEnglish = {
     .dlc_foreign_damaged = "Not made for this game: while it is on, the game reports it damaged when it starts.",
     .dlc_foreign_all =
         "Not made for this game: while it is on, the game reports a damaged package and turns off all your DLC.",
-    .dlc_turned_off_one = "One is not made for this game: it was turned off.",
-    .dlc_turned_off_many = "%d are not made for this game: they were turned off.",
+    .dlc_library_found = "%d packages, %d for this game",
+    .dlc_library_unavailable = "The folder is not available: is its drive connected?",
+    .dlc_change_folder = "Change folder…",
+    .dlc_in_folder = "in your folder",
 
     .updates_checking_title = "Checking…",
     .updates_checking_sub = "Asking the release server.",
@@ -838,12 +837,16 @@ const Texts kGerman = {
     .nav_dlc = "DLC",
     .dlc_title = "Herunterladbare Inhalte",
     .dlc_subtitle = "Xbox-360-Inhaltspakete für das Spiel: zusätzliche Songs und mehr.",
-    .dlc_install_title = "DLC installieren",
-    .dlc_install_text = "Wähle den Ordner mit deinen Paketen (Xbox-360-Dateien: LIVE, PIRS oder CON). Der Launcher durchsucht ihn und seine Unterordner und installiert jedes Paket für das Spiel; deine Dateien bleiben, wo sie sind. Du kannst den Ordner auch auf dieses Fenster ziehen.",
+    .dlc_library_title = "Dein DLC-Ordner",
+    .dlc_library_text =
+        "Wähle den Ordner, in dem du deine Xbox-360-Pakete aufbewahrst (LIVE-, PIRS- oder CON-Dateien), von "
+        "so vielen Spielen, wie du willst: Der Launcher durchsucht ihn und seine Unterordner. Das Spiel liest "
+        "sie von dort, es wird also nichts kopiert, und die Launcher der anderen Spiele können denselben "
+        "Ordner verwenden. Pakete für ein anderes Spiel sind ausgeschaltet. Du kannst den Ordner auch auf "
+        "dieses Fenster ziehen.",
     .dlc_choose_folder = "Ordner wählen…",
     .dlc_open_folder = "DLC-Ordner öffnen",
-    .dlc_failed = "Nicht installiert: %s. Das Protokoll des Spiels (Ordner logs) nennt den Grund.",
-    .dlc_installed_title = "Installiert",
+    .dlc_list_title = "Deine DLC",
     .dlc_remove = "Entfernen",
     .dlc_remove_confirm = "Wirklich entfernen?",
 
@@ -951,13 +954,7 @@ const Texts kGerman = {
     .dlc_drop_here = "Ordner hier ablegen",
     .dlc_drop_or = "oder nutze die Schaltfläche Ordner wählen…",
     .dlc_searching_short = "Pakete werden gesucht…",
-    .dlc_installing_short = "%s wird installiert (%d von %d)",
-    .dlc_installed_one = "1 Paket installiert",
-    .dlc_installed_many = "%d Pakete installiert",
-    .dlc_listed_hint = "Sie stehen jetzt in der Liste der installierten.",
     .dlc_none_found_short = "Keine Pakete gefunden",
-    .dlc_all_installed = "Sie waren bereits installiert",
-    .dlc_new_tag = "Neu",
     .dlc_count_one = "1 Paket",
     .dlc_count = "%d Pakete",
     .dlc_empty_title = "Noch keine DLC installiert",
@@ -967,8 +964,10 @@ const Texts kGerman = {
     .dlc_foreign_damaged = "Nicht für dieses Spiel: Solange es an ist, meldet das Spiel es beim Start als beschädigt.",
     .dlc_foreign_all = "Nicht für dieses Spiel: Solange es an ist, meldet das Spiel ein beschädigtes Paket und schaltet "
                        "alle deine DLC aus.",
-    .dlc_turned_off_one = "Eines ist nicht für dieses Spiel: Es wurde ausgeschaltet.",
-    .dlc_turned_off_many = "%d sind nicht für dieses Spiel: Sie wurden ausgeschaltet.",
+    .dlc_library_found = "%d Pakete, %d für dieses Spiel",
+    .dlc_library_unavailable = "Der Ordner ist nicht verfügbar: Ist sein Laufwerk angeschlossen?",
+    .dlc_change_folder = "Ordner ändern…",
+    .dlc_in_folder = "in deinem Ordner",
 
     .updates_checking_title = "Wird gesucht…",
     .updates_checking_sub = "Der Versionsserver wird abgefragt.",
@@ -1378,12 +1377,15 @@ const Texts kFrench = {
     .nav_dlc = "DLC",
     .dlc_title = "Contenu téléchargeable",
     .dlc_subtitle = "Paquets de contenu Xbox 360 pour le jeu : chansons supplémentaires et plus.",
-    .dlc_install_title = "Installer un DLC",
-    .dlc_install_text = "Choisissez le dossier où se trouvent vos paquets (fichiers Xbox 360 : LIVE, PIRS ou CON). Le launcher le parcourt avec ses sous-dossiers et installe chaque paquet pour le jeu ; vos fichiers restent où ils sont. Vous pouvez aussi déposer le dossier sur cette fenêtre.",
+    .dlc_library_title = "Ton dossier de DLC",
+    .dlc_library_text =
+        "Choisis le dossier où tu ranges tes paquets Xbox 360 (fichiers LIVE, PIRS ou CON), de tous les jeux "
+        "que tu veux : le launcher le parcourt avec ses sous-dossiers. Le jeu les lit là, rien n'est copié, "
+        "et les launchers des autres jeux peuvent utiliser le même dossier. Les paquets conçus pour un autre "
+        "jeu sont désactivés. Tu peux aussi déposer le dossier sur cette fenêtre.",
     .dlc_choose_folder = "Choisir un dossier…",
     .dlc_open_folder = "Ouvrir le dossier des DLC",
-    .dlc_failed = "Non installés : %s. Le journal du jeu (dossier logs) en donne la raison.",
-    .dlc_installed_title = "Installés",
+    .dlc_list_title = "Tes DLC",
     .dlc_remove = "Retirer",
     .dlc_remove_confirm = "Le retirer ?",
 
@@ -1491,13 +1493,7 @@ const Texts kFrench = {
     .dlc_drop_here = "Dépose le dossier ici",
     .dlc_drop_or = "ou utilise le bouton Choisir un dossier…",
     .dlc_searching_short = "Recherche de paquets…",
-    .dlc_installing_short = "Installation de %s (%d sur %d)",
-    .dlc_installed_one = "1 paquet installé",
-    .dlc_installed_many = "%d paquets installés",
-    .dlc_listed_hint = "Ils figurent maintenant dans la liste des installés.",
     .dlc_none_found_short = "Aucun paquet trouvé",
-    .dlc_all_installed = "Ils étaient déjà installés",
-    .dlc_new_tag = "Nouveau",
     .dlc_count_one = "1 paquet",
     .dlc_count = "%d paquets",
     .dlc_empty_title = "Aucun DLC installé pour l'instant",
@@ -1508,8 +1504,10 @@ const Texts kFrench = {
         "Pas conçu pour ce jeu : tant qu'il est activé, le jeu le signale comme endommagé au démarrage.",
     .dlc_foreign_all = "Pas conçu pour ce jeu : tant qu'il est activé, le jeu signale un paquet endommagé et désactive "
                        "tous tes DLC.",
-    .dlc_turned_off_one = "Un paquet n'est pas conçu pour ce jeu : il a été désactivé.",
-    .dlc_turned_off_many = "%d paquets ne sont pas conçus pour ce jeu : ils ont été désactivés.",
+    .dlc_library_found = "%d paquets, dont %d pour ce jeu",
+    .dlc_library_unavailable = "Le dossier n'est pas disponible : son disque est-il branché ?",
+    .dlc_change_folder = "Changer de dossier…",
+    .dlc_in_folder = "dans ton dossier",
 
     .updates_checking_title = "Recherche…",
     .updates_checking_sub = "Interrogation du serveur des versions.",
@@ -1919,12 +1917,15 @@ const Texts kSpanish = {
     .nav_dlc = "DLC",
     .dlc_title = "Contenido descargable",
     .dlc_subtitle = "Paquetes de contenido de Xbox 360 para el juego: canciones extra y más.",
-    .dlc_install_title = "Instalar DLC",
-    .dlc_install_text = "Elige la carpeta donde tienes los paquetes (archivos de Xbox 360: LIVE, PIRS o CON). El launcher busca en ella y en sus subcarpetas, e instala cada paquete para el juego; tus archivos se quedan donde están. También puedes soltar la carpeta en esta ventana.",
+    .dlc_library_title = "Tu carpeta de DLC",
+    .dlc_library_text =
+        "Elige la carpeta donde guardas tus paquetes de Xbox 360 (archivos LIVE, PIRS o CON), de todos los "
+        "juegos que quieras: el launcher busca en ella y en sus subcarpetas. El juego los lee de ahí, así que "
+        "no se copia nada, y los launchers de los otros juegos pueden usar la misma carpeta. Los paquetes "
+        "hechos para otro juego vienen apagados. También puedes soltar la carpeta en esta ventana.",
     .dlc_choose_folder = "Elegir carpeta…",
     .dlc_open_folder = "Abrir la carpeta de DLC",
-    .dlc_failed = "No instalados: %s. El registro del juego (carpeta logs) dice por qué.",
-    .dlc_installed_title = "Instalados",
+    .dlc_list_title = "Tus DLC",
     .dlc_remove = "Quitar",
     .dlc_remove_confirm = "¿Quitarlo?",
 
@@ -2032,13 +2033,7 @@ const Texts kSpanish = {
     .dlc_drop_here = "Suelta la carpeta aquí",
     .dlc_drop_or = "o usa el botón Elegir carpeta…",
     .dlc_searching_short = "Buscando paquetes…",
-    .dlc_installing_short = "Instalando %s (%d de %d)",
-    .dlc_installed_one = "1 paquete instalado",
-    .dlc_installed_many = "%d paquetes instalados",
-    .dlc_listed_hint = "Ya aparecen en la lista de instalados.",
     .dlc_none_found_short = "No se encontraron paquetes",
-    .dlc_all_installed = "Ya estaban instalados",
-    .dlc_new_tag = "Nuevo",
     .dlc_count_one = "1 paquete",
     .dlc_count = "%d paquetes",
     .dlc_empty_title = "Aún no tienes DLC instalado",
@@ -2048,8 +2043,10 @@ const Texts kSpanish = {
     .dlc_foreign_damaged = "No es para este juego: mientras esté encendido, el juego lo da por dañado al iniciar.",
     .dlc_foreign_all = "No es para este juego: mientras esté encendido, el juego dice que un paquete está dañado y "
                        "apaga todo tu DLC.",
-    .dlc_turned_off_one = "Uno no es para este juego: se apagó.",
-    .dlc_turned_off_many = "%d no son para este juego: se apagaron.",
+    .dlc_library_found = "%d paquetes, %d para este juego",
+    .dlc_library_unavailable = "La carpeta no está disponible: ¿está conectado su disco?",
+    .dlc_change_folder = "Cambiar carpeta…",
+    .dlc_in_folder = "en tu carpeta",
 
     .updates_checking_title = "Buscando…",
     .updates_checking_sub = "Consultando el servidor de versiones.",
@@ -2459,12 +2456,15 @@ const Texts kItalian = {
     .nav_dlc = "DLC",
     .dlc_title = "Contenuti scaricabili",
     .dlc_subtitle = "Pacchetti di contenuti Xbox 360 per il gioco: brani extra e altro.",
-    .dlc_install_title = "Installa DLC",
-    .dlc_install_text = "Scegli la cartella dove hai i pacchetti (file Xbox 360: LIVE, PIRS o CON). Il launcher la esamina con le sue sottocartelle e installa ogni pacchetto per il gioco; i tuoi file restano dove sono. Puoi anche trascinare la cartella su questa finestra.",
+    .dlc_library_title = "La tua cartella dei DLC",
+    .dlc_library_text =
+        "Scegli la cartella dove tieni i tuoi pacchetti Xbox 360 (file LIVE, PIRS o CON), di tutti i giochi "
+        "che vuoi: il launcher la esamina con le sue sottocartelle. Il gioco li legge da lì, quindi non viene "
+        "copiato nulla, e i launcher degli altri giochi possono usare la stessa cartella. I pacchetti fatti "
+        "per un altro gioco sono disattivati. Puoi anche trascinare la cartella su questa finestra.",
     .dlc_choose_folder = "Scegli cartella…",
     .dlc_open_folder = "Apri la cartella dei DLC",
-    .dlc_failed = "Non installati: %s. Il registro del gioco (cartella logs) ne indica il motivo.",
-    .dlc_installed_title = "Installati",
+    .dlc_list_title = "I tuoi DLC",
     .dlc_remove = "Rimuovi",
     .dlc_remove_confirm = "Rimuoverlo?",
 
@@ -2572,13 +2572,7 @@ const Texts kItalian = {
     .dlc_drop_here = "Rilascia la cartella qui",
     .dlc_drop_or = "oppure usa il pulsante Scegli cartella…",
     .dlc_searching_short = "Ricerca dei pacchetti…",
-    .dlc_installing_short = "Installazione di %s (%d di %d)",
-    .dlc_installed_one = "1 pacchetto installato",
-    .dlc_installed_many = "%d pacchetti installati",
-    .dlc_listed_hint = "Ora compaiono nell'elenco degli installati.",
     .dlc_none_found_short = "Nessun pacchetto trovato",
-    .dlc_all_installed = "Erano già installati",
-    .dlc_new_tag = "Nuovo",
     .dlc_count_one = "1 pacchetto",
     .dlc_count = "%d pacchetti",
     .dlc_empty_title = "Nessun DLC ancora installato",
@@ -2588,8 +2582,10 @@ const Texts kItalian = {
     .dlc_foreign_damaged = "Non è per questo gioco: finché è attivo, il gioco lo segnala come danneggiato all'avvio.",
     .dlc_foreign_all = "Non è per questo gioco: finché è attivo, il gioco segnala un pacchetto danneggiato e disattiva "
                        "tutti i tuoi DLC.",
-    .dlc_turned_off_one = "Uno non è per questo gioco: è stato disattivato.",
-    .dlc_turned_off_many = "%d non sono per questo gioco: sono stati disattivati.",
+    .dlc_library_found = "%d pacchetti, %d per questo gioco",
+    .dlc_library_unavailable = "La cartella non è disponibile: il suo disco è collegato?",
+    .dlc_change_folder = "Cambia cartella…",
+    .dlc_in_folder = "nella tua cartella",
 
     .updates_checking_title = "Ricerca…",
     .updates_checking_sub = "Interrogazione del server delle versioni.",

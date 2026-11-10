@@ -367,26 +367,23 @@ class App {
   double rate_ = 0.0;  // bytes per second, smoothed
   SDL_Window* window_ = nullptr;
 
-  // The DLC page (page_dlc.cpp, dlc.h): the packages found in a folder the player chooses (the folder dialog, or a
-  // folder dropped on the window), installed by the game; the ones installed, read when the page opens.
+  // The DLC page (page_dlc.cpp, dlc.h): the player's DLC folder (the folder dialog, or a folder dropped on the window),
+  // its packages read by the game where they are, each on or off; and the packages extracted by launchers before 3.16.
+  // Both are read when the launcher opens (a package the game does not read is off before Play) and after a change.
   void BrowseDlc();
-  void ScanDlc(const std::string& path);  // UTF-8
+  void ChooseDlcLibrary(const std::string& path);  // UTF-8
+  void ReadDlcLibrary();
   void ListDlc();
   void PollDlc();
   std::shared_ptr<DialogResult> dlc_dialog_ = std::make_shared<DialogResult>();
-  std::string dlc_scanned_;  // the folder searched, UTF-8
-  std::future<std::vector<DlcPackage>> dlc_scan_;
-  std::optional<std::vector<DlcPackage>> dlc_found_;
+  std::future<DlcLibrary> dlc_scan_;
+  std::optional<DlcLibrary> dlc_library_;
+  bool dlc_rescan_ = false;  // a change while the folder was read: read it again
   std::future<std::vector<InstalledDlc>> dlc_listing_;
   std::optional<std::vector<InstalledDlc>> dlc_installed_;
-  DlcInstall dlc_install_;
   std::string dlc_confirm_;  // the installed folder whose Remove waits for a second press
-  bool dlc_listed_ = false;  // read once the page is first shown, and after each change
+  bool dlc_listed_ = false;  // read once, and after each change
   bool dlc_relist_ = false;  // a change while the list was read: read it again
-  bool dlc_refresh_after_install_ = false;
-  std::set<std::string> dlc_turned_off_;  // packages the game does not read, turned off this session (game::kDlcRule)
-  std::vector<std::string> dlc_installing_names_;  // the folders of the packages being installed
-  std::set<std::string> dlc_new_;                  // installed this session: marked "New" in the list
 
   // The profiles (page_profile.cpp, profile_store.h): the first profile's dialog when there is none, and this
   // installation's saves from before the profiles copied into the current one.
