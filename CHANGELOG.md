@@ -42,6 +42,14 @@ The launcher's versions (`launcher_version.h`). Each game shows its own version 
   another package, or in the list on the game's disc). Optional: without it nothing is checked and every package stays
   on, as before. Found from a player's Guitar Hero 5, where a package of another game made the game report a damaged
   package and turn off every DLC.
+## 3.14.3
+
+- AMD FSR 3.1 and NVIDIA DLSS per game: `kOffersTemporalUpscalers` in a game's `game.h`, false to leave them out of
+  Video > Upscaling (Off, FSR 1 and NIS) in a game that has them (`kHasDlaa`). They stay an option of the options file
+  (`native_x_renderer_antialiasing = "dlaa"`, `"fsr_native"`, `"dlss_quality"`...): the row shows the one chosen there
+  while it is in use, the launcher writes it back as it is, and it goes once the player chooses another; the
+  Antialiasing row's hint no longer points to them. Pirates of the Caribbean: At World's End is the first. Optional,
+  as `kArtTitleSize`: no other game changes.
 
 ## 3.14.2
 

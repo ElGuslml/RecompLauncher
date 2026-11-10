@@ -107,6 +107,11 @@ inline constexpr float kArtTitleSize = 96.0f;
 inline constexpr bool kHasLowLatencyAudio = true;
 // The DLC page's check of installed packages: none, every package stays on.
 inline constexpr DlcRule kDlcRule{};
+// The Video page's AMD FSR 3.1 and NVIDIA DLSS, in a game that has them (kHasDlaa). False: the Upscaling row offers Off,
+// FSR 1 and NIS only, and FSR 3.1 or DLSS stays an option of the options file (native_x_renderer_antialiasing =
+// fsr_native, dlaa, fsr_quality, dlss_quality...): the row shows it while it is the one in use, the launcher writes it
+// back as it is, and it goes once the player chooses another.
+inline constexpr bool kOffersTemporalUpscalers = true;
 }  // namespace defaults
 using namespace defaults;
 
