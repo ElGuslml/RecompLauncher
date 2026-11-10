@@ -13,7 +13,13 @@ The launcher's versions (`launcher_version.h`). Each game shows its own version 
   those it does not read that the player turned on (`dlc_library.txt`: the folder and the choices, by the path in the
   folder). Read again when the launcher opens, so new packages come in before Play.
 - The list shows the folder's packages and those extracted by earlier launchers, each with its switch; Remove only on
-  the extracted (the folder's are the player's files, never written or deleted). Installing by extraction is gone,
+  the extracted (the folder's are the player's files, never written or deleted).
+- An extracted copy of a package of the folder (`FindCopies`: a folder named as the package's file, as earlier
+  launchers named it, or one whose header has the package's name, the only one of that name on both sides, holding
+  95-100 % of its content size) shows as one row, the copy's, with a note; the package stays out of the game's list
+  while the copy is there (no song twice). "Remove copies" above the list (with their count and size) asks "Are you
+  sure you want to delete these files?", saying which copies and where, and that the originals are not touched; then
+  deletes the copies (`RemoveDlcCopies`) and the folder's packages take their place. Installing by extraction is gone,
   with its texts (`dlc_install_*`, `dlc_installing_short`, `dlc_installed_*`, `dlc_failed`, `dlc_listed_hint`,
   `dlc_all_installed`, `dlc_new_tag`, `dlc_turned_off_*`); new: `dlc_library_*`, `dlc_list_title`,
   `dlc_change_folder`, `dlc_in_folder`.

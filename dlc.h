@@ -31,6 +31,10 @@ struct LibraryDlc {
   uint64_t bytes = 0;
   bool fits = true;  // the game reads it (game::kDlcRule)
   bool on = false;   // in the game's list: by default when it fits, else by the player's choice
+  // An extracted copy of it installed by an earlier launcher (its folder's name, UTF-8; empty: none) and its size. The
+  // game reads the copy, so the package stays out of the game's list while the copy is there (no song twice).
+  std::string copy_folder;
+  uint64_t copy_bytes = 0;
 };
 
 // The player's DLC folder and its packages.
@@ -38,7 +42,9 @@ struct DlcLibrary {
   std::filesystem::path folder;  // empty: none chosen
   bool available = false;        // the folder is there (its drive connected)
   std::vector<LibraryDlc> packages;
-  size_t Fitting() const;  // the packages the game reads
+  size_t Fitting() const;      // the packages the game reads
+  size_t Copies() const;       // the packages with an extracted copy installed
+  uint64_t CopyBytes() const;  // the copies' size
 };
 
 // A package's picture of its game: its header's title thumbnail, else its thumbnail; a PNG as the package has it,
@@ -74,5 +80,12 @@ void SetDlcLibraryFolder(const std::filesystem::path& exe_dir, const std::filesy
 DlcLibrary ScanDlcLibrary(const std::filesystem::path& exe_dir);
 // Turns a package of the folder on or off for the game: the choice kept, the game's list written again.
 void SetLibraryDlcOn(const std::filesystem::path& exe_dir, DlcLibrary& library, size_t index, bool on);
+// Deletes the extracted copies of the folder's packages (their folders and headers; the player confirmed it): the
+// packages, read from the folder, take their place once the folder is read again. Run it off the UI thread.
+struct FreedDlc {
+  size_t copies = 0;
+  uint64_t bytes = 0;
+};
+FreedDlc RemoveDlcCopies(const std::filesystem::path& exe_dir, const DlcLibrary& library);
 
 }  // namespace launcher

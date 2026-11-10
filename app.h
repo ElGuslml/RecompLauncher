@@ -375,10 +375,16 @@ class App {
   void ReadDlcLibrary();
   void ListDlc();
   void PollDlc();
+  // "Remove copies": the extracted copies of the folder's packages, deleted once the player confirms (its dialog).
+  void DlcFreeDialog();
   std::shared_ptr<DialogResult> dlc_dialog_ = std::make_shared<DialogResult>();
   std::future<DlcLibrary> dlc_scan_;
   std::optional<DlcLibrary> dlc_library_;
   bool dlc_rescan_ = false;  // a change while the folder was read: read it again
+  std::future<FreedDlc> dlc_freeing_;
+  bool dlc_free_confirm_ = false;  // the dialog shown
+  bool dlc_free_opened_ = false;
+  std::string dlc_freed_text_;  // what the last removal freed, shown above the list
   std::future<std::vector<InstalledDlc>> dlc_listing_;
   std::optional<std::vector<InstalledDlc>> dlc_installed_;
   std::string dlc_confirm_;  // the installed folder whose Remove waits for a second press

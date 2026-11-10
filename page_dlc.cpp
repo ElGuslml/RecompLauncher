@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cwchar>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -60,6 +61,7 @@ struct DlcRow {
   uint64_t bytes = 0;
   bool on = false;
   bool fits = true;
+  bool copy = false;  // an extracted copy of a package of the DLC folder
 };
 
 }  // namespace
@@ -138,6 +140,16 @@ void App::PollDlc() {
       dlc_relist_ = false;
       ListDlc();
     }
+  }
+  // The copies deleted: what was freed, and both lists read again (the folder's packages take the copies' place).
+  if (dlc_freeing_.valid() && dlc_freeing_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+    FreedDlc freed = dlc_freeing_.get();
+    char text[256];
+    std::snprintf(text, sizeof(text), t_.dlc_freed, int(freed.copies), SizeText(freed.bytes, t_.decimal_separator).c_str());
+    dlc_freed_text_ = text;
+    Log("DLC: %d extracted copies deleted, %llu bytes", int(freed.copies), (unsigned long long)freed.bytes);
+    ListDlc();
+    ReadDlcLibrary();
   }
 }
 
@@ -288,17 +300,23 @@ void App::DlcPage(const ImRect& rect) {
     float x = list_card.Min.x + Px(24.0f);
     float width = list_card.GetWidth() - Px(48.0f);
     float y = list_card.Min.y + Px(24.0f);
+    // A package of the folder with an extracted copy installed shows as its copy: the copy is what the game reads.
+    std::set<std::string> copies;
     std::vector<DlcRow> rows;
     if (dlc_library_) {
       for (size_t i = 0; i < dlc_library_->packages.size(); ++i) {
         const LibraryDlc& p = dlc_library_->packages[i];
+        if (!p.copy_folder.empty()) {
+          copies.insert(p.copy_folder);
+          continue;
+        }
         rows.push_back({true, i, &p.display_name, p.bytes, p.on, p.fits});
       }
     }
     if (dlc_installed_) {
       for (size_t i = 0; i < dlc_installed_->size(); ++i) {
         const InstalledDlc& d = (*dlc_installed_)[i];
-        rows.push_back({false, i, &d.display_name, d.bytes, d.on, d.fits});
+        rows.push_back({false, i, &d.display_name, d.bytes, d.on, d.fits, copies.count(d.folder) != 0});
       }
     }
     std::stable_sort(rows.begin(), rows.end(), [](const DlcRow& a, const DlcRow& b) { return *a.name < *b.name; });
@@ -318,6 +336,56 @@ void App::DlcPage(const ImRect& rect) {
       DrawParagraph(kWhere, ImVec2(note.Min.x + Px(14.0f) + Px(28.0f), note.Min.y + Px(12.0f)), width - Px(28.0f) - Px(28.0f),
                     1.45f, col::kTextSoft, where);
       y = note.Max.y + Px(14.0f);
+    }
+    // The extracted copies of the folder's packages: how many and their size, and Remove copies (its dialog); or, once
+    // deleted, what was freed.
+    {
+      constexpr Type kBanner{Font::kRegular, 14};
+      size_t count = dlc_library_ ? dlc_library_->Copies() : 0;
+      std::string text;
+      bool freeing = dlc_freeing_.valid();
+      if (freeing) {
+        text = t_.dlc_freeing;
+      } else if (count > 0 && !scanning) {
+        char line[256];
+        std::string size_text = SizeText(dlc_library_->CopyBytes(), t_.decimal_separator);
+        if (count == 1) {
+          std::snprintf(line, sizeof(line), t_.dlc_copies_one, size_text.c_str());
+        } else {
+          std::snprintf(line, sizeof(line), t_.dlc_copies_many, int(count), size_text.c_str());
+        }
+        text = line;
+      } else if (!dlc_freed_text_.empty()) {
+        text = dlc_freed_text_;
+      }
+      if (!text.empty()) {
+        KeyButtonSpec spec;
+        spec.look = KeyLook::kDanger;
+        spec.height = 40;
+        spec.padding = 16;
+        spec.type = Type{Font::kSemiBold, 14};
+        bool with_button = count > 0 && !scanning && !freeing;
+        float button_width = with_button ? KeyButtonWidth(spec, t_.dlc_remove_copies) : 0.0f;
+        float text_width = width - Px(28.0f) - Px(28.0f) - (with_button ? button_width + Px(14.0f) : 0.0f);
+        float text_height = DrawParagraph(kBanner, ImVec2(0, 0), text_width, 1.45f, 0, text, false);
+        float box_height = std::max(text_height, with_button ? Px(40.0f) : 0.0f) + Px(24.0f);
+        ImRect box(ImVec2(x, y), ImVec2(x + width, y + box_height));
+        bool done = count == 0 && !freeing;
+        ImU32 tone = done ? col::kSuccess : col::kGlyphX;
+        FillRect(box, Fade(tone, 0.1f), 10.0f);
+        DrawIcon(done ? Icon::kCheck : Icon::kInfo, ImVec2(box.Min.x + Px(14.0f), box.GetCenter().y - Px(9.0f)), 18.0f, tone,
+                 2.0f);
+        DrawParagraph(kBanner, ImVec2(box.Min.x + Px(14.0f) + Px(28.0f), box.GetCenter().y - text_height * 0.5f),
+                      text_width, 1.45f, col::kTextSoft, text);
+        if (with_button &&
+            KeyButton("##dlc_remove_copies",
+                      ImVec2(box.Max.x - Px(12.0f) - button_width, box.GetCenter().y - Px(20.0f)), spec,
+                      t_.dlc_remove_copies)
+                .pressed) {
+          dlc_free_confirm_ = true;
+        }
+        y = box.Max.y + Px(14.0f);
+      }
     }
     ImRect area(ImVec2(x, y), ImVec2(x + width, list_card.Max.y - Px(24.0f)));
     if (rows.empty()) {
@@ -356,11 +424,15 @@ void App::DlcPage(const ImRect& rect) {
             case game::DlcForeign::kDisablesAll: note = t_.dlc_foreign_all; break;
           }
         }
+        // An extracted copy of a package of the DLC folder: says so (Remove copies above deletes it).
+        const char* copy_note = dlc.copy ? t_.dlc_copy_note : nullptr;
         float top_height = Px(12.0f) * 2.0f + Px(44.0f);
         float text_left = Px(14.0f) + Px(44.0f) + Px(14.0f);
         float note_width = row_width - text_left - Px(14.0f);
         float note_height = note ? DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, note, false) + Px(12.0f) : 0.0f;
-        float height = top_height + note_height;
+        float copy_height =
+            copy_note ? DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, copy_note, false) + Px(12.0f) : 0.0f;
+        float height = top_height + note_height + copy_height;
         ImRect row(ImVec2(origin.x, row_y), ImVec2(origin.x + row_width, row_y + height));
         float center_y = row.Min.y + top_height * 0.5f;
         FillRect(row, Hex(0xFFFFFF, 10), 10.0f);
@@ -421,6 +493,10 @@ void App::DlcPage(const ImRect& rect) {
           DrawParagraph(kNote, ImVec2(row.Min.x + text_left, row.Min.y + top_height - Px(4.0f)), note_width, 1.4f,
                         col::kError, note);
         }
+        if (copy_note) {
+          DrawParagraph(kNote, ImVec2(row.Min.x + text_left, row.Min.y + top_height + note_height - Px(4.0f)), note_width,
+                        1.4f, col::kTextSoft, copy_note);
+        }
         row_y += height + Px(8.0f);
       }
       ImGui::SetCursorScreenPos(origin);
@@ -443,9 +519,95 @@ void App::DlcPage(const ImRect& rect) {
         RemoveDlc(exe_dir_, removed);
         dlc_confirm_.clear();
         ListDlc();
+        ReadDlcLibrary();  // a copy removed: its package of the folder takes its place
       }
     }
   }
+  if (dlc_free_confirm_) {
+    DlcFreeDialog();
+  }
+}
+
+void App::DlcFreeDialog() {
+  constexpr const char* kPopup = "##dlc_free";
+  if (!dlc_free_opened_) {
+    ImGui::OpenPopup(kPopup);
+  }
+  ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImVec2 origin = viewport->Pos;
+  ImVec2 size = viewport->Size;
+  ImGui::SetNextWindowPos(origin);
+  ImGui::SetNextWindowSize(size);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleColor(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 0));
+  if (ImGui::BeginPopupModal(kPopup, nullptr,
+                             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+                                 ImGuiWindowFlags_NoBackground)) {
+    ImGui::GetWindowDrawList()->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y),
+                                              Fade(col::kBackground, 0.82f));
+    // The card: the question, what is deleted and where, what stays; Cancel (focused first, or B) and Delete.
+    constexpr Type kTitle{Font::kDisplayBold, 28};
+    constexpr Type kText{Font::kRegular, 15};
+    constexpr float kWidth = 600.0f;
+    constexpr float kPadding = 28.0f;
+    const float inner_width = Px(kWidth - kPadding * 2.0f);
+    size_t count = dlc_library_ ? dlc_library_->Copies() : 0;
+    std::string size_text = SizeText(dlc_library_ ? dlc_library_->CopyBytes() : 0, t_.decimal_separator);
+    std::string where = Utf8(DlcFolder(exe_dir_).parent_path().wstring());
+    char text[1024];
+    std::snprintf(text, sizeof(text), t_.dlc_free_text, int(count), size_text.c_str(), where.c_str());
+    std::string title = Title(t_.dlc_free_title);
+    const float title_height = DrawParagraph(kTitle, ImVec2(0, 0), inner_width, 1.15f, 0, title, false);
+    const float text_height = DrawParagraph(kText, ImVec2(0, 0), inner_width, 1.5f, 0, text, false);
+    KeyButtonSpec cancel_spec;
+    cancel_spec.look = KeyLook::kGhost;
+    cancel_spec.key = 'B';
+    cancel_spec.height = 50;
+    KeyButtonSpec delete_spec;
+    delete_spec.look = KeyLook::kDanger;
+    delete_spec.height = 50;
+    float height = Px(kPadding) + title_height + Px(12.0f) + text_height + Px(28.0f) + Px(50.0f) + Px(kPadding);
+    float width = Px(kWidth);
+    ImRect card(Snap(ImVec2(origin.x + (size.x - width) * 0.5f, origin.y + (size.y - height) * 0.5f)),
+                Snap(ImVec2(origin.x + (size.x + width) * 0.5f, origin.y + (size.y + height) * 0.5f)));
+    FillRect(card, col::kCard, 16.0f);
+    StrokeRect(card, col::kOutline, 16.0f);
+    float x = card.Min.x + Px(kPadding);
+    float y = card.Min.y + Px(kPadding);
+    DrawParagraph(kTitle, ImVec2(x, y), inner_width, 1.15f, col::kText, title);
+    y += title_height + Px(12.0f);
+    DrawParagraph(kText, ImVec2(x, y), inner_width, 1.5f, col::kTextMuted, text);
+    y += text_height + Px(28.0f);
+    float right = card.Max.x - Px(kPadding);
+    float delete_width = KeyButtonWidth(delete_spec, t_.dlc_free_delete);
+    float cancel_width = KeyButtonWidth(cancel_spec, t_.cancel);
+    if (!dlc_free_opened_) {
+      ImGui::SetKeyboardFocusHere();
+    }
+    bool cancel = KeyButton("##dlc_free_cancel", ImVec2(right - delete_width - Px(12.0f) - cancel_width, y), cancel_spec,
+                            t_.cancel)
+                      .pressed;
+    bool confirm = KeyButton("##dlc_free_delete", ImVec2(right - delete_width, y), delete_spec, t_.dlc_free_delete).pressed;
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
+      cancel = true;
+    }
+    dlc_free_opened_ = true;
+    if (confirm && dlc_library_ && !dlc_freeing_.valid()) {
+      Log("DLC: deleting %d extracted copies (%s), confirmed", int(count), size_text.c_str());
+      dlc_freed_text_.clear();
+      dlc_freeing_ = std::async(std::launch::async, RemoveDlcCopies, exe_dir_, *dlc_library_);
+    }
+    if (confirm || cancel) {
+      dlc_free_confirm_ = false;
+      dlc_free_opened_ = false;
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
+  ImGui::PopStyleColor();
+  ImGui::PopStyleVar(3);
 }
 
 }  // namespace launcher

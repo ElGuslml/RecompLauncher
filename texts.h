@@ -448,6 +448,16 @@ struct Texts {
   const char* dlc_library_unavailable;
   const char* dlc_change_folder;
   const char* dlc_in_folder;  // after a package's size
+  // An extracted copy of a package of the DLC folder (launchers before 3.16) and removing them.
+  const char* dlc_copy_note;
+  const char* dlc_copies_one;   // %s: their size
+  const char* dlc_copies_many;  // %d copies, %s: their size
+  const char* dlc_remove_copies;
+  const char* dlc_free_title;
+  const char* dlc_free_text;  // %d packages, %s: their size, %s: the folder
+  const char* dlc_free_delete;
+  const char* dlc_freeing;
+  const char* dlc_freed;  // %d copies, %s: freed
   // Launcher 3.0: the Updates tab (page_updates.cpp).
   const char* updates_checking_title;
   const char* updates_checking_sub;

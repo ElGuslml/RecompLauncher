@@ -428,6 +428,18 @@ const Texts kEnglish = {
     .dlc_library_unavailable = "The folder is not available: is its drive connected?",
     .dlc_change_folder = "Change folder…",
     .dlc_in_folder = "in your folder",
+    .dlc_copy_note = "Also in your DLC folder: without this installed copy, the game reads it from there.",
+    .dlc_copies_one = "1 installed copy is also in your DLC folder (%s).",
+    .dlc_copies_many = "%d installed copies are also in your DLC folder (%s).",
+    .dlc_remove_copies = "Remove copies",
+    .dlc_free_title = "Are you sure you want to delete these files?",
+    .dlc_free_text =
+        "The installed copies of %d packages (%s) will be deleted from the game's folder, %s. Your original "
+        "packages in your DLC folder are not touched, and the game will read them from there. This cannot be "
+        "undone.",
+    .dlc_free_delete = "Delete",
+    .dlc_freeing = "Deleting the copies…",
+    .dlc_freed = "%d copies deleted: %s freed.",
 
     .updates_checking_title = "Checking…",
     .updates_checking_sub = "Asking the release server.",
@@ -968,6 +980,18 @@ const Texts kGerman = {
     .dlc_library_unavailable = "Der Ordner ist nicht verfügbar: Ist sein Laufwerk angeschlossen?",
     .dlc_change_folder = "Ordner ändern…",
     .dlc_in_folder = "in deinem Ordner",
+    .dlc_copy_note = "Auch in deinem DLC-Ordner: Ohne diese installierte Kopie liest das Spiel es von dort.",
+    .dlc_copies_one = "1 installierte Kopie ist auch in deinem DLC-Ordner (%s).",
+    .dlc_copies_many = "%d installierte Kopien sind auch in deinem DLC-Ordner (%s).",
+    .dlc_remove_copies = "Kopien entfernen",
+    .dlc_free_title = "Möchtest du diese Dateien wirklich löschen?",
+    .dlc_free_text =
+        "Die installierten Kopien von %d Paketen (%s) werden aus dem Ordner des Spiels gelöscht, %s. Deine "
+        "Originalpakete im DLC-Ordner bleiben unangetastet, und das Spiel liest sie von dort. Das lässt sich "
+        "nicht rückgängig machen.",
+    .dlc_free_delete = "Löschen",
+    .dlc_freeing = "Kopien werden gelöscht…",
+    .dlc_freed = "%d Kopien gelöscht: %s frei.",
 
     .updates_checking_title = "Wird gesucht…",
     .updates_checking_sub = "Der Versionsserver wird abgefragt.",
@@ -1508,6 +1532,18 @@ const Texts kFrench = {
     .dlc_library_unavailable = "Le dossier n'est pas disponible : son disque est-il branché ?",
     .dlc_change_folder = "Changer de dossier…",
     .dlc_in_folder = "dans ton dossier",
+    .dlc_copy_note = "Aussi dans ton dossier de DLC : sans cette copie installée, le jeu le lit depuis là.",
+    .dlc_copies_one = "1 copie installée est aussi dans ton dossier de DLC (%s).",
+    .dlc_copies_many = "%d copies installées sont aussi dans ton dossier de DLC (%s).",
+    .dlc_remove_copies = "Retirer les copies",
+    .dlc_free_title = "Veux-tu vraiment supprimer ces fichiers ?",
+    .dlc_free_text =
+        "Les copies installées de %d paquets (%s) seront supprimées du dossier du jeu, %s. Tes paquets "
+        "d'origine dans ton dossier de DLC ne sont pas touchés, et le jeu les lira depuis là. Cette action "
+        "est irréversible.",
+    .dlc_free_delete = "Supprimer",
+    .dlc_freeing = "Suppression des copies…",
+    .dlc_freed = "%d copies supprimées : %s libérés.",
 
     .updates_checking_title = "Recherche…",
     .updates_checking_sub = "Interrogation du serveur des versions.",
@@ -2047,6 +2083,18 @@ const Texts kSpanish = {
     .dlc_library_unavailable = "La carpeta no está disponible: ¿está conectado su disco?",
     .dlc_change_folder = "Cambiar carpeta…",
     .dlc_in_folder = "en tu carpeta",
+    .dlc_copy_note = "También está en tu carpeta de DLC: sin esta copia instalada, el juego lo lee desde ahí.",
+    .dlc_copies_one = "1 copia instalada también está en tu carpeta de DLC (%s).",
+    .dlc_copies_many = "%d copias instaladas también están en tu carpeta de DLC (%s).",
+    .dlc_remove_copies = "Quitar copias",
+    .dlc_free_title = "¿Seguro que quieres eliminar estos archivos?",
+    .dlc_free_text =
+        "Se eliminarán las copias instaladas de %d paquetes (%s) de la carpeta del juego, %s. Tus paquetes "
+        "originales de tu carpeta de DLC no se tocan, y el juego los leerá desde ahí. Esto no se puede "
+        "deshacer.",
+    .dlc_free_delete = "Eliminar",
+    .dlc_freeing = "Eliminando las copias…",
+    .dlc_freed = "Se eliminaron %d copias: %s liberados.",
 
     .updates_checking_title = "Buscando…",
     .updates_checking_sub = "Consultando el servidor de versiones.",
@@ -2586,6 +2634,18 @@ const Texts kItalian = {
     .dlc_library_unavailable = "La cartella non è disponibile: il suo disco è collegato?",
     .dlc_change_folder = "Cambia cartella…",
     .dlc_in_folder = "nella tua cartella",
+    .dlc_copy_note = "È anche nella tua cartella dei DLC: senza questa copia installata, il gioco lo legge da lì.",
+    .dlc_copies_one = "1 copia installata è anche nella tua cartella dei DLC (%s).",
+    .dlc_copies_many = "%d copie installate sono anche nella tua cartella dei DLC (%s).",
+    .dlc_remove_copies = "Rimuovi le copie",
+    .dlc_free_title = "Vuoi davvero eliminare questi file?",
+    .dlc_free_text =
+        "Le copie installate di %d pacchetti (%s) verranno eliminate dalla cartella del gioco, %s. I tuoi "
+        "pacchetti originali nella cartella dei DLC non vengono toccati, e il gioco li leggerà da lì. "
+        "L'operazione non si può annullare.",
+    .dlc_free_delete = "Elimina",
+    .dlc_freeing = "Eliminazione delle copie…",
+    .dlc_freed = "%d copie eliminate: %s liberati.",
 
     .updates_checking_title = "Ricerca…",
     .updates_checking_sub = "Interrogazione del server delle versioni.",

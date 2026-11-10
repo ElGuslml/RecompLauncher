@@ -26,6 +26,7 @@ namespace {
 // An STFS header's fields (Free60's layout; the SDK's StfsHeader): big-endian unless noted.
 constexpr size_t kHeaderSizeOffset = 0x340;
 constexpr size_t kContentTypeOffset = 0x344;
+constexpr size_t kContentSizeOffset = 0x34C;
 constexpr size_t kVolumeDescriptorOffset = 0x379;  // flags at +2; table block count (LE 16) +3, first block (LE 24) +5
 constexpr size_t kVolumeTypeOffset = 0x3A9;        // 0: STFS, 1: SVOD
 constexpr size_t kDisplayNameOffset = 0x411;  // 18 languages of 0x80 bytes, UTF-16, English first
@@ -76,6 +77,7 @@ bool IsPackage(const uint8_t* magic) {
 // What the DLC folder's scan reads of a package file.
 struct PackageInfo {
   uint32_t content_type = 0;
+  uint64_t content_size = 0;    // the header's: its files' blocks (an extracted copy holds up to 1 % less)
   std::string display_name;     // UTF-8: the first language's name the header has, else the file's name
   std::wstring game_name;       // the name the game gets: the header's English one as is (the SDK's), else the file's
   std::vector<std::wstring> root_files;  // the files at its root, in lower case
@@ -121,6 +123,7 @@ bool ReadPackageInfo(const std::filesystem::path& path, PackageInfo& out) {
     return false;
   }
   out.content_type = ReadU32(&header[kContentTypeOffset]);
+  out.content_size = uint64_t(ReadU32(&header[kContentSizeOffset])) << 32 | ReadU32(&header[kContentSizeOffset + 4]);
   for (size_t i = 0; i < kLanguages && out.display_name.empty(); ++i) {
     out.display_name = Utf16BeToUtf8(&header[kDisplayNameOffset + i * kNameBytes], kNameBytes);
   }
@@ -455,7 +458,83 @@ void WriteContentPackages(const std::filesystem::path& exe_dir, const DlcLibrary
   file << "# Written by the launcher's DLC page: the packages of " << Utf8(library.folder.wstring())
        << " turned on for this game, read where they are.\r\n";
   for (const LibraryDlc& package : library.packages) {
-    if (package.on) file << Utf8(package.path.wstring()) << "\r\n";
+    // A package with an extracted copy installed: the game reads the copy (and the copy's switch decides).
+    if (package.on && package.copy_folder.empty()) file << Utf8(package.path.wstring()) << "\r\n";
+  }
+}
+
+std::string Lower(std::string text) {
+  std::transform(text.begin(), text.end(), text.begin(), [](char c) { return char(std::tolower(uint8_t(c))); });
+  return text;
+}
+
+// The extracted copies of the folder's packages (installed by launchers before 3.16): a folder named as the package's
+// file (as those launchers named it), else one whose header has the package's name, the only one of that name on both
+// sides, holding 95-100 % of the package's content size (two packs of one name told apart).
+void FindCopies(const std::filesystem::path& exe_dir, std::vector<LibraryDlc>& packages,
+                const std::vector<uint64_t>& content_sizes) {
+  struct Extracted {
+    std::filesystem::path path;
+    std::string folder;  // UTF-8
+    std::string name;    // its header's, lower case
+    bool taken = false;
+  };
+  std::vector<Extracted> extracted;
+  for (const std::filesystem::path& parent : {DlcFolder(exe_dir), DisabledDlcFolder(exe_dir)}) {
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(parent, ec)) {
+      std::error_code dir_ec;
+      if (!entry.is_directory(dir_ec)) continue;
+      Extracted e;
+      e.path = entry.path();
+      e.folder = Utf8(entry.path().filename().wstring());
+      std::array<uint8_t, 8 + 256> header{};
+      std::ifstream file(HeaderPath(exe_dir, entry.path().filename().wstring()), std::ios::binary);
+      if (file.read(reinterpret_cast<char*>(header.data()), header.size())) {
+        e.name = Lower(Utf16BeToUtf8(&header[8], 256));
+      }
+      extracted.push_back(std::move(e));
+    }
+  }
+  if (extracted.empty()) {
+    return;
+  }
+  // By the file's name first.
+  for (LibraryDlc& package : packages) {
+    std::string file = Lower(Utf8(package.path.filename().wstring()));
+    for (Extracted& e : extracted) {
+      if (!e.taken && Lower(e.folder) == file) {
+        e.taken = true;
+        package.copy_folder = e.folder;
+        package.copy_bytes = FolderBytes(e.path);
+        break;
+      }
+    }
+  }
+  // Then by the name and the size, where the name is the only one of its kind on both sides.
+  auto count_packages = [&packages](const std::string& name) {
+    return std::count_if(packages.begin(), packages.end(),
+                         [&name](const LibraryDlc& p) { return Lower(p.display_name) == name; });
+  };
+  for (size_t i = 0; i < packages.size(); ++i) {
+    LibraryDlc& package = packages[i];
+    std::string name = Lower(package.display_name);
+    if (!package.copy_folder.empty() || name.empty() || count_packages(name) != 1) continue;
+    Extracted* match = nullptr;
+    int same_name = 0;
+    for (Extracted& e : extracted) {
+      if (e.name == name) {
+        ++same_name;
+        match = &e;
+      }
+    }
+    if (same_name != 1 || match->taken) continue;
+    uint64_t bytes = FolderBytes(match->path);
+    if (bytes <= content_sizes[i] && bytes >= content_sizes[i] / 100 * 95) {
+      match->taken = true;
+      package.copy_folder = match->folder;
+      package.copy_bytes = bytes;
+    }
   }
 }
 
@@ -463,6 +542,16 @@ void WriteContentPackages(const std::filesystem::path& exe_dir, const DlcLibrary
 
 size_t DlcLibrary::Fitting() const {
   return size_t(std::count_if(packages.begin(), packages.end(), [](const LibraryDlc& p) { return p.fits; }));
+}
+
+size_t DlcLibrary::Copies() const {
+  return size_t(std::count_if(packages.begin(), packages.end(), [](const LibraryDlc& p) { return !p.copy_folder.empty(); }));
+}
+
+uint64_t DlcLibrary::CopyBytes() const {
+  uint64_t bytes = 0;
+  for (const LibraryDlc& p : packages) bytes += p.copy_bytes;
+  return bytes;
 }
 
 std::vector<uint8_t> PackageTitleThumbnail(const std::filesystem::path& path) {
@@ -641,6 +730,7 @@ DlcLibrary ScanDlcLibrary(const std::filesystem::path& exe_dir) {
     return library;  // its drive not connected: the game's list stays (the game passes missing files by)
   }
   int entries = 0;
+  std::vector<uint64_t> content_sizes;
   for (auto it = std::filesystem::recursive_directory_iterator(
            library.folder, std::filesystem::directory_options::skip_permission_denied, ec);
        !ec && it != std::filesystem::recursive_directory_iterator() && entries < kMaxEntries; it.increment(ec)) {
@@ -661,7 +751,9 @@ DlcLibrary ScanDlcLibrary(const std::filesystem::path& exe_dir) {
     package.fits = FitsByNames(info.root_files, info.game_name);
     package.on = package.fits ? !settings.off.count(package.relative) : settings.on.count(package.relative) != 0;
     library.packages.push_back(std::move(package));
+    content_sizes.push_back(info.content_size);
   }
+  FindCopies(exe_dir, library.packages, content_sizes);
   std::sort(library.packages.begin(), library.packages.end(),
             [](const LibraryDlc& a, const LibraryDlc& b) { return a.display_name < b.display_name; });
   WriteContentPackages(exe_dir, library);
@@ -681,6 +773,17 @@ void SetLibraryDlcOn(const std::filesystem::path& exe_dir, DlcLibrary& library, 
   if (!on && package.fits) settings.off.insert(package.relative);
   WriteLibrarySettings(exe_dir, settings);
   WriteContentPackages(exe_dir, library);
+}
+
+FreedDlc RemoveDlcCopies(const std::filesystem::path& exe_dir, const DlcLibrary& library) {
+  FreedDlc freed;
+  for (const LibraryDlc& package : library.packages) {
+    if (!package.copy_folder.empty() && RemoveDlc(exe_dir, package.copy_folder)) {
+      ++freed.copies;
+      freed.bytes += package.copy_bytes;
+    }
+  }
+  return freed;
 }
 
 }  // namespace launcher
