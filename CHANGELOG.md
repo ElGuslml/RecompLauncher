@@ -2,6 +2,19 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.15.0
+
+- The DLC page turns packages on and off: a switch on each installed package. Off, the package's folder waits in
+  `<title ID>\Disabled DLC`, beside the content folder, where the game does not look; on, it goes back.
+- A package the game does not read is turned off when it is installed (or listed, for one installed before), with a note
+  on what the game would do with it on; the player can turn it on, and it stays on ("turned on by the player.txt" in
+  that folder). Which packages a game reads is `kDlcRule` in its `game.h` (`game_types.h`'s `DlcRule`): files a package
+  must hold (GH Metallica: Death Magnetic's `adl1.pak.xen`) and Neversoft's manifests (Guitar Hero 5, GH Warriors of
+  Rock: a package known by the QBKey of its display name, named in a `bmanifest_` / `cmanifest_` file of its own or of
+  another package, or in the list on the game's disc). Optional: without it nothing is checked and every package stays
+  on, as before. Found from a player's Guitar Hero 5, where a package of another game made the game report a damaged
+  package and turn off every DLC.
+
 ## 3.14.2
 
 - The Game page's "Low latency audio" row per game: `kHasLowLatencyAudio` in a game's `game.h`, false to hide it where

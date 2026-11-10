@@ -11,7 +11,10 @@
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
+#include <cwctype>
 #include <fstream>
+#include <iterator>
+#include <set>
 #include <utility>
 
 #include "game.h"
@@ -117,6 +120,187 @@ std::filesystem::path HeaderPath(const std::filesystem::path& exe_dir, const std
   return DlcFolder(exe_dir).parent_path() / L"Headers" / L"00000002" / (folder + L".header");
 }
 
+std::wstring WideFromUtf8(const std::string& utf8) {
+  int length = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
+  std::wstring wide(size_t(std::max(length, 1)), L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, wide.data(), length);
+  wide.resize(wcslen(wide.c_str()));
+  return wide;
+}
+
+// A folder name the page passes back: only a folder directly in the DLC folders.
+bool IsPlainName(const std::wstring& name) {
+  return !name.empty() && name != L"." && name != L".." && name.find_first_of(L"\\/:") == std::wstring::npos;
+}
+
+// The packages the player turned on although the game does not read them (DisabledDlcFolder's list), UTF-8.
+std::filesystem::path TurnedOnListPath(const std::filesystem::path& exe_dir) {
+  return DisabledDlcFolder(exe_dir) / L"turned on by the player.txt";
+}
+
+std::set<std::string> ReadTurnedOn(const std::filesystem::path& exe_dir) {
+  std::set<std::string> names;
+  std::ifstream file(TurnedOnListPath(exe_dir), std::ios::binary);
+  std::string line;
+  while (std::getline(file, line)) {
+    while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+    if (!line.empty()) names.insert(line);
+  }
+  return names;
+}
+
+void WriteTurnedOn(const std::filesystem::path& exe_dir, const std::set<std::string>& names) {
+  std::error_code ec;
+  if (names.empty()) {
+    std::filesystem::remove(TurnedOnListPath(exe_dir), ec);
+    return;
+  }
+  std::filesystem::create_directories(DisabledDlcFolder(exe_dir), ec);
+  std::ofstream file(TurnedOnListPath(exe_dir), std::ios::binary | std::ios::trunc);
+  for (const std::string& name : names) {
+    file << name << "\r\n";
+  }
+}
+
+// Neversoft's QBKey: CRC-32 (0xEDB88320) from 0xFFFFFFFF without the final inversion, of the name in lower case with '/'
+// as '\'.
+uint32_t QbKey(const std::string& text) {
+  static const std::array<uint32_t, 256> table = [] {
+    std::array<uint32_t, 256> t{};
+    for (uint32_t i = 0; i < 256; ++i) {
+      uint32_t c = i;
+      for (int k = 0; k < 8; ++k) c = (c & 1) ? (c >> 1) ^ 0xEDB88320u : c >> 1;
+      t[i] = c;
+    }
+    return t;
+  }();
+  uint32_t crc = 0xFFFFFFFFu;
+  for (char ch : text) {
+    uint8_t c = uint8_t(ch);
+    if (c >= 'A' && c <= 'Z') c = uint8_t(c + 32);
+    if (c == '/') c = '\\';
+    crc = table[(crc ^ c) & 0xFF] ^ (crc >> 8);
+  }
+  return crc;
+}
+
+// The key the game knows a package by (game::DlcRule): its display name's first `length` characters, a letter or digit
+// in lower case, anything else an underscore (Guitar Hero 5's sub_823C0608, GH Warriors of Rock's sub_823B0A48).
+uint32_t PackageKey(const std::wstring& display_name, size_t length) {
+  std::string name;
+  for (size_t i = 0; i < display_name.size() && i < length; ++i) {
+    wchar_t c = display_name[i];
+    bool alnum = (c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z');
+    name.push_back(alnum ? char(c >= L'A' && c <= L'Z' ? c + 32 : c) : '_');
+  }
+  return QbKey(name);
+}
+
+// The display name the game gets for an installed package (the SDK's ContentManager::ListContent): the header's, up to
+// its terminator, else the folder's name.
+std::wstring GameDisplayName(const std::filesystem::path& exe_dir, const std::wstring& folder) {
+  std::array<uint8_t, 8 + 256> header{};
+  std::ifstream file(HeaderPath(exe_dir, folder), std::ios::binary);
+  if (!file.read(reinterpret_cast<char*>(header.data()), header.size())) {
+    return folder;
+  }
+  std::wstring name;
+  for (size_t i = 8; i + 1 < header.size(); i += 2) {
+    wchar_t c = wchar_t(header[i] << 8 | header[i + 1]);
+    if (!c) break;
+    name.push_back(c);
+  }
+  return name.empty() ? folder : name;
+}
+
+bool ContainsKey(const std::vector<uint8_t>& data, uint32_t key) {
+  const uint8_t bytes[4] = {uint8_t(key >> 24), uint8_t(key >> 16), uint8_t(key >> 8), uint8_t(key)};
+  return std::search(data.begin(), data.end(), std::begin(bytes), std::end(bytes)) != data.end();
+}
+
+// One installed package, as the check sees it.
+struct Checked {
+  std::filesystem::path path;
+  uint32_t key = 0;
+  bool fits = false;
+  std::vector<std::vector<uint8_t>> manifests;  // its files of the rule's manifest prefix
+};
+
+// Which of the packages the game reads (game::kDlcRule; see game_types.h): one holding one of the rule's files, or whose
+// key is in the game's own list, its own manifest, or a manifest of a package on that the game reads (the game sees no
+// package off).
+std::vector<bool> CheckPackages(const std::vector<std::filesystem::path>& packages,
+                                const std::vector<std::wstring>& names, const std::vector<bool>& on) {
+  const game::DlcRule& rule = game::kDlcRule;
+  std::vector<bool> result(packages.size(), true);
+  if (rule.files.empty() && !rule.manifest_prefix) {
+    return result;
+  }
+  std::vector<Checked> checked(packages.size());
+  std::wstring prefix;
+  if (rule.manifest_prefix) {
+    prefix = WideFromUtf8(rule.manifest_prefix);
+    std::transform(prefix.begin(), prefix.end(), prefix.begin(), ::towlower);
+  }
+  for (size_t i = 0; i < packages.size(); ++i) {
+    Checked& c = checked[i];
+    c.path = packages[i];
+    std::error_code ec;
+    for (const char* file : rule.files) {
+      if (std::filesystem::is_regular_file(c.path / WideFromUtf8(file), ec)) {
+        c.fits = true;
+      }
+    }
+    if (!rule.manifest_prefix) {
+      continue;
+    }
+    c.key = PackageKey(names[i], rule.name_length);
+    if (std::find(rule.known_names.begin(), rule.known_names.end(), c.key) != rule.known_names.end()) {
+      c.fits = true;
+    }
+    wchar_t own[64];
+    std::swprintf(own, std::size(own), L"%ls%x.pak.xen", prefix.c_str(), c.key);
+    for (const auto& entry : std::filesystem::directory_iterator(c.path, ec)) {
+      std::error_code file_ec;
+      if (!entry.is_regular_file(file_ec)) continue;
+      std::wstring file = entry.path().filename().wstring();
+      std::transform(file.begin(), file.end(), file.begin(), ::towlower);
+      if (file.compare(0, prefix.size(), prefix) != 0 || file.size() < 8 ||
+          file.compare(file.size() - 8, 8, L".pak.xen") != 0) {
+        continue;
+      }
+      if (file == own) {
+        c.fits = true;
+      }
+      std::ifstream in(entry.path(), std::ios::binary);
+      c.manifests.emplace_back(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+  }
+  // A package the game reads loads its manifests, which may name others (a later pack's manifest lists the earlier ones).
+  for (bool changed = true; changed;) {
+    changed = false;
+    for (Checked& c : checked) {
+      if (c.fits || !rule.manifest_prefix) continue;
+      for (size_t j = 0; j < checked.size(); ++j) {
+        const Checked& other = checked[j];
+        if (!other.fits || !on[j]) continue;
+        for (const auto& manifest : other.manifests) {
+          if (ContainsKey(manifest, c.key)) {
+            c.fits = true;
+            changed = true;
+            break;
+          }
+        }
+        if (c.fits) break;
+      }
+    }
+  }
+  for (size_t i = 0; i < checked.size(); ++i) {
+    result[i] = checked[i].fits;
+  }
+  return result;
+}
+
 }  // namespace
 
 std::vector<uint8_t> PackageTitleThumbnail(const std::filesystem::path& path) {
@@ -169,6 +353,10 @@ std::filesystem::path DlcFolder(const std::filesystem::path& exe_dir) {
   return GameUserDataFolder(exe_dir) / L"0000000000000000" / title / L"00000002";
 }
 
+std::filesystem::path DisabledDlcFolder(const std::filesystem::path& exe_dir) {
+  return DlcFolder(exe_dir).parent_path() / L"Disabled DLC";
+}
+
 std::vector<DlcPackage> FindDlcPackages(const std::filesystem::path& path, const std::filesystem::path& exe_dir) {
   std::vector<DlcPackage> result;
   std::error_code ec;
@@ -193,8 +381,10 @@ std::vector<DlcPackage> FindDlcPackages(const std::filesystem::path& path, const
     }
   }
   std::filesystem::path installed = DlcFolder(exe_dir);
+  std::filesystem::path disabled = DisabledDlcFolder(exe_dir);
   for (DlcPackage& p : result) {
-    p.installed = std::filesystem::is_directory(installed / p.path.filename(), ec);
+    p.installed = std::filesystem::is_directory(installed / p.path.filename(), ec) ||
+                  std::filesystem::is_directory(disabled / p.path.filename(), ec);
   }
   std::sort(result.begin(), result.end(),
             [](const DlcPackage& a, const DlcPackage& b) { return a.display_name < b.display_name; });
@@ -203,46 +393,95 @@ std::vector<DlcPackage> FindDlcPackages(const std::filesystem::path& path, const
 
 std::vector<InstalledDlc> ListInstalledDlc(const std::filesystem::path& exe_dir) {
   std::vector<InstalledDlc> result;
-  std::error_code ec;
-  for (const auto& entry : std::filesystem::directory_iterator(DlcFolder(exe_dir), ec)) {
-    std::error_code dir_ec;
-    if (!entry.is_directory(dir_ec)) {
-      continue;
-    }
-    InstalledDlc dlc;
-    std::wstring folder = entry.path().filename().wstring();
-    dlc.folder = Utf8(folder);
-    dlc.display_name = dlc.folder;
-    // The header: an XCONTENT_DATA (device ID, content type, then the display name, 128 UTF-16 characters).
-    std::array<uint8_t, 8 + 256> header{};
-    std::ifstream file(HeaderPath(exe_dir, folder), std::ios::binary);
-    if (file.read(reinterpret_cast<char*>(header.data()), header.size())) {
-      std::string name = Utf16BeToUtf8(&header[8], 256);
-      if (!name.empty()) {
-        dlc.display_name = name;
+  std::vector<std::filesystem::path> paths;
+  std::vector<std::wstring> names;
+  std::vector<bool> on;
+  for (bool folder_on : {true, false}) {
+    std::error_code ec;
+    for (const auto& entry :
+         std::filesystem::directory_iterator(folder_on ? DlcFolder(exe_dir) : DisabledDlcFolder(exe_dir), ec)) {
+      std::error_code dir_ec;
+      if (!entry.is_directory(dir_ec)) {
+        continue;
       }
+      InstalledDlc dlc;
+      std::wstring folder = entry.path().filename().wstring();
+      dlc.folder = Utf8(folder);
+      dlc.display_name = dlc.folder;
+      dlc.on = folder_on;
+      // The header: an XCONTENT_DATA (device ID, content type, then the display name, 128 UTF-16 characters).
+      std::array<uint8_t, 8 + 256> header{};
+      std::ifstream file(HeaderPath(exe_dir, folder), std::ios::binary);
+      if (file.read(reinterpret_cast<char*>(header.data()), header.size())) {
+        std::string name = Utf16BeToUtf8(&header[8], 256);
+        if (!name.empty()) {
+          dlc.display_name = name;
+        }
+      }
+      dlc.bytes = FolderBytes(entry.path());
+      result.push_back(std::move(dlc));
+      paths.push_back(entry.path());
+      names.push_back(GameDisplayName(exe_dir, folder));
+      on.push_back(folder_on);
     }
-    dlc.bytes = FolderBytes(entry.path());
-    result.push_back(std::move(dlc));
+  }
+  // A package on that the game does not read goes off, unless the player turned it on. Only the manifests of packages
+  // the game reads count, so turning one it does not read off changes no other's answer.
+  std::vector<bool> fits = CheckPackages(paths, names, on);
+  std::set<std::string> turned_on = ReadTurnedOn(exe_dir);
+  for (size_t i = 0; i < result.size(); ++i) {
+    InstalledDlc& dlc = result[i];
+    dlc.fits = fits[i];
+    if (dlc.on && !dlc.fits && !turned_on.count(dlc.folder) && SetDlcOn(exe_dir, dlc.folder, false)) {
+      dlc.on = false;
+      dlc.turned_off_now = true;
+    }
   }
   std::sort(result.begin(), result.end(),
             [](const InstalledDlc& a, const InstalledDlc& b) { return a.display_name < b.display_name; });
   return result;
 }
 
+bool SetDlcOn(const std::filesystem::path& exe_dir, const std::string& folder, bool on) {
+  std::wstring name = WideFromUtf8(folder);
+  if (!IsPlainName(name)) {
+    return false;
+  }
+  std::filesystem::path from = (on ? DisabledDlcFolder(exe_dir) : DlcFolder(exe_dir)) / name;
+  std::filesystem::path to = (on ? DlcFolder(exe_dir) : DisabledDlcFolder(exe_dir)) / name;
+  std::error_code ec;
+  std::filesystem::create_directories(to.parent_path(), ec);
+  // On the same volume: a rename, at once. It fails while a file of it is open (the game running).
+  std::filesystem::rename(from, to, ec);
+  if (ec) {
+    return false;
+  }
+  std::set<std::string> turned_on = ReadTurnedOn(exe_dir);
+  if (on ? turned_on.insert(folder).second : turned_on.erase(folder) != 0) {
+    WriteTurnedOn(exe_dir, turned_on);
+  }
+  return true;
+}
+
 bool RemoveDlc(const std::filesystem::path& exe_dir, const std::string& folder) {
-  int length = MultiByteToWideChar(CP_UTF8, 0, folder.c_str(), -1, nullptr, 0);
-  std::wstring name(size_t(std::max(length, 1)), L'\0');
-  MultiByteToWideChar(CP_UTF8, 0, folder.c_str(), -1, name.data(), length);
-  name.resize(wcslen(name.c_str()));
-  // Only a folder directly in the DLC folder.
-  if (name.empty() || name == L"." || name == L".." || name.find_first_of(L"\\/:") != std::wstring::npos) {
+  std::wstring name = WideFromUtf8(folder);
+  // Only a folder directly in the DLC folders.
+  if (!IsPlainName(name)) {
     return false;
   }
   std::error_code ec;
-  std::filesystem::remove_all(DlcFolder(exe_dir) / name, ec);
-  bool removed = !ec;
+  bool removed = false;
+  for (const std::filesystem::path& parent : {DlcFolder(exe_dir), DisabledDlcFolder(exe_dir)}) {
+    if (std::filesystem::is_directory(parent / name, ec)) {
+      std::filesystem::remove_all(parent / name, ec);
+      removed = !ec;
+    }
+  }
   std::filesystem::remove(HeaderPath(exe_dir, name), ec);
+  std::set<std::string> turned_on = ReadTurnedOn(exe_dir);
+  if (turned_on.erase(folder)) {
+    WriteTurnedOn(exe_dir, turned_on);
+  }
   return removed;
 }
 

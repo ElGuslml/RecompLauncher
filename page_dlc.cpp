@@ -73,6 +73,8 @@ void App::ListDlc() {
   dlc_listed_ = true;
   if (!dlc_listing_.valid()) {
     dlc_listing_ = std::async(std::launch::async, ListInstalledDlc, exe_dir_);
+  } else {
+    dlc_relist_ = true;  // a change while one is read: read again after it
   }
 }
 
@@ -107,12 +109,23 @@ void App::PollDlc() {
   }
   if (dlc_listing_.valid() && dlc_listing_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
     dlc_installed_ = dlc_listing_.get();
+    // Packages the game does not read, turned off by the listing (game::kDlcRule): the install's note counts the new ones.
+    for (const InstalledDlc& dlc : *dlc_installed_) {
+      if (dlc.turned_off_now) {
+        dlc_turned_off_.insert(dlc.folder);
+      }
+    }
+    if (dlc_relist_) {
+      dlc_relist_ = false;
+      ListDlc();
+    }
   }
   // An installation ended: what is installed now, the new ones marked.
   if (dlc_refresh_after_install_ && dlc_install_.Get().state == DlcInstall::State::kDone) {
     dlc_refresh_after_install_ = false;
     ListDlc();
     std::filesystem::path folder = DlcFolder(exe_dir_);
+    std::filesystem::path disabled = DisabledDlcFolder(exe_dir_);
     std::error_code ec;
     for (const std::string& name : dlc_installing_names_) {
       if (std::filesystem::is_directory(folder / std::filesystem::path(Wide(name)), ec)) {
@@ -121,7 +134,8 @@ void App::PollDlc() {
     }
     if (dlc_found_) {
       for (DlcPackage& package : *dlc_found_) {
-        package.installed = std::filesystem::is_directory(folder / package.path.filename(), ec);
+        package.installed = std::filesystem::is_directory(folder / package.path.filename(), ec) ||
+                            std::filesystem::is_directory(disabled / package.path.filename(), ec);
       }
     }
   }
@@ -195,6 +209,17 @@ void App::DlcPage(const ImRect& rect) {
                       int(progress.installed));
         title = text;
         sub = t_.dlc_listed_hint;
+        // Those the game does not read were turned off (the listing after the install).
+        int off = 0;
+        for (const std::string& name : dlc_installing_names_) {
+          off += dlc_turned_off_.count(name) ? 1 : 0;
+        }
+        if (off > 0) {
+          char turned[256];
+          std::snprintf(turned, sizeof(turned), off == 1 ? t_.dlc_turned_off_one : t_.dlc_turned_off_many, off);
+          sub = turned;
+          sub_color = col::kError;
+        }
       } else if (dlc_found_ && dlc_found_->empty()) {
         title = t_.dlc_none_found_short;
         sub = dlc_scanned_;
@@ -332,27 +357,53 @@ void App::DlcPage(const ImRect& rect) {
       float row_y = origin.y;
       constexpr Type kName{Font::kBold, 16};
       constexpr Type kMeta{Font::kRegular, 13};
+      constexpr Type kNote{Font::kRegular, 13};
       std::string removed;
+      std::string switched;  // a package turned on or off this frame
+      bool switched_on = false;
       for (size_t i = 0; i < list.size(); ++i) {
         const InstalledDlc& dlc = list[i];
         bool is_new = dlc_new_.count(dlc.folder) != 0;
-        float height = Px(12.0f) * 2.0f + Px(44.0f);
+        // A package the game does not read: what the game does with it on (game::kDlcRule), below its name.
+        const char* note = nullptr;
+        if (!dlc.fits) {
+          switch (game::kDlcRule.foreign) {
+            case game::DlcForeign::kUnused: note = t_.dlc_foreign_unused; break;
+            case game::DlcForeign::kDamaged: note = t_.dlc_foreign_damaged; break;
+            case game::DlcForeign::kDisablesAll: note = t_.dlc_foreign_all; break;
+          }
+        }
+        float top_height = Px(12.0f) * 2.0f + Px(44.0f);
+        float text_left = Px(14.0f) + Px(44.0f) + Px(14.0f);
+        float note_width = row_width - text_left - Px(14.0f);
+        float note_height = note ? DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, note, false) + Px(12.0f) : 0.0f;
+        float height = top_height + note_height;
         ImRect row(ImVec2(origin.x, row_y), ImVec2(origin.x + row_width, row_y + height));
+        float center_y = row.Min.y + top_height * 0.5f;
         FillRect(row, is_new ? Fade(col::kAccent, 0.08f) : Hex(0xFFFFFF, 10), 10.0f);
         StrokeRect(row, col::kHairline, 10.0f);
-        ImRect tile(ImVec2(row.Min.x + Px(14.0f), row.Min.y + Px(12.0f)), ImVec2(row.Min.x + Px(58.0f), row.Max.y - Px(12.0f)));
-        FillRect(tile, col::kAccentTint, 8.0f);
+        ImRect tile(ImVec2(row.Min.x + Px(14.0f), row.Min.y + Px(12.0f)),
+                    ImVec2(row.Min.x + Px(58.0f), row.Min.y + top_height - Px(12.0f)));
+        FillRect(tile, dlc.on ? col::kAccentTint : Hex(0xFFFFFF, 10), 8.0f);
         // A music note.
         DrawIconSvg("note", "<path d='M9 18V5l11-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='17' cy='16' r='3'/>",
-                    ImVec2(tile.Min.x + Px(11.0f), tile.Min.y + Px(11.0f)), 22.0f, col::kAccent, 1.8f);
+                    ImVec2(tile.Min.x + Px(11.0f), tile.Min.y + Px(11.0f)), 22.0f, dlc.on ? col::kAccent : col::kTabText,
+                    1.8f);
         bool confirming = dlc_confirm_ == dlc.folder;
         constexpr Type kRemove{Font::kBold, 14};
         const char* label = confirming ? t_.dlc_remove_confirm : t_.dlc_remove;
         float remove_width = Px(14.0f) * 2.0f + Px(16.0f) + Px(8.0f) + MeasureText(kRemove, label).x;
-        ImRect remove(ImVec2(row.Max.x - Px(12.0f) - remove_width, row.GetCenter().y - Px(20.0f)),
-                      ImVec2(row.Max.x - Px(12.0f), row.GetCenter().y + Px(20.0f)));
+        ImRect remove(ImVec2(row.Max.x - Px(12.0f) - remove_width, center_y - Px(20.0f)),
+                      ImVec2(row.Max.x - Px(12.0f), center_y + Px(20.0f)));
         ImGui::PushID(int(i));
         ItemState state = Item("##remove", remove, !running);
+        // On: in the game's content folder; off: moved beside it, out of the game's sight.
+        bool on = dlc.on;
+        ImVec2 toggle_pos(remove.Min.x - Px(14.0f) - Px(52.0f), center_y - Px(15.0f));
+        if (Toggle("##on", toggle_pos, &on, !running)) {
+          switched = dlc.folder;
+          switched_on = on;
+        }
         ImGui::PopID();
         ImU32 background = confirming ? col::kAccent : col::kGhostFill;
         if (state.hovered) background = Brighten(background);
@@ -369,31 +420,46 @@ void App::DlcPage(const ImRect& rect) {
             dlc_confirm_ = dlc.folder;
           }
         }
-        float right = remove.Min.x - Px(14.0f);
+        float right = toggle_pos.x - Px(14.0f);
         if (is_new) {
           constexpr Type kNew{Font::kBold, 11, 0.06f};
           std::string tag = Upper(t_.dlc_new_tag);
           float tag_width = MeasureText(kNew, tag).x + Px(16.0f);
-          ImRect badge(ImVec2(right - tag_width, row.GetCenter().y - Px(10.0f)), ImVec2(right, row.GetCenter().y + Px(10.0f)));
+          ImRect badge(ImVec2(right - tag_width, center_y - Px(10.0f)), ImVec2(right, center_y + Px(10.0f)));
           FillRect(badge, col::kAccent, 4.0f);
           DrawLabel(kNew, ImVec2(badge.Min.x + Px(8.0f), badge.Min.y), col::kOnAccent, tag, badge.GetHeight());
           right = badge.Min.x - Px(14.0f);
         }
         float text_x = tile.Max.x + Px(14.0f);
         float text_width = right - text_x;
-        float text_y = row.GetCenter().y - (LineHeight(kName) + Px(2.0f) + LineHeight(kMeta)) * 0.5f;
-        DrawLabel(kName, ImVec2(text_x, text_y), col::kText, Ellipsize(kName, dlc.display_name, text_width));
+        float text_y = center_y - (LineHeight(kName) + Px(2.0f) + LineHeight(kMeta)) * 0.5f;
+        DrawLabel(kName, ImVec2(text_x, text_y), dlc.on ? col::kText : col::kTextSoft,
+                  Ellipsize(kName, dlc.display_name, text_width));
         DrawLabel(kMeta, ImVec2(text_x, text_y + LineHeight(kName) + Px(2.0f)), col::kTabText,
                   SizeText(dlc.bytes, t_.decimal_separator));
+        if (note) {
+          DrawParagraph(kNote, ImVec2(row.Min.x + text_left, row.Min.y + top_height - Px(4.0f)), note_width, 1.4f,
+                        col::kError, note);
+        }
         row_y += height + Px(8.0f);
       }
       ImGui::SetCursorScreenPos(origin);
       ImGui::Dummy(ImVec2(row_width, row_y - origin.y));
       EndScroll();
+      if (!switched.empty()) {
+        // A rename, at once; the list read again shows where it is (a failed move, the game running, leaves it).
+        if (SetDlcOn(exe_dir_, switched, switched_on)) {
+          for (InstalledDlc& dlc : *dlc_installed_) {
+            if (dlc.folder == switched) dlc.on = switched_on;
+          }
+        }
+        ListDlc();
+      }
       if (!removed.empty()) {
         RemoveDlc(exe_dir_, removed);
         dlc_confirm_.clear();
         dlc_new_.erase(removed);
+        dlc_turned_off_.erase(removed);
         ListDlc();
         if (dlc_found_) {
           for (DlcPackage& package : *dlc_found_) {

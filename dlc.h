@@ -28,11 +28,15 @@ struct DlcPackage {
   bool IsDlc() const { return content_type == 2; }
 };
 
-// Content installed for the game: a folder in the DLC folder, named after its package.
+// Content installed for the game: a folder in the DLC folder, named after its package, or in the folder of DLC turned
+// off beside it.
 struct InstalledDlc {
   std::string folder;        // its name, UTF-8
   std::string display_name;  // from the header the game wrote next to it, else the folder's name
   uint64_t bytes = 0;
+  bool on = true;     // in the DLC folder, where the game sees it; else in the folder of DLC turned off
+  bool fits = true;   // the game reads it (game::kDlcRule)
+  bool turned_off_now = false;  // not one the game reads, and turned off by this listing
 };
 
 // A package's picture of its game: its header's title thumbnail, else its thumbnail; a PNG as the package has it,
@@ -44,13 +48,20 @@ std::vector<uint8_t> PackageTitleThumbnail(const std::filesystem::path& path);
 std::filesystem::path GameUserDataFolder(const std::filesystem::path& exe_dir);
 // Where the game's DLC is installed: <user data>\0000000000000000\<title ID>\00000002 (the SDK's ContentManager).
 std::filesystem::path DlcFolder(const std::filesystem::path& exe_dir);
+// Where a package turned off waits: <title ID>\Disabled DLC, beside the DLC folder (the game lists only that one's
+// folders). Its "turned on by the player.txt" names the packages the game does not read that the player turned on.
+std::filesystem::path DisabledDlcFolder(const std::filesystem::path& exe_dir);
 
 // The packages in `path` (a package itself, or a folder and its subfolders, a few levels deep), with `installed` set
-// against the DLC folder. Reads a few KB of each file: run it off the UI thread.
+// against the DLC folder and the folder of DLC turned off. Reads a few KB of each file: run it off the UI thread.
 std::vector<DlcPackage> FindDlcPackages(const std::filesystem::path& path, const std::filesystem::path& exe_dir);
-// What is installed, by name. Sums the folders' sizes: run it off the UI thread.
+// What is installed, on and off, by name. A package on that the game does not read (game::kDlcRule) is turned off
+// first, unless the player turned it on. Sums the folders' sizes and reads the manifests: run it off the UI thread.
 std::vector<InstalledDlc> ListInstalledDlc(const std::filesystem::path& exe_dir);
-// Removes an installed package's folder and its header.
+// Turns an installed package on (into the DLC folder) or off (into the folder of DLC turned off); the player's choice
+// is kept, so a package the game does not read stays on once turned on.
+bool SetDlcOn(const std::filesystem::path& exe_dir, const std::string& folder, bool on);
+// Removes an installed package's folder, on or off, and its header.
 bool RemoveDlc(const std::filesystem::path& exe_dir, const std::string& folder);
 
 // Installing packages, one after another, on a thread of its own: the game in its --install_content tool mode for

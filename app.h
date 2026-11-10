@@ -382,7 +382,9 @@ class App {
   DlcInstall dlc_install_;
   std::string dlc_confirm_;  // the installed folder whose Remove waits for a second press
   bool dlc_listed_ = false;  // read once the page is first shown, and after each change
+  bool dlc_relist_ = false;  // a change while the list was read: read it again
   bool dlc_refresh_after_install_ = false;
+  std::set<std::string> dlc_turned_off_;  // packages the game does not read, turned off this session (game::kDlcRule)
   std::vector<std::string> dlc_installing_names_;  // the folders of the packages being installed
   std::set<std::string> dlc_new_;                  // installed this session: marked "New" in the list
 

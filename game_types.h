@@ -2,7 +2,9 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace launcher::game {
@@ -70,6 +72,29 @@ struct GameControlGroup {
   std::vector<GameControl> controls;
 };
 
+// What the game does with an installed package it does not read (DlcRule): the DLC page's note on such a package.
+enum class DlcForeign {
+  kUnused,       // it passes it by (GH Metallica reads only Death Magnetic's adl1.pak)
+  kDamaged,      // it reports the package damaged at start (GH Warriors of Rock)
+  kDisablesAll,  // it reports a damaged package and turns off every DLC (Guitar Hero 5)
+};
+
+// Which installed packages the game reads (game.h's kDlcRule; the DLC page, dlc.cpp). One it does not read is turned
+// off, moved out of the game's content folder, until the player turns it on. With neither `files` nor
+// `manifest_prefix`, every package is read: no check.
+struct DlcRule {
+  // The package holds one of these files at its root, in lower case (GH Metallica: "adl1.pak.xen").
+  std::span<const char* const> files;
+  // Neversoft's manifests (Guitar Hero 5 and later): the game knows a package by the QBKey of its display name, made
+  // lower case with every other character than a letter or a digit an underscore, of its first `name_length`
+  // characters. It reads a package whose key is in a manifest: "<manifest_prefix><key, %x>.pak.xen" in the package
+  // itself, another package's file of that prefix, or `known_names`, the list on the game's disc.
+  const char* manifest_prefix = nullptr;
+  size_t name_length = 128;
+  std::span<const uint32_t> known_names;
+  DlcForeign foreign = DlcForeign::kUnused;
+};
+
 // The profile's optional settings: what a game whose game.h does not define one gets. A game.h's own definition in
 // launcher::game hides the default here, because a qualified name (game::kArtTitleSize) finds a namespace's own
 // declaration before looking in the namespaces it uses; so the launcher's code names them qualified, always.
@@ -80,6 +105,8 @@ inline constexpr float kArtTitleSize = 96.0f;
 // The Game page's "Low latency audio" row (the SDK's audio_wasapi_exclusive). False for a game where the sound's delay
 // does not matter (no rhythm to play to, no audio calibration): the row is hidden and the option written off.
 inline constexpr bool kHasLowLatencyAudio = true;
+// The DLC page's check of installed packages: none, every package stays on.
+inline constexpr DlcRule kDlcRule{};
 }  // namespace defaults
 using namespace defaults;
 

@@ -446,6 +446,12 @@ struct Texts {
   const char* dlc_empty_title;
   const char* dlc_empty_text;
   const char* hint_choose_folder;
+  // Launcher 3.15: a package the game does not read (game::kDlcRule), turned off; the note by game::DlcForeign.
+  const char* dlc_foreign_unused;
+  const char* dlc_foreign_damaged;
+  const char* dlc_foreign_all;
+  const char* dlc_turned_off_one;   // after an install
+  const char* dlc_turned_off_many;  // %d: packages
   // Launcher 3.0: the Updates tab (page_updates.cpp).
   const char* updates_checking_title;
   const char* updates_checking_sub;

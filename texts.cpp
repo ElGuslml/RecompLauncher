@@ -423,6 +423,12 @@ const Texts kEnglish = {
     .dlc_empty_title = "No DLC installed yet",
     .dlc_empty_text = "Choose a folder with your packages to start.",
     .hint_choose_folder = "Choose folder",
+    .dlc_foreign_unused = "Not made for this game: it adds nothing here.",
+    .dlc_foreign_damaged = "Not made for this game: while it is on, the game reports it damaged when it starts.",
+    .dlc_foreign_all =
+        "Not made for this game: while it is on, the game reports a damaged package and turns off all your DLC.",
+    .dlc_turned_off_one = "One is not made for this game: it was turned off.",
+    .dlc_turned_off_many = "%d are not made for this game: they were turned off.",
 
     .updates_checking_title = "Checking…",
     .updates_checking_sub = "Asking the release server.",
@@ -957,6 +963,12 @@ const Texts kGerman = {
     .dlc_empty_title = "Noch keine DLC installiert",
     .dlc_empty_text = "Wähle einen Ordner mit deinen Paketen, um zu beginnen.",
     .hint_choose_folder = "Ordner wählen",
+    .dlc_foreign_unused = "Nicht für dieses Spiel: Es fügt hier nichts hinzu.",
+    .dlc_foreign_damaged = "Nicht für dieses Spiel: Solange es an ist, meldet das Spiel es beim Start als beschädigt.",
+    .dlc_foreign_all = "Nicht für dieses Spiel: Solange es an ist, meldet das Spiel ein beschädigtes Paket und schaltet "
+                       "alle deine DLC aus.",
+    .dlc_turned_off_one = "Eines ist nicht für dieses Spiel: Es wurde ausgeschaltet.",
+    .dlc_turned_off_many = "%d sind nicht für dieses Spiel: Sie wurden ausgeschaltet.",
 
     .updates_checking_title = "Wird gesucht…",
     .updates_checking_sub = "Der Versionsserver wird abgefragt.",
@@ -1491,6 +1503,13 @@ const Texts kFrench = {
     .dlc_empty_title = "Aucun DLC installé pour l'instant",
     .dlc_empty_text = "Choisis un dossier contenant tes paquets pour commencer.",
     .hint_choose_folder = "Choisir un dossier",
+    .dlc_foreign_unused = "Pas conçu pour ce jeu : il n'ajoute rien ici.",
+    .dlc_foreign_damaged =
+        "Pas conçu pour ce jeu : tant qu'il est activé, le jeu le signale comme endommagé au démarrage.",
+    .dlc_foreign_all = "Pas conçu pour ce jeu : tant qu'il est activé, le jeu signale un paquet endommagé et désactive "
+                       "tous tes DLC.",
+    .dlc_turned_off_one = "Un paquet n'est pas conçu pour ce jeu : il a été désactivé.",
+    .dlc_turned_off_many = "%d paquets ne sont pas conçus pour ce jeu : ils ont été désactivés.",
 
     .updates_checking_title = "Recherche…",
     .updates_checking_sub = "Interrogation du serveur des versions.",
@@ -2025,6 +2044,12 @@ const Texts kSpanish = {
     .dlc_empty_title = "Aún no tienes DLC instalado",
     .dlc_empty_text = "Elige una carpeta con tus paquetes para empezar.",
     .hint_choose_folder = "Elegir carpeta",
+    .dlc_foreign_unused = "No es para este juego: aquí no añade nada.",
+    .dlc_foreign_damaged = "No es para este juego: mientras esté encendido, el juego lo da por dañado al iniciar.",
+    .dlc_foreign_all = "No es para este juego: mientras esté encendido, el juego dice que un paquete está dañado y "
+                       "apaga todo tu DLC.",
+    .dlc_turned_off_one = "Uno no es para este juego: se apagó.",
+    .dlc_turned_off_many = "%d no son para este juego: se apagaron.",
 
     .updates_checking_title = "Buscando…",
     .updates_checking_sub = "Consultando el servidor de versiones.",
@@ -2559,6 +2584,12 @@ const Texts kItalian = {
     .dlc_empty_title = "Nessun DLC ancora installato",
     .dlc_empty_text = "Scegli una cartella con i tuoi pacchetti per iniziare.",
     .hint_choose_folder = "Scegli cartella",
+    .dlc_foreign_unused = "Non è per questo gioco: qui non aggiunge nulla.",
+    .dlc_foreign_damaged = "Non è per questo gioco: finché è attivo, il gioco lo segnala come danneggiato all'avvio.",
+    .dlc_foreign_all = "Non è per questo gioco: finché è attivo, il gioco segnala un pacchetto danneggiato e disattiva "
+                       "tutti i tuoi DLC.",
+    .dlc_turned_off_one = "Uno non è per questo gioco: è stato disattivato.",
+    .dlc_turned_off_many = "%d non sono per questo gioco: sono stati disattivati.",
 
     .updates_checking_title = "Ricerca…",
     .updates_checking_sub = "Interrogazione del server delle versioni.",
