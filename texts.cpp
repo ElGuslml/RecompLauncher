@@ -54,7 +54,7 @@ const Texts kEnglish = {
     .format_fills = "Fills the screen.",
     .format_bars_sides = "Bars at the sides.",
     .format_bars_top = "Bars above and below.",
-    .format_your_screen = "YOUR SCREEN",
+    .format_your_screen = "Your screen",
     .internal = "Internal resolution",
     .internal_hint = "The resolution the game is drawn at.",
     .internal_hint_xenos = "%d × %d times a whole number.",
@@ -62,7 +62,7 @@ const Texts kEnglish = {
     .original = "(original)",
 
     .graphics_api = "Graphics API",
-    .recommended = "RECOMMENDED",
+    .recommended = "Recommended",
     .native_text = "Draws the game natively with Vulkan, at the internal resolution you choose and with its own "
                    "antialiasing.",
     .native_missing = "Needs Vulkan, which was not found on this PC.",
@@ -392,7 +392,7 @@ const Texts kEnglish = {
     .on_value = "On",
     .from_monitor = "The monitor's (%s)",
     .from_monitor_hint = "In fullscreen the monitor's is used",
-    .screen_effects = "SCREEN EFFECTS",
+    .screen_effects = "Screen effects",
     .screen_effects_needs = "Needs %s",
     .renderer_title = "Renderer",
     .renderer_native_sub = "Draws the game natively with Vulkan.",
@@ -573,6 +573,9 @@ const Texts kEnglish = {
     .help_vocals_title = "The singer's controller",
     .help_vocals_text = "This controller sings: it moves through the menus and the pauses, and the microphone does the rest. Change its instrument to play with it again.",
     .help_tip_gamepad_tap = "The strum switch makes each fret button strum as you press it, on every controller that plays guitar.",
+    .more_info = "More info",
+    .close = "Close",
+    .strip_achievements = "%d / %d achievements",
 };
 
 const Texts kGerman = {
@@ -619,7 +622,7 @@ const Texts kGerman = {
     .format_fills = "Füllt den Bildschirm.",
     .format_bars_sides = "Balken an den Seiten.",
     .format_bars_top = "Balken oben und unten.",
-    .format_your_screen = "DEIN BILDSCHIRM",
+    .format_your_screen = "Dein Bildschirm",
     .internal = "Interne Auflösung",
     .internal_hint = "Die Auflösung, in der das Spiel gezeichnet wird.",
     .internal_hint_xenos = "%d × %d mal einer ganzen Zahl.",
@@ -627,7 +630,7 @@ const Texts kGerman = {
     .original = "(Original)",
 
     .graphics_api = "Grafik-API",
-    .recommended = "EMPFOHLEN",
+    .recommended = "Empfohlen",
     .native_text = "Zeichnet das Spiel nativ mit Vulkan, in der gewählten internen Auflösung und mit eigener "
                    "Kantenglättung.",
     .native_missing = "Benötigt Vulkan, das auf diesem PC nicht gefunden wurde.",
@@ -958,7 +961,7 @@ const Texts kGerman = {
     .on_value = "An",
     .from_monitor = "Die des Monitors (%s)",
     .from_monitor_hint = "Im Vollbild wird die des Monitors verwendet",
-    .screen_effects = "BILDEFFEKTE",
+    .screen_effects = "Bildeffekte",
     .screen_effects_needs = "Braucht %s",
     .renderer_title = "Renderer",
     .renderer_native_sub = "Zeichnet das Spiel nativ mit Vulkan.",
@@ -1139,6 +1142,9 @@ const Texts kGerman = {
     .help_vocals_title = "Der Controller des Sängers",
     .help_vocals_text = "Dieser Controller singt: Mit ihm bewegst du dich durch die Menüs und Pausen, das Mikrofon macht den Rest. Ändere sein Instrument, um wieder mit ihm zu spielen.",
     .help_tip_gamepad_tap = "Der Anschlag-Schalter lässt jede Bundtaste beim Drücken anschlagen, bei jedem Controller, der Gitarre spielt.",
+    .more_info = "Mehr Infos",
+    .close = "Schließen",
+    .strip_achievements = "%d / %d Erfolge",
 };
 
 const Texts kFrench = {
@@ -1185,7 +1191,7 @@ const Texts kFrench = {
     .format_fills = "Remplit l'écran.",
     .format_bars_sides = "Bandes sur les côtés.",
     .format_bars_top = "Bandes en haut et en bas.",
-    .format_your_screen = "VOTRE ÉCRAN",
+    .format_your_screen = "Votre écran",
     .internal = "Résolution interne",
     .internal_hint = "La résolution à laquelle le jeu est dessiné.",
     .internal_hint_xenos = "%d × %d multiplié par un nombre entier.",
@@ -1193,7 +1199,7 @@ const Texts kFrench = {
     .original = "(d'origine)",
 
     .graphics_api = "API graphique",
-    .recommended = "RECOMMANDÉ",
+    .recommended = "Recommandé",
     .native_text = "Dessine le jeu nativement avec Vulkan, à la résolution interne choisie et avec son propre "
                    "anticrénelage.",
     .native_missing = "Nécessite Vulkan, introuvable sur ce PC.",
@@ -1523,7 +1529,7 @@ const Texts kFrench = {
     .on_value = "Activé",
     .from_monitor = "Celle du moniteur (%s)",
     .from_monitor_hint = "En plein écran, celle du moniteur est utilisée",
-    .screen_effects = "EFFETS D'IMAGE",
+    .screen_effects = "Effets d'image",
     .screen_effects_needs = "Nécessite %s",
     .renderer_title = "Moteur de rendu",
     .renderer_native_sub = "Dessine le jeu nativement avec Vulkan.",
@@ -1705,6 +1711,9 @@ const Texts kFrench = {
     .help_vocals_title = "La manette du chanteur",
     .help_vocals_text = "Cette manette chante : elle sert aux menus et aux pauses, et le micro fait le reste. Change son instrument pour rejouer avec elle.",
     .help_tip_gamepad_tap = "L'interrupteur de grattage fait gratter chaque bouton de frette quand tu l'appuies, sur chaque manette qui joue de la guitare.",
+    .more_info = "Plus d'infos",
+    .close = "Fermer",
+    .strip_achievements = "%d / %d succès",
 };
 
 const Texts kSpanish = {
@@ -1751,7 +1760,7 @@ const Texts kSpanish = {
     .format_fills = "Llena la pantalla.",
     .format_bars_sides = "Bandas a los lados.",
     .format_bars_top = "Bandas arriba y abajo.",
-    .format_your_screen = "TU PANTALLA",
+    .format_your_screen = "Tu pantalla",
     .internal = "Resolución interna",
     .internal_hint = "A qué resolución se dibuja el juego.",
     .internal_hint_xenos = "%d × %d por un número entero.",
@@ -1759,7 +1768,7 @@ const Texts kSpanish = {
     .original = "(original)",
 
     .graphics_api = "API gráfica",
-    .recommended = "RECOMENDADO",
+    .recommended = "Recomendado",
     .native_text = "Dibuja el juego de forma nativa con Vulkan, a la resolución interna que elijas y con su propio "
                    "antialiasing.",
     .native_missing = "Necesita Vulkan, que no se encontró en este PC.",
@@ -2089,7 +2098,7 @@ const Texts kSpanish = {
     .on_value = "Activado",
     .from_monitor = "Del monitor (%s)",
     .from_monitor_hint = "En pantalla completa se usa la del monitor",
-    .screen_effects = "EFECTOS DE PANTALLA",
+    .screen_effects = "Efectos de pantalla",
     .screen_effects_needs = "Necesita %s",
     .renderer_title = "Renderizador",
     .renderer_native_sub = "Dibuja el juego de forma nativa con Vulkan.",
@@ -2270,6 +2279,9 @@ const Texts kSpanish = {
     .help_vocals_title = "El control del cantante",
     .help_vocals_text = "Este control canta: con él te mueves por los menús y las pausas, y el micrófono hace el resto. Cambia su instrumento para volver a tocar con él.",
     .help_tip_gamepad_tap = "El interruptor de rasgueo hace que cada botón de traste rasguee al presionarlo, en todos los controles que tocan guitarra.",
+    .more_info = "Más información",
+    .close = "Cerrar",
+    .strip_achievements = "%d / %d logros",
 };
 
 const Texts kItalian = {
@@ -2316,7 +2328,7 @@ const Texts kItalian = {
     .format_fills = "Riempie lo schermo.",
     .format_bars_sides = "Bande ai lati.",
     .format_bars_top = "Bande sopra e sotto.",
-    .format_your_screen = "IL TUO SCHERMO",
+    .format_your_screen = "Il tuo schermo",
     .internal = "Risoluzione interna",
     .internal_hint = "La risoluzione a cui si disegna il gioco.",
     .internal_hint_xenos = "%d × %d per un numero intero.",
@@ -2324,7 +2336,7 @@ const Texts kItalian = {
     .original = "(originale)",
 
     .graphics_api = "API grafica",
-    .recommended = "CONSIGLIATO",
+    .recommended = "Consigliato",
     .native_text = "Disegna il gioco in modo nativo con Vulkan, alla risoluzione interna scelta e con il proprio "
                    "antialiasing.",
     .native_missing = "Richiede Vulkan, che non è stato trovato su questo PC.",
@@ -2654,7 +2666,7 @@ const Texts kItalian = {
     .on_value = "Attivo",
     .from_monitor = "Quella del monitor (%s)",
     .from_monitor_hint = "A schermo intero si usa quella del monitor",
-    .screen_effects = "EFFETTI DELLO SCHERMO",
+    .screen_effects = "Effetti dello schermo",
     .screen_effects_needs = "Richiede %s",
     .renderer_title = "Renderer",
     .renderer_native_sub = "Disegna il gioco in modo nativo con Vulkan.",
@@ -2835,6 +2847,9 @@ const Texts kItalian = {
     .help_vocals_title = "Il controller di chi canta",
     .help_vocals_text = "Questo controller canta: con esso ti muovi nei menu e nelle pause, e il microfono fa il resto. Cambia il suo strumento per tornare a suonare con esso.",
     .help_tip_gamepad_tap = "L'interruttore della plettrata fa plettrare ogni tasto della chitarra quando lo premi, su ogni controller che suona la chitarra.",
+    .more_info = "Altre info",
+    .close = "Chiudi",
+    .strip_achievements = "%d / %d obiettivi",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.

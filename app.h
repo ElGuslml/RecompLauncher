@@ -121,7 +121,27 @@ class App {
     HintKey key;
     const char* label;
   };
+  // The frame's contents (Frame draws them, then the page's fade-in and the focus frame over every window).
+  void FrameContents(ImVec2 size);
   void Background(ImVec2 size, float dim);
+  // Launcher 3.18: under the pages other than Play, the window's color and a faint corner of the art (game.h's
+  // kArtCorner).
+  void BackgroundCorner(ImVec2 size);
+  // Launcher 3.18: "More info" (Y on a page): a panel at the right over a flat veil, the page's long help in it, the
+  // controller held in it until B (or its Close). `kicker` names what it is about ("More info", "Tips").
+  struct InfoPanel {
+    bool open = false;
+    bool opened = false;  // its popup was opened
+    std::string kicker;
+    std::string title;
+    std::string text;
+    std::vector<std::string> bullets;
+  };
+  void OpenInfo(std::string kicker, std::string title, std::string text, std::vector<std::string> bullets = {});
+  void InfoPanelWindow(ImVec2 size);
+  InfoPanel info_;
+  ImRect page_rect_;        // the page's area this frame (between the header and the footer)
+  int fade_key_ = -1;       // the page last drawn, as the fade-in counts pages (the settings' categories are one)
   void Header(const ImRect& rect);
   void Footer(const ImRect& rect, std::span<const Hint> hints);
   std::vector<Hint> PageHints() const;

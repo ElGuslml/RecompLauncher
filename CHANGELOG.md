@@ -2,6 +2,35 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.18.0 (in progress, branch `redesign`)
+
+Gustavo's redesign ("Camerino", his 2026-11-11 mockup, `local_docs/launcher_design` in GHMetalRecomp): a calmer
+launcher, the accent kept for the main action, one focus style, flat rows instead of nested cards, long help on demand.
+
+- One focus style for every item (`ui::FocusRing`, `ui::FocusRow`): a white outline 2 dp wide 3 dp outside the item, or
+  on a row's own edge over a faint fill; drawn once a frame over every window (`ui::DrawFocusFrame`), sliding 120 ms
+  from the item that had the focus. A page fades in over 160 ms (`ui::StartFade`, `ui::DrawFade`). Neither moves
+  while Windows' animation effects are off (`ui::MotionEnabled`); `ui::Animating` keeps the launcher drawing meanwhile.
+- The shell: the art in full only on Play; under the other pages the window's color and a faint corner of the art
+  (`App::BackgroundCorner`, `ui::DrawArtPart`; a game's `kArtCorner` and `kArtCornerRise`, `game_types.h`'s defaults).
+  The header's brand on two lines ("METALLICA · LAUNCHER"), the tabs in Oswald 500 without capitals between small LB
+  and RB pills (none on the profile's pages), Donate an outline with its heart, the avatar 40 dp with an accent dot
+  under it on the profile's pages. The footer: four hints at most, never the tabs' bumpers nor Donate.
+- The controller's glyphs on a dark disc, each letter or symbol in its color; the bumpers and View on the chips' grey.
+  Ghost buttons, links and the switch in the mockup's quieter style (`ui::DrawToggle`, a mixed state); chips beside a
+  value (`ui::DrawChip`); a slimmer scroll bar.
+- Play: the game's name (a game's `kArtTitleSize`, GH Metallica's 120 dp), its line, Play and Quit, and a strip of the
+  state in place of the three cards: the last session, the achievements, the screen and frame rate, the updates (each
+  of the last three opens its tab). Y no longer opens Donate: the header's button does.
+- Settings: Game, Video, Graphics in that order (the tab opens on Game), as text with a dot on the current one; up and
+  down on them change it at once. The options as flat rows, their value as text, on/off as a switch; the row in focus
+  grows to show its line of help, the arrows and its place among the values. Left and right change the value, A (or a
+  click) the next one, B goes back to the categories, X resets the category, Y opens the row's whole help. No help
+  column, no "Current value" box.
+- "More info" (`App::OpenInfo`): a panel at the right over a flat veil, with its own footer (B closes it).
+- Texts: `more_info`, `close`, `strip_achievements`; `recommended`, `format_your_screen` and `screen_effects` in
+  sentence case.
+
 ## 3.17.0
 
 - The DLC page's mode per game: `kDlcMode` in a game's `game.h` (`game_types.h`'s `DlcMode`). `kFolder` is 3.16's

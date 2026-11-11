@@ -157,8 +157,10 @@ std::map<std::tuple<std::string, int, int>, Picture> g_svg_icons;
 struct ArtCache {
   Picture picture;
   std::chrono::steady_clock::time_point drawn_at;
+  ImRect source;  // DrawArtPart's: the part rasterized
 };
 ArtCache g_art[int(Art::kCount)];
+ArtCache g_art_part[int(Art::kCount)];
 
 // Rasterizes SVG text into a width x height picture: scaled by `scale`, moved by (tx, ty) pixels.
 Picture Rasterize(std::string svg, int width, int height, float scale, float tx, float ty) {
@@ -530,6 +532,35 @@ void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding, ImDrawF
   }
 }
 
+void DrawArtPart(Art art, const ImRect& rect, const ImRect& source, float alpha) {
+  constexpr int kIds[int(Art::kCount)] = {IDR_ART_BACKGROUND};
+  int width = int(Snap(rect.GetWidth()));
+  int height = int(Snap(rect.GetHeight()));
+  if (width <= 0 || height <= 0 || source.GetWidth() <= 0.0f || source.GetHeight() <= 0.0f || alpha <= 0.0f) {
+    return;
+  }
+  ArtCache& cache = g_art_part[int(art)];
+  auto now = std::chrono::steady_clock::now();
+  bool same_source = cache.source.Min.x == source.Min.x && cache.source.Min.y == source.Min.y &&
+                     cache.source.Max.x == source.Max.x && cache.source.Max.y == source.Max.y;
+  if ((cache.picture.width != width || cache.picture.height != height || !same_source) &&
+      (cache.picture.texture == ImTextureID_Invalid || !same_source ||
+       now - cache.drawn_at > std::chrono::milliseconds(100))) {
+    Release(cache.picture);
+    // The part fills the picture's width; its height follows the part's shape.
+    float scale = float(width) / source.GetWidth();
+    cache.picture = Rasterize(std::string(Resource(kIds[int(art)])), width, height, scale, -source.Min.x * scale,
+                              -source.Min.y * scale);
+    cache.source = source;
+    cache.drawn_at = now;
+  }
+  if (cache.picture.texture == ImTextureID_Invalid) {
+    return;
+  }
+  List()->AddImage(cache.picture.texture, Snap(rect.Min), Snap(rect.Max), ImVec2(0, 0), ImVec2(1, 1),
+                   Fade(IM_COL32_WHITE, alpha));
+}
+
 void DrawSvg(std::string_view key, std::string_view body, float view, const ImRect& rect, bool circle) {
   int pixels = std::max(1, int(Snap(std::min(rect.GetWidth(), rect.GetHeight()))));
   auto cache_key = std::make_pair(std::string(key), pixels);
@@ -685,6 +716,9 @@ void ReleasePictures() {
   for (ArtCache& art : g_art) {
     Release(art.picture);
   }
+  for (ArtCache& art : g_art_part) {
+    Release(art.picture);
+  }
 }
 
 // --- Items ---
@@ -769,13 +803,150 @@ ImGuiID CapturedFirstItem() {
   return g_first_item;
 }
 
-void FocusRing(const ImRect& rect, float rounding) {
-  // The mockup's ":focus-visible { outline: 3px solid; outline-offset: 4px }": the line's middle 5.5 dp out.
-  float offset = Px(5.5f);
-  List()->AddRect(Snap(ImVec2(rect.Min.x - offset, rect.Min.y - offset)),
-                  Snap(ImVec2(rect.Max.x + offset, rect.Max.y + offset)), col::kFocus, Radius(rounding) + offset, 0,
-                  Px(3.0f));
+// --- The focus frame and the motion ---
+
+namespace {
+
+// Where the focus outline goes this frame (the line's middle), reported by the item in focus.
+struct FocusReport {
+  bool valid = false;
+  ImGuiID id = 0;
+  ImRect rect;
+  float rounding = 0.0f;
+  ImVec4 clip;
+};
+FocusReport g_focus_now;
+
+// What was drawn: the outline slides from there when another item takes the focus.
+struct FocusDrawn {
+  bool shown = false;
+  ImGuiID id = 0;
+  ImRect rect;
+  float rounding = 0.0f;
+  ImVec4 clip;
+  double at = 0.0;
+};
+FocusDrawn g_focus_drawn;
+// The slide: from where, since when.
+bool g_sliding = false;
+ImRect g_slide_from;
+float g_slide_from_rounding = 0.0f;
+ImVec4 g_slide_from_clip;
+double g_slide_start = 0.0;
+double g_fade_start = -1.0;
+
+constexpr double kSlideSeconds = 0.12;
+constexpr double kFadeSeconds = 0.16;
+
+float EaseOut(float t) {
+  t = std::clamp(t, 0.0f, 1.0f);
+  float u = 1.0f - t;
+  return 1.0f - u * u * u;
 }
+
+ImRect Lerp(const ImRect& a, const ImRect& b, float t) {
+  return ImRect(ImVec2(a.Min.x + (b.Min.x - a.Min.x) * t, a.Min.y + (b.Min.y - a.Min.y) * t),
+                ImVec2(a.Max.x + (b.Max.x - a.Max.x) * t, a.Max.y + (b.Max.y - a.Max.y) * t));
+}
+
+void ReportFocus(const ImRect& line, float rounding) {
+  ImDrawList* list = List();
+  g_focus_now = {true, GImGui->NavId, line, rounding,
+                 ImVec4(list->GetClipRectMin().x, list->GetClipRectMin().y, list->GetClipRectMax().x,
+                        list->GetClipRectMax().y)};
+}
+
+}  // namespace
+
+bool MotionEnabled() {
+  // Read again every second: the setting can change while the launcher runs.
+  static BOOL enabled = TRUE;
+  static double read_at = -10.0;
+  double now = ImGui::GetTime();
+  if (now - read_at > 1.0) {
+    read_at = now;
+    BOOL value = TRUE;
+    enabled = SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &value, 0) ? value : TRUE;
+  }
+  return enabled != FALSE;
+}
+
+void FocusRing(const ImRect& rect, float rounding) {
+  // "outline: 2px solid; outline-offset: 3px": the line's middle 4 dp out, its corners the item's plus that.
+  float offset = Px(4.0f);
+  ReportFocus(ImRect(ImVec2(rect.Min.x - offset, rect.Min.y - offset), ImVec2(rect.Max.x + offset, rect.Max.y + offset)),
+              Radius(rounding) + offset);
+}
+
+void FocusRow(const ImRect& rect, float rounding) {
+  // "outline-offset: -2px" and a white fill at 6 %: the line inside the row's edge.
+  FillRect(rect, Fade(col::kFocus, 0.06f), rounding);
+  float inset = Px(1.0f);
+  ReportFocus(ImRect(ImVec2(rect.Min.x + inset, rect.Min.y + inset), ImVec2(rect.Max.x - inset, rect.Max.y - inset)),
+              std::max(0.0f, Radius(rounding) - inset));
+}
+
+void DrawFocusFrame() {
+  double now = ImGui::GetTime();
+  if (!g_focus_now.valid) {
+    g_focus_drawn.shown = false;
+    g_sliding = false;
+    return;
+  }
+  FocusReport target = g_focus_now;
+  g_focus_now.valid = false;
+  // Another item took the focus while the outline showed (a moment ago): it slides from where it was.
+  if (g_focus_drawn.shown && target.id != g_focus_drawn.id && now - g_focus_drawn.at < 0.25 && MotionEnabled()) {
+    g_sliding = true;
+    g_slide_from = g_focus_drawn.rect;
+    g_slide_from_rounding = g_focus_drawn.rounding;
+    g_slide_from_clip = g_focus_drawn.clip;
+    g_slide_start = now;
+  }
+  ImRect rect = target.rect;
+  float rounding = target.rounding;
+  ImVec4 clip = target.clip;
+  if (g_sliding) {
+    float t = float((now - g_slide_start) / kSlideSeconds);
+    if (t >= 1.0f) {
+      g_sliding = false;
+    } else {
+      float e = EaseOut(t);
+      rect = Lerp(g_slide_from, target.rect, e);
+      rounding = g_slide_from_rounding + (target.rounding - g_slide_from_rounding) * e;
+      // Both places' clipping while it moves between them (the header and a list).
+      clip = ImVec4(std::min(clip.x, g_slide_from_clip.x), std::min(clip.y, g_slide_from_clip.y),
+                    std::max(clip.z, g_slide_from_clip.z), std::max(clip.w, g_slide_from_clip.w));
+    }
+  }
+  ImDrawList* list = ImGui::GetForegroundDrawList();
+  list->PushClipRect(ImVec2(clip.x, clip.y), ImVec2(clip.z, clip.w), false);
+  list->AddRect(Snap(rect.Min), Snap(rect.Max), col::kFocus, rounding, 0, std::max(1.0f, Snap(Px(2.0f))));
+  list->PopClipRect();
+  // Where it is now: another move during the slide starts from here.
+  g_focus_drawn = {true, target.id, rect, rounding, clip, now};
+}
+
+void StartFade() {
+  g_fade_start = MotionEnabled() ? ImGui::GetTime() : -1.0;
+}
+
+void DrawFade(const ImRect& rect, ImU32 color) {
+  if (g_fade_start < 0.0) {
+    return;
+  }
+  float t = float((ImGui::GetTime() - g_fade_start) / kFadeSeconds);
+  if (t >= 1.0f) {
+    g_fade_start = -1.0;
+    return;
+  }
+  ImDrawList* list = ImGui::GetForegroundDrawList();
+  list->PushClipRect(rect.Min, rect.Max, false);
+  list->AddRectFilled(rect.Min, rect.Max, Fade(color, 1.0f - EaseOut(t)));
+  list->PopClipRect();
+}
+
+bool Animating() { return g_sliding || g_fade_start >= 0.0; }
 
 // --- Shapes ---
 
@@ -897,35 +1068,35 @@ void DrawGlyph(PadButton button, ImVec2 pos, float size, bool on_accent) {
     return;
   }
   if (!IsFaceButton(button)) {
-    // A bumper or View: a pill.
-    FillRect(r, on_accent ? col::kGlyphOnAccent : col::kHintBumper, size * 0.5f);
-    label(on_accent ? col::kAccent : col::kOnHintBumper);
+    // A bumper or View: a pill (launcher 3.18: on the chips' grey, written muted).
+    FillRect(r, on_accent ? col::kGlyphOnAccent : col::kChip, size * 0.5f);
+    label(on_accent ? col::kAccent : col::kTextMuted);
     return;
   }
   int i = int(button);
   ImVec2 center = r.GetCenter();
   float radius = r.GetHeight() * 0.5f;
   ImDrawList* draw = ImGui::GetWindowDrawList();
+  // Launcher 3.18: every face button on a dark disc, its symbol or letter in its color (the mockup's quieter hints).
+  const ImU32 disc = on_accent ? col::kGlyphOnAccent : col::kChip;
   if (g_glyph_style == GlyphStyle::kPlayStation) {
-    // The symbol in its color on a dark disc.
     static constexpr Icon kIcons[] = {Icon::kPsCross, Icon::kPsCircle, Icon::kPsSquare, Icon::kPsTriangle};
     static constexpr ImU32 kColors[] = {Hex(0x7CB2E8), Hex(0xF07B6B), Hex(0xE6A4D7), Hex(0x5BC489)};
-    draw->AddCircleFilled(center, radius, on_accent ? col::kGlyphOnAccent : Hex(0x2E2E36), 32);
+    draw->AddCircleFilled(center, radius, disc, 32);
     float icon = size * 0.52f;
     DrawIcon(kIcons[i], ImVec2(center.x - Px(icon) * 0.5f, center.y - Px(icon) * 0.5f), icon, kColors[i],
              size >= 24.0f ? 2.4f : 2.8f);
     return;
   }
   if (g_glyph_style == GlyphStyle::kNintendo) {
-    draw->AddCircleFilled(center, radius, on_accent ? col::kGlyphOnAccent : Hex(0xE6E6EA), 32);
-    label(on_accent ? col::kAccent : Hex(0x1C1C21));
+    draw->AddCircleFilled(center, radius, disc, 32);
+    label(on_accent ? col::kAccent : col::kText);
     return;
   }
-  // An Xbox controller's: the letter on its color; inside an accent button, the color on dark.
-  const ImU32 discs[] = {col::kGlyphA, col::kGlyphB, col::kGlyphX, col::kGlyphY};
-  const ImU32 letters[] = {col::kOnGlyphA, col::kOnGlyphB, col::kOnGlyphX, col::kOnGlyphY};
-  draw->AddCircleFilled(center, radius, on_accent ? col::kGlyphOnAccent : discs[i], 32);
-  label(on_accent ? discs[i] : letters[i]);
+  // An Xbox controller's: the letter in its button's color.
+  const ImU32 colors[] = {col::kGlyphA, col::kGlyphB, col::kGlyphX, col::kGlyphY};
+  draw->AddCircleFilled(center, radius, disc, 32);
+  label(colors[i]);
 }
 
 bool ButtonPressed(PadButton button) {
@@ -960,13 +1131,14 @@ ButtonColors ColorsOf(ButtonKind kind) {
     case ButtonKind::kPrimary:
       return {col::kAccent, 0, col::kOnAccent, col::kOnAccent};
     case ButtonKind::kGhost:
-      return {0, col::kOutline, col::kText, col::kTextMuted};
+      return {0, col::kOutline, col::kTextSoft, col::kTextMuted};
     case ButtonKind::kDanger:
       return {0, Fade(col::kError, 0.55f), col::kError, col::kError};
     case ButtonKind::kDonate:
-      return {col::kDonate, 0, col::kOnDonate, col::kDonateIcon};
+      // Launcher 3.18: an outline in the donate color and its heart, the label as a ghost button's.
+      return {0, Fade(col::kDonate, 0.5f), col::kTextSoft, col::kDonate};
     case ButtonKind::kDisabled:
-      return {col::kTrack, 0, col::kLabel, col::kLabel};
+      return {col::kChip, 0, col::kTextDim, col::kTextDim};
   }
   return {};
 }
@@ -1018,29 +1190,50 @@ bool Button(const char* id, ImVec2 pos, const ButtonSpec& spec, std::string_view
   return state.pressed;
 }
 
-bool Toggle(const char* id, ImVec2 pos, bool* value, bool enabled) {
+void DrawToggle(ImVec2 pos, bool value, bool enabled, bool mixed, bool hovered) {
+  // The mockup's ".sw": 52 x 30, a 1 dp border; off a grey track and a dim knob at the left, on the accent with a dark
+  // knob at the right; mixed a muted knob in the middle; disabled the card's color and a darker knob.
   ImRect rect(pos, ImVec2(pos.x + Px(52.0f), pos.y + Px(30.0f)));
-  ItemState state = Item(id, rect, enabled);
-  if (state.pressed) {
-    *value = !*value;
-  }
-  ImU32 track = *value ? col::kAccent : col::kOutline;
-  ImU32 knob = *value ? col::kOnAccent : col::kTextMuted;
-  if (state.hovered) {
+  bool on = value && !mixed && enabled;
+  ImU32 track = !enabled ? col::kCard : on ? col::kAccent : col::kChip;
+  ImU32 border = !enabled ? col::kHairline : on ? col::kAccent : col::kOutline;
+  ImU32 knob = !enabled ? Hex(0x3A3A41) : on ? col::kOnAccent : mixed ? col::kTextMuted : col::kTextDim;
+  if (hovered && enabled) {
     track = Brighten(track);
   }
-  if (!enabled) {
-    track = Fade(track, 0.45f);
-    knob = Fade(knob, 0.6f);
-  }
   FillRect(rect, track, 15.0f);
-  float knob_x = *value ? rect.Max.x - Px(27.0f) : rect.Min.x + Px(3.0f);
-  FillRect(ImRect(ImVec2(knob_x, rect.Min.y + Px(3.0f)), ImVec2(knob_x + Px(24.0f), rect.Min.y + Px(27.0f))), knob,
-           12.0f);
+  StrokeRect(rect, border, 15.0f);
+  float knob_x = mixed && enabled ? rect.Min.x + Px(16.0f) : on ? rect.Min.x + Px(27.0f) : rect.Min.x + Px(5.0f);
+  FillRect(ImRect(ImVec2(knob_x, rect.Min.y + Px(5.0f)), ImVec2(knob_x + Px(20.0f), rect.Min.y + Px(25.0f))), knob, 10.0f);
+}
+
+bool Toggle(const char* id, ImVec2 pos, bool* value, bool enabled, bool mixed, bool navigable) {
+  ImRect rect(pos, ImVec2(pos.x + Px(52.0f), pos.y + Px(30.0f)));
+  if (!navigable) ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+  ItemState state = Item(id, rect, enabled);
+  if (!navigable) ImGui::PopItemFlag();
+  if (state.pressed) {
+    *value = mixed ? true : !*value;
+  }
+  DrawToggle(pos, *value, enabled, mixed && !state.pressed, state.hovered);
   if (state.focused) {
     FocusRing(rect, 15.0f);
   }
   return state.pressed;
+}
+
+float ChipWidth(std::string_view text) {
+  constexpr Type kChipText{Font::kSemiBold, 12};
+  return MeasureText(kChipText, text).x + Px(20.0f);
+}
+
+void DrawChip(ImVec2 pos, std::string_view text, bool warning) {
+  // The mockup's ".chip-s": 24 dp high, 10 dp of padding, round ends, on the chips' grey.
+  constexpr Type kChipText{Font::kSemiBold, 12};
+  ImRect r(ImVec2(pos.x, pos.y - Px(12.0f)), ImVec2(pos.x + ChipWidth(text), pos.y + Px(12.0f)));
+  FillRect(r, col::kChip, 12.0f);
+  DrawLabel(kChipText, ImVec2(r.Min.x + Px(10.0f), r.Min.y), warning ? col::kGlyphY : col::kTextMuted, text,
+            r.GetHeight());
 }
 
 bool Link(const char* id, ImVec2 pos, std::string_view label, float size) {
@@ -1049,7 +1242,8 @@ bool Link(const char* id, ImVec2 pos, std::string_view label, float size) {
   float arrow = size * 0.95f;
   ImRect rect(pos, ImVec2(pos.x + text.x + Px(4.0f) + Px(arrow), pos.y + text.y));
   ItemState state = Item(id, rect, true);
-  ImU32 color = state.hovered ? col::kAccentLight : col::kAccent;
+  // Launcher 3.18: links written soft, not in the accent (the accent is for the main action).
+  ImU32 color = state.hovered ? col::kText : col::kTextSoft;
   DrawLabel(type, pos, color, label);
   DrawIcon(Icon::kArrowRight, ImVec2(pos.x + text.x + Px(4.0f), pos.y + (text.y - Px(arrow)) * 0.5f + Px(0.5f)),
            arrow, color, 2.2f);
@@ -1074,19 +1268,21 @@ void BeginScroll(const char* id, const ImRect& rect) {
   ImGui::SetCursorScreenPos(rect.Min);
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, Px(10.0f));
-  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, Px(5.0f));
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImGui::ColorConvertU32ToFloat4(col::kOutline));
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImGui::ColorConvertU32ToFloat4(col::kDashed));
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImGui::ColorConvertU32ToFloat4(col::kScrollbarActive));
+  // Launcher 3.18: a slim bar (the mockup's 4 dp thumb on a faint track), wider under the mouse's reach.
+  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, Px(8.0f));
+  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, Px(4.0f));
+  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarPadding, Px(2.0f));
+  ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImGui::ColorConvertU32ToFloat4(Fade(col::kHairline, 0.6f)));
+  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImGui::ColorConvertU32ToFloat4(Fade(col::kTextDim, 0.7f)));
+  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImGui::ColorConvertU32ToFloat4(col::kTextMuted));
+  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImGui::ColorConvertU32ToFloat4(col::kTextSoft));
   ImGui::BeginChild(id, rect.GetSize(), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoBackground);
 }
 
 void EndScroll() {
   ImGui::EndChild();
   ImGui::PopStyleColor(4);
-  ImGui::PopStyleVar(4);
+  ImGui::PopStyleVar(5);
 }
 
 }  // namespace ui

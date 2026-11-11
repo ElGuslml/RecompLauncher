@@ -1,7 +1,8 @@
-// The Settings tab (Gustavo's 2026-10-28 mockup): its categories on the left (Game, when the game has options of its
-// own; Video; Graphics), the category's options in the middle, each a row that steps through its values ("‹ value ›",
-// the controller's left and right), and on the right the help of the row in focus with its current value. Every change
-// is saved at once.
+// The Settings tab (launcher 3.18, Gustavo's 2026-11-11 mockup "Camerino"): the title and its categories on the left
+// (Game, Video, Graphics: a dot marks the current one), the category's options as flat rows on the right, each its
+// value written as text (a switch for what is on or off); the row in focus grows to show its line of help, the arrows
+// and its place among the values ("‹ value ›", the controller's left and right, A the next). Y opens the row's whole
+// help, X resets the category. Every change is saved at once.
 
 #include <algorithm>
 #include <cstdio>
@@ -34,6 +35,7 @@ struct OptionRow {
   bool locked = false;            // shown with a lock: `locked_value`, no arrows
   std::string locked_value;
   std::string group;              // a group's title above the row (the screen effects)
+  bool is_switch = false;         // on (index 0) or off (index 1): drawn as a switch
   std::function<void(int)> apply;
 
   std::string Value() const {
@@ -46,24 +48,34 @@ struct OptionRow {
   }
 };
 
-constexpr Type kRowTitle{Font::kSemiBold, 17};
-constexpr Type kRowSub{Font::kRegular, 13};
-constexpr Type kValue{Font::kDisplaySemiBold, 19, 0.02f};
-constexpr Type kTag{Font::kBold, 10, 0.08f};
-constexpr Type kGroupTitle{Font::kBold, 12, 0.14f};
+// The mockup's ".row": 60 dp, the focused one 88 dp with 4 dp around it.
+constexpr float kRowHeight = 60.0f;
+constexpr float kFocusedRowHeight = 88.0f;
+constexpr float kFocusedRowMargin = 4.0f;
+constexpr Type kRowLabel{Font::kMedium, 18};
+constexpr Type kRowLabelFocused{Font::kSemiBold, 18};
+constexpr Type kRowValue{Font::kSemiBold, 18};
+constexpr Type kRowValueFocused{Font::kSemiBold, 20};
+constexpr Type kRowDescription{Font::kRegular, 14};
+constexpr Type kGroupTitle{Font::kSemiBold, 14};
 
-// A round arrow button of a row (mouse only: the controller steps with left and right while the row is being
-// changed, `active`).
-bool ArrowButton(const char* id, ImVec2 pos, bool left, bool active) {
-  ImRect rect(pos, ImVec2(pos.x + Px(40.0f), pos.y + Px(40.0f)));
+// A chevron of the focused row (the mouse's; the controller steps with left and right).
+bool ArrowButton(const char* id, ImVec2 pos, bool left) {
+  ImRect rect(pos, ImVec2(pos.x + Px(28.0f), pos.y + Px(28.0f)));
   ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
   ItemState state = Item(id, rect);
   ImGui::PopItemFlag();
-  ImU32 fill = active ? col::kAccent : col::kPanelChip;
-  FillRect(rect, state.hovered ? Brighten(fill) : fill, 20.0f);
-  DrawIcon(left ? Icon::kChevronLeft : Icon::kChevronRight, ImVec2(pos.x + Px(11.0f), pos.y + Px(11.0f)), 18.0f,
-           active ? col::kOnAccent : col::kText, 2.2f);
+  if (state.hovered) FillRect(rect, Fade(col::kFocus, 0.08f), 14.0f);
+  DrawIcon(left ? Icon::kChevronLeft : Icon::kChevronRight, ImVec2(pos.x + Px(2.0f), pos.y + Px(2.0f)), 24.0f,
+           state.hovered ? col::kText : col::kTextSoft, 1.9f);
   return state.pressed;
+}
+
+// "experimental" as a chip's text: its first letter in capitals (the five languages' words start with an ASCII one).
+std::string ChipText(const std::string& text) {
+  std::string chip = text;
+  if (!chip.empty() && chip[0] >= 'a' && chip[0] <= 'z') chip[0] = char(chip[0] - 'a' + 'A');
+  return chip;
 }
 
 }  // namespace
@@ -90,6 +102,7 @@ void App::SettingsPage(const ImRect& rect) {
       row.sub = own.toggles[i * 2 + 1];
       row.help = own.toggle_help[i] ? own.toggle_help[i] : own.toggles[i * 2 + 1];
       row.values = {t_.on_value, t_.off};
+      row.is_switch = true;
       row.index = o.toggles[i] ? 0 : 1;
       if (first && group_title) row.group = group_title;
       first = false;
@@ -159,6 +172,7 @@ void App::SettingsPage(const ImRect& rect) {
       row.sub = t_.audio_exclusive_hint;
       row.help = t_.audio_exclusive_help;
       row.values = {t_.on, t_.off};
+      row.is_switch = true;
       row.index = o.audio_exclusive ? 0 : 1;
       row.apply = [&o](int index) { o.audio_exclusive = index == 0; };
       rows.push_back(std::move(row));
@@ -172,6 +186,7 @@ void App::SettingsPage(const ImRect& rect) {
       row.sub = t_.debug_keys_hint;
       row.help = t_.debug_keys_help;
       row.values = {t_.on, t_.off};
+      row.is_switch = true;
       row.index = o.debug_hotkeys ? 0 : 1;
       if (o.debug_hotkeys) {
         std::string on_controls = DebugKeysOnControls();
@@ -502,6 +517,7 @@ void App::SettingsPage(const ImRect& rect) {
       row.sub = t_.vsync_hint;
       row.help = t_.vsync_help;
       row.values = {t_.on, t_.off};
+      row.is_switch = true;
       row.index = o.vsync ? 0 : 1;
       row.apply = [&o](int index) { o.vsync = index == 0; };
       if (settings_.FrameGenerationOn()) {
@@ -585,266 +601,281 @@ void App::SettingsPage(const ImRect& rect) {
     toggle_rows(game::ToggleGroup::kScreenEffects, t_.screen_effects);
   }
 
-  // --- The layout: 24 40 20 dp of padding, the categories 220 dp wide, the help 320, 24 dp between ---
-  ImRect main(ImVec2(rect.Min.x + Px(40.0f), rect.Min.y + Px(24.0f)), ImVec2(rect.Max.x - Px(40.0f), rect.Max.y - Px(20.0f)));
-  ImRect nav(main.Min, ImVec2(main.Min.x + Px(220.0f), main.Max.y));
-  ImRect help(ImVec2(main.Max.x - Px(320.0f), main.Min.y), main.Max);
-  ImRect section(ImVec2(nav.Max.x + Px(24.0f), main.Min.y), ImVec2(help.Min.x - Px(24.0f), main.Max.y));
+  // --- The layout (dp from the page's top left; the mockup's 1280 x 760 board): the title at 56, 20; the categories
+  // at 40, 110, 200 wide; the intro at 300, 26; the rows from 300, 68 to 56 from the right edge; the foot 52 high at
+  // 576 ---
+  ImGuiContext& g = *GImGui;
+  const float page_left = rect.Min.x;
+  const float page_top = rect.Min.y;
+  const float rows_left = page_left + Px(300.0f);
+  const float rows_right = rect.Max.x - Px(56.0f);
+  const float foot_top = rect.Max.y - Px(60.0f);
 
-  // The categories: the title, a button each (accent for the current one), the note at the foot.
+  // The title and the categories: a dot marks the current one; up and down change it at once, right (or A) goes to
+  // its rows.
   {
-    // The title no wider than the categories (German's EINSTELLUNGEN is wider at 40).
-    Type title{Font::kDisplayBold, 40};
-    std::string label = Upper(t_.nav_settings);
+    Type title{Font::kDisplaySemiBold, 44, 0.015f};
+    std::string label = Title(t_.nav_settings);
+    // No wider than the column (German's EINSTELLUNGEN).
     float width = MeasureText(title, label).x;
-    if (width > nav.GetWidth()) title.size *= nav.GetWidth() / width;
-    DrawLabel(title, nav.Min, col::kText, label, Px(40.0f));
-    float y = nav.Min.y + Px(40.0f) + Px(12.0f) + Px(8.0f);
-    constexpr Type kCategory{Font::kDisplaySemiBold, 19, 0.04f};
-    struct Category {
-      Page page;
-      const char* label;
-      const char* icon;
-    };
-    // The mockup's icons: a globe, a monitor, a cube.
-    const Category categories[] = {
-        {Page::kGame, t_.nav_game, "<path d='M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18'/>"},
-        {Page::kVideo, t_.nav_video, "<path d='M3 5h18v12H3zM8 21h8M12 17v4'/>"},
-        {Page::kGraphics, t_.nav_graphics, "<path d='M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5'/>"},
-    };
+    if (width > Px(232.0f)) title.size *= Px(232.0f) / width;
+    DrawLabel(title, ImVec2(page_left + Px(56.0f), page_top + Px(20.0f)), col::kText, label, Px(44.0f * 1.1f));
+    constexpr Type kCategory{Font::kDisplayMedium, 22, 0.015f};
+    const std::pair<Page, const char*> categories[] = {
+        {Page::kGame, t_.nav_game}, {Page::kVideo, t_.nav_video}, {Page::kGraphics, t_.nav_graphics}};
     std::vector<std::array<ImGuiID, 2>> category_ids;
-    for (const Category& c : categories) {
-      ImRect button(ImVec2(nav.Min.x, y), ImVec2(nav.Max.x, y + Px(56.0f)));
-      ImGui::PushID(int(c.page));
-      ItemState state = Item("##category", button);
+    float y = page_top + Px(110.0f);
+    for (const auto& [category_page, category_name] : categories) {
+      ImRect item(ImVec2(page_left + Px(40.0f), y), ImVec2(page_left + Px(240.0f), y + Px(48.0f)));
+      ImGui::PushID(int(category_page));
+      ItemState state = Item("##category", item);
       ImGui::PopID();
-      bool on = page_ == c.page;
-      ImU32 background = on ? col::kAccent : col::kGhostFill;
-      ImU32 border = on ? col::kAccent : col::kBumper;
-      ImU32 text = on ? col::kOnAccent : col::kTextSoft;
-      if (state.hovered) background = Brighten(background);
-      FillRect(button, background, 10.0f);
-      StrokeRect(button, border, 10.0f);
-      DrawIconSvg(c.icon, c.icon, ImVec2(button.Min.x + Px(16.0f), button.GetCenter().y - Px(10.0f)), 20.0f, text, 1.8f);
-      DrawLabel(kCategory, ImVec2(button.Min.x + Px(16.0f) + Px(20.0f) + Px(12.0f), button.Min.y), text, Upper(c.label),
-                button.GetHeight());
-      if (state.focused) FocusRing(button, 10.0f);
-      if (state.pressed && !on) Navigate(c.page, false);
-      if (on) category_focus_ = ImGui::GetItemID();
-      category_ids.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
-      // Right from a category: the row in focus there last (not the nearest one).
-      if (GImGui->NavId == ImGui::GetItemID() && GImGui->NavMoveSubmitted && GImGui->NavMoveDir == ImGuiDir_Right &&
-          settings_row_focus_) {
-        RequestFocus(settings_row_focus_);
-        ImGui::NavMoveRequestCancel();
+      ImGuiID id = ImGui::GetItemID();
+      bool on = page_ == category_page;
+      if (on) category_focus_ = id;
+      ImU32 color = on ? col::kText : state.hovered ? col::kTextSoft : col::kTextMuted;
+      DrawLabel(kCategory, ImVec2(item.Min.x + Px(18.0f), item.Min.y), color, category_name, item.GetHeight());
+      if (on) {
+        float dot = Px(8.0f);
+        ImVec2 c(item.Min.x + dot * 0.5f, item.GetCenter().y);
+        ImGui::GetWindowDrawList()->AddCircleFilled(c, dot * 0.5f, col::kAccent, 16);
       }
-      y += Px(56.0f) + Px(8.0f);
+      if (state.focused) {
+        float text_width = MeasureText(kCategory, category_name).x;
+        FocusRing(ImRect(ImVec2(item.Min.x + Px(10.0f), item.Min.y + Px(6.0f)),
+                         ImVec2(item.Min.x + Px(26.0f) + text_width, item.Max.y - Px(6.0f))),
+                  8.0f);
+      }
+      // The controller's focus on a category shows it (a click or A too).
+      bool focus_here = g.NavId == id && g.NavCursorVisible && !on;
+      if ((state.pressed || focus_here) && !on) {
+        Navigate(category_page, false);
+      }
+      // Right, or A, from a category: its row in focus last.
+      if (g.NavId == id && settings_row_focus_ &&
+          ((g.NavMoveSubmitted && g.NavMoveDir == ImGuiDir_Right) || (state.pressed && PressedByNav()))) {
+        RequestFocus(settings_row_focus_);
+        if (g.NavMoveSubmitted) ImGui::NavMoveRequestCancel();
+      }
+      category_ids.push_back({id, id});
+      y += Px(48.0f);
     }
-    // The controller starts on the category; up and down go through the categories (not into the rows).
-    page_focus_ = category_focus_;
     ColumnNav(category_ids);
-    constexpr Type kNote{Font::kRegular, 13};
-    float note_height = DrawParagraph(kNote, ImVec2(0, 0), nav.GetWidth(), 1.5f, 0, t_.settings_controls_note, false);
-    DrawParagraph(kNote, ImVec2(nav.Min.x, nav.Max.y - note_height), nav.GetWidth(), 1.5f, col::kTabText,
-                  t_.settings_controls_note);
+    constexpr Type kNote{Font::kRegular, 14};
+    float note_width = Px(200.0f);
+    float note_height = DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, t_.settings_controls_note, false);
+    DrawParagraph(kNote, ImVec2(page_left + Px(56.0f), rect.Max.y - Px(48.0f) - note_height), note_width, 1.4f,
+                  col::kTextDim, t_.settings_controls_note);
   }
 
-  // The options' panel: the intro, the rows (scrolling when they do not fit), "saved automatically" and Reset.
-  FillRect(section, col::kPanel, 14.0f);
-  StrokeRect(section, col::kHairline, 14.0f);
-  ImRect inner(ImVec2(section.Min.x + Px(16.0f), section.Min.y + Px(16.0f)),
-               ImVec2(section.Max.x - Px(16.0f), section.Max.y - Px(16.0f)));
-  constexpr Type kIntro{Font::kRegular, 15};
-  DrawLabel(kIntro, ImVec2(inner.Min.x + Px(8.0f), inner.Min.y + Px(4.0f)), col::kTabText, intro);
+  // The intro over the rows; on Graphics, the graphics API in use at its right.
+  constexpr Type kIntro{Font::kRegular, 16};
+  float intro_y = page_top + Px(26.0f);
+  DrawLabel(kIntro, ImVec2(rows_left, intro_y), col::kTextMuted, intro);
   if (category == 2) {
-    // The graphics API in use, right of the intro.
     constexpr Type kApi{Font::kRegular, 13};
     constexpr Type kApiValue{Font::kBold, 13};
     std::string label = std::string(t_.graphics_api) + ": ";
     const char* api = o.native || o.vulkan ? "Vulkan" : "DirectX 12";
-    float width = MeasureText(kApi, label).x + MeasureText(kApiValue, api).x + Px(20.0f);
-    ImRect badge(ImVec2(inner.Max.x - Px(8.0f) - width, inner.Min.y + Px(4.0f) + (LineHeight(kIntro) - LineHeight(kApi) - Px(10.0f)) * 0.5f),
-                 ImVec2(inner.Max.x - Px(8.0f), inner.Min.y + Px(4.0f) + (LineHeight(kIntro) + LineHeight(kApi) + Px(10.0f)) * 0.5f));
-    FillRect(badge, col::kHairline, 6.0f);
-    DrawLabel(kApi, ImVec2(badge.Min.x + Px(10.0f), badge.Min.y), col::kTabText, label, badge.GetHeight());
-    DrawLabel(kApiValue, ImVec2(badge.Min.x + Px(10.0f) + MeasureText(kApi, label).x, badge.Min.y), col::kText, api,
-              badge.GetHeight());
+    float api_x = rows_right - MeasureText(kApiValue, api).x;
+    float api_y = intro_y + (LineHeight(kIntro) - LineHeight(kApi)) * 0.5f;
+    DrawLabel(kApiValue, ImVec2(api_x, api_y), col::kTextSoft, api);
+    DrawLabel(kApi, ImVec2(api_x - MeasureText(kApi, label).x, api_y), col::kTextMuted, label);
   }
-  float rows_top = inner.Min.y + Px(4.0f) + LineHeight(kIntro) + Px(8.0f) + Px(8.0f);
-  float footer_top = inner.Max.y - Px(12.0f) - Px(38.0f);
-  ImRect list(ImVec2(inner.Min.x, rows_top), ImVec2(inner.Max.x, footer_top - Px(8.0f)));
 
+  // The rows, scrolling when they do not fit; the scroll bar 16 dp right of them.
   int& selected = settings_row_[category];
   selected = std::clamp(selected, 0, std::max(0, int(rows.size()) - 1));
-  ImGuiContext& g = *GImGui;
+  ImRect list(ImVec2(rows_left, page_top + Px(68.0f)), ImVec2(rows_right + Px(16.0f), foot_top - Px(8.0f)));
   BeginScroll("##settings_rows", list);
   ImVec2 origin = ImGui::GetCursorScreenPos();
   float y = origin.y;
-  // A focus ring 3 dp wide inside the row's edge needs no room outside it; the rows keep 4 dp from the region's edges.
-  float row_left = origin.x + Px(4.0f);
-  float row_right = origin.x + list.GetWidth() - Px(4.0f) - (ImGui::GetCurrentWindow()->ScrollbarY ? Px(12.0f) : 0.0f);
-  bool editing_any = false;
-  // The chosen row is outlined only while the rows have the controller's focus, or the mouse is over them; with the
-  // focus on the categories none is (its help still shows).
-  bool rows_active = (g.NavWindow == ImGui::GetCurrentWindow() && g.NavCursorVisible) ||
-                     (!gamepad_used_ && ImGui::IsWindowHovered());
+  const float row_left = origin.x;
+  const float row_right = origin.x + (rows_right - rows_left);
   std::vector<std::array<ImGuiID, 2>> row_ids;
   for (int i = 0; i < int(rows.size()); ++i) {
     OptionRow& row = rows[size_t(i)];
     if (!row.group.empty()) {
-      y += Px(10.0f);
-      DrawLabel(kGroupTitle, ImVec2(row_left + Px(16.0f), y), col::kAccent, row.group);
+      y += Px(18.0f);
+      DrawLabel(kGroupTitle, ImVec2(row_left + Px(20.0f), y), col::kTextMuted, row.group);
       y += LineHeight(kGroupTitle) + Px(8.0f);
     }
-    ImRect r(ImVec2(row_left, y), ImVec2(row_right, y + Px(68.0f)));
+    // The current row grows to show its line of help and its arrows: the one in focus, or the last one chosen.
+    const bool big = selected == i;
+    if (big) y += Px(kFocusedRowMargin);
+    ImRect r(ImVec2(row_left, y), ImVec2(row_right, y + Px(big ? kFocusedRowHeight : kRowHeight)));
     ImGui::PushID(row.id.c_str());
-    // The row's arrows are drawn over it: a click on one steps the value at once (the mouse needs no A first).
+    // The arrows are drawn over the row: a click on one steps the value at once.
     ImGui::SetNextItemAllowOverlap();
     ItemState state = Item("##row", r);
     ImGuiID row_id = ImGui::GetItemID();
-    bool focused = g.NavId == row_id && g.NavWindow == ImGui::GetCurrentWindow();
-    if (selected == i) settings_row_focus_ = row_id;
     row_ids.push_back({row_id, row_id});
-    if (focused || (state.hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))) {
-      selected = i;
+    if (big) {
+      settings_row_focus_ = row_id;
+      // LB/RB onto this tab, or a category's right: the controller lands on the current row.
+      page_focus_ = row_id;
     }
-    bool on = selected == i && rows_active;
-    if (on) {
-      FillRect(r, Fade(col::kAccent, 0.14f), 10.0f);
-      StrokeRect(r, col::kAccent, 10.0f, 3.0f);
-    } else if (state.hovered) {
-      FillRect(r, col::kHairline, 10.0f);
+    const bool nav_here = g.NavId == row_id && g.NavWindow == ImGui::GetCurrentWindow();
+    if (nav_here && selected != i) {
+      selected = i;  // grows next frame
     }
     int count = int(row.values.size());
+    const bool changeable = !row.locked && count > 1;
     auto step = [&](int delta) {
-      if (row.locked || count < 2) return;
+      if (!changeable) return;
       row.index = (row.index + delta + count) % count;
       row.apply(row.index);
       selected = i;
       changed = true;
     };
-    // A on the row in focus starts changing it: left and right step its value then (the focus stays) until A or B
-    // (App::Frame). Otherwise left and right move the focus, left to the categories.
-    bool changeable = !row.locked && count > 1;
-    bool editing = settings_editing_ && g.NavId == row_id;
-    if (editing) {
-      editing_any = true;
-      if (g.NavMoveSubmitted) {
-        if (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right) {
-          step(g.NavMoveDir == ImGuiDir_Left ? -1 : 1);
+    // The controller: left and right step the value (left from a row that cannot change goes back to the categories);
+    // A steps it forward, as a click does.
+    if (nav_here && g.NavMoveSubmitted && (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right)) {
+      if (changeable) {
+        step(g.NavMoveDir == ImGuiDir_Left ? -1 : 1);
+      } else if (g.NavMoveDir == ImGuiDir_Left) {
+        RequestFocus(category_focus_);
+      }
+      ImGui::NavMoveRequestCancel();
+    }
+    if (state.pressed) {
+      step(1);
+      selected = i;
+    }
+
+    // The row: a hairline under it, or the focus's fill and outline when it is the big one.
+    if (big) {
+      if (state.focused) {
+        FocusRow(r, 12.0f);
+      } else {
+        FillRect(r, Fade(col::kFocus, 0.06f), 12.0f);
+      }
+    } else {
+      if (state.hovered) FillRect(r, Fade(col::kFocus, 0.03f), 8.0f);
+      FillRect(ImRect(ImVec2(r.Min.x, r.Max.y - Snap(Px(1.0f))), r.Max), col::kHairline);
+    }
+
+    // The value at the right: a switch, or its text (with a lock when it cannot change) and its chip; in the big row
+    // between the arrows, its place among the values under it.
+    const float pad = Px(20.0f);
+    float value_left = r.Max.x - pad;
+    std::string tag = ChipText(row.Tag());
+    bool tag_warning = !tag.empty() && !(row.tag_accent.empty() ||
+                                         row.tag_accent[size_t(std::clamp(row.index, 0, int(row.tag_accent.size()) - 1))]);
+    if (row.is_switch) {
+      bool on = row.locked ? row.locked_value == std::string(t_.on) : row.index == 0;
+      value_left = r.Max.x - pad - Px(52.0f);
+      DrawToggle(ImVec2(value_left, r.GetCenter().y - Px(15.0f)), on, !row.locked, false, state.hovered);
+      if (row.locked) {
+        DrawIcon(Icon::kLock, ImVec2(value_left - Px(10.0f) - Px(18.0f), r.GetCenter().y - Px(9.0f)), 18.0f,
+                 col::kTextDim, 1.8f);
+        value_left -= Px(28.0f);
+      }
+    } else if (big && changeable) {
+      const Type& type = kRowValueFocused;
+      float max_text = std::max(Px(150.0f), (r.GetWidth() - pad * 2.0f) * 0.45f);
+      float tag_width = tag.empty() ? 0.0f : Px(10.0f) + ChipWidth(tag);
+      std::string shown = Ellipsize(type, row.Value(), max_text - tag_width);
+      float content = MeasureText(type, shown).x + tag_width;
+      float block = std::max(Px(150.0f), content);
+      float right_arrow = r.Max.x - pad - Px(28.0f);
+      float block_right = right_arrow - Px(4.0f);
+      float block_left = block_right - block;
+      float left_arrow = block_left - Px(4.0f) - Px(28.0f);
+      bool dots = count <= 12;
+      float block_height = LineHeight(type) + (dots ? Px(5.0f) + Px(6.0f) : 0.0f);
+      float text_y = r.GetCenter().y - block_height * 0.5f;
+      float text_x = (block_left + block_right - content) * 0.5f;
+      DrawLabel(type, ImVec2(text_x, text_y), col::kText, shown);
+      if (!tag.empty()) {
+        DrawChip(ImVec2(text_x + MeasureText(type, shown).x + Px(10.0f), text_y + LineHeight(type) * 0.5f), tag,
+                 tag_warning);
+      }
+      if (dots) {
+        float dot = Px(6.0f);
+        float gap = Px(5.0f);
+        float dots_width = float(count) * dot + float(count - 1) * gap;
+        float dx = (block_left + block_right - dots_width) * 0.5f;
+        float dy = text_y + LineHeight(type) + Px(5.0f);
+        for (int d = 0; d < count; ++d) {
+          ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(dx + dot * 0.5f, dy + dot * 0.5f), dot * 0.5f,
+                                                      d == row.index ? col::kText : Fade(col::kTextDim, 0.6f), 12);
+          dx += dot + gap;
         }
-        ImGui::NavMoveRequestCancel();
       }
-    }
-    if (state.pressed && PressedByNav() && changeable) {
-      settings_editing_ = !settings_editing_;
-      editing = settings_editing_;
-      editing_any = editing;
+      if (ArrowButton("##prev", ImVec2(left_arrow, r.GetCenter().y - Px(14.0f)), true)) step(-1);
+      if (ArrowButton("##next", ImVec2(right_arrow, r.GetCenter().y - Px(14.0f)), false)) step(1);
+      value_left = left_arrow;
+    } else {
+      const Type& type = big ? kRowValueFocused : kRowValue;
+      float max_text = std::max(Px(150.0f), (r.GetWidth() - pad * 2.0f) * 0.5f);
+      float tag_width = tag.empty() ? 0.0f : Px(10.0f) + ChipWidth(tag);
+      std::string shown = Ellipsize(type, row.Value(), max_text - tag_width);
+      float text_width = MeasureText(type, shown).x;
+      float x = r.Max.x - pad - tag_width - text_width;
+      float text_y = r.GetCenter().y - LineHeight(type) * 0.5f;
+      DrawLabel(type, ImVec2(x, text_y), row.locked ? col::kTextDim : col::kText, shown);
+      if (!tag.empty()) {
+        DrawChip(ImVec2(x + text_width + Px(10.0f), r.GetCenter().y), tag, tag_warning);
+      }
+      if (row.locked) {
+        x -= Px(8.0f) + Px(18.0f);
+        DrawIcon(Icon::kLock, ImVec2(x, r.GetCenter().y - Px(9.0f)), 18.0f, col::kTextDim, 1.8f);
+      }
+      value_left = x;
     }
 
-    // The value in a 280 dp block, its dots under it; the arrows around it, or a lock right of it.
-    float right = r.Max.x - Px(12.0f);
-    float value_right = row.locked ? right - Px(96.0f) - Px(16.0f) : right - Px(40.0f) - Px(16.0f);
-    float value_left = value_right - Px(280.0f);
-    if (row.locked) {
-      DrawIcon(Icon::kLock, ImVec2(right - Px(48.0f) - Px(9.0f), r.GetCenter().y - Px(9.0f)), 18.0f, col::kTextDim, 2.0f);
-    } else if (count > 1) {
-      if (ArrowButton("##prev", ImVec2(value_left - Px(16.0f) - Px(40.0f), r.GetCenter().y - Px(20.0f)), true, editing)) step(-1);
-      if (ArrowButton("##next", ImVec2(value_right + Px(16.0f), r.GetCenter().y - Px(20.0f)), false, editing)) step(1);
-    }
-    std::string value = row.Value();
-    std::string tag = Upper(row.Tag());
-    float tag_width = tag.empty() ? 0.0f : MeasureText(kTag, tag).x + Px(12.0f) + Px(8.0f);
-    std::string shown = Ellipsize(kValue, value, Px(280.0f) - tag_width);
-    float value_width = MeasureText(kValue, shown).x + tag_width;
-    float block_height = LineHeight(kValue) + (row.locked ? 0.0f : Px(6.0f) + Px(3.0f));
-    float value_y = r.GetCenter().y - block_height * 0.5f;
-    float value_x = (value_left + value_right - value_width) * 0.5f;
-    ImU32 value_color = row.locked ? col::kTabText : on ? col::kAccentLight : col::kText;
-    DrawLabel(kValue, ImVec2(value_x, value_y), value_color, shown);
-    if (!tag.empty()) {
-      bool accent = !row.tag_accent.empty() && row.tag_accent[size_t(std::clamp(row.index, 0, int(row.tag_accent.size()) - 1))];
-      float tag_x = value_x + MeasureText(kValue, shown).x + Px(8.0f);
-      ImRect badge(ImVec2(tag_x, value_y + (LineHeight(kValue) - Px(18.0f)) * 0.5f),
-                   ImVec2(tag_x + MeasureText(kTag, tag).x + Px(12.0f), value_y + (LineHeight(kValue) + Px(18.0f)) * 0.5f));
-      FillRect(badge, accent ? col::kAccent : Fade(col::kGlyphY, 0.18f), 4.0f);
-      DrawLabel(kTag, ImVec2(badge.Min.x + Px(6.0f), badge.Min.y), accent ? col::kOnAccent : col::kGlyphY, tag,
-                badge.GetHeight());
-    }
-    if (!row.locked && count > 1) {
-      float dots_width = float(count) * Px(18.0f) + float(count - 1) * Px(5.0f);
-      float dot_x = (value_left + value_right - dots_width) * 0.5f;
-      float dot_y = value_y + LineHeight(kValue) + Px(6.0f);
-      for (int d = 0; d < count; ++d) {
-        FillRect(ImRect(ImVec2(dot_x, dot_y), ImVec2(dot_x + Px(18.0f), dot_y + Px(3.0f))),
-                 d == row.index ? col::kAccent : Hex(0xFFFFFF, 46), 2.0f);
-        dot_x += Px(18.0f) + Px(5.0f);
-      }
-    }
-
-    // The title and its line, left, cut to what is left of the row.
-    float text_left = r.Min.x + Px(20.0f);
-    float text_width = std::max(Px(40.0f), (row.locked ? value_left : value_left - Px(56.0f)) - Px(16.0f) - text_left);
-    float text_height = LineHeight(kRowTitle) + Px(2.0f) + LineHeight(kRowSub);
-    float text_y = r.GetCenter().y - text_height * 0.5f;
-    DrawLabel(kRowTitle, ImVec2(text_left, text_y), row.locked ? col::kTabText : col::kText,
-              Ellipsize(kRowTitle, row.title, text_width));
-    DrawLabel(kRowSub, ImVec2(text_left, text_y + LineHeight(kRowTitle) + Px(2.0f)), col::kTabText,
-              Ellipsize(kRowSub, row.Sub(), text_width));
-    if (state.focused && !on) {
-      FocusRing(r, 10.0f);
+    // The label at the left; in the big row its line of help under it. Both cut to what the value leaves.
+    float text_left = r.Min.x + pad;
+    float text_width = std::max(Px(60.0f), value_left - Px(24.0f) - text_left);
+    if (big) {
+      float height = LineHeight(kRowLabelFocused) + Px(3.0f) + LineHeight(kRowDescription);
+      float ty = r.GetCenter().y - height * 0.5f;
+      DrawLabel(kRowLabelFocused, ImVec2(text_left, ty), row.locked ? col::kTextMuted : col::kText,
+                Ellipsize(kRowLabelFocused, row.title, text_width));
+      DrawLabel(kRowDescription, ImVec2(text_left, ty + LineHeight(kRowLabelFocused) + Px(3.0f)), col::kTextMuted,
+                Ellipsize(kRowDescription, row.Sub(), text_width));
+    } else {
+      DrawLabel(kRowLabel, ImVec2(text_left, r.GetCenter().y - LineHeight(kRowLabel) * 0.5f),
+                row.locked ? col::kTextDim : col::kTextSoft, Ellipsize(kRowLabel, row.title, text_width));
     }
     ImGui::PopID();
-    y += Px(68.0f) + Px(8.0f);
+    y = r.Max.y + (big ? Px(kFocusedRowMargin) : 0.0f);
   }
   ImGui::SetCursorScreenPos(origin);
-  ImGui::Dummy(ImVec2(list.GetWidth(), y - origin.y - Px(8.0f)));
-  // Up and down through the rows (a row being changed keeps the focus: its code took the move).
+  ImGui::Dummy(ImVec2(row_right - row_left, y - origin.y));
+  // Up and down through the rows; up from the first reaches the header.
   ColumnNav(row_ids);
-  // The focus left the row being changed (the mouse, another page): no row is.
-  if (!editing_any) {
-    settings_editing_ = false;
-  }
   // While the focus is in the rows, B goes back to the categories (App::Frame).
   if (g.NavWindow == ImGui::GetCurrentWindow()) {
     back_focus_ = category_focus_;
-    // Left from a row (not being changed): back to its category.
-    if (g.NavMoveSubmitted && g.NavMoveDir == ImGuiDir_Left) {
-      RequestFocus(category_focus_);
-      ImGui::NavMoveRequestCancel();
-    }
   }
   EndScroll();
 
-  // The panel's foot: saved automatically; Reset (Y) for the category.
+  // The foot: saved automatically; Reset (X) for the category, its button the mouse's.
+  bool popup = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
   {
-    float top = footer_top - Px(0.0f);
-    FillRect(ImRect(ImVec2(inner.Min.x, top - Px(12.0f)), ImVec2(inner.Max.x, top - Px(12.0f) + Snap(Px(1.0f)))),
-             col::kHairline);
-    constexpr Type kNote{Font::kRegular, 14};
+    ImRect foot(ImVec2(rows_left, foot_top), ImVec2(rows_right, foot_top + Px(52.0f)));
+    FillRect(ImRect(foot.Min, ImVec2(foot.Max.x, foot.Min.y + Snap(Px(1.0f)))), col::kHairline);
+    // "Reset video": the category's name in lower case inside the sentence, but in German, whose nouns keep their
+    // capital (the five languages' names start with an ASCII letter).
+    std::string category_word = category_label;
+    if (language_ != 3 && !category_word.empty() && category_word[0] >= 'A' && category_word[0] <= 'Z') {
+      category_word[0] = char(category_word[0] - 'A' + 'a');
+    }
     char reset[96];
-    std::snprintf(reset, sizeof(reset), t_.reset_category, category_label);
-    constexpr Type kReset{Font::kSemiBold, 14};
-    float width = Px(14.0f) * 2.0f + GlyphWidth(PadButton::kY, 20.0f) + Px(8.0f) + MeasureText(kReset, reset).x;
-    // The note wraps beside the button, its lines centered on it.
-    float note_width = inner.GetWidth() - Px(8.0f) - Px(24.0f) - Px(16.0f) - width - Px(8.0f);
-    float note_height = DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.3f, 0, t_.autosave, false);
-    float note_y = top + (Px(38.0f) - note_height) * 0.5f;
-    DrawIcon(Icon::kCheck, ImVec2(inner.Min.x + Px(8.0f), note_y + (Px(14.0f) * 1.3f - Px(16.0f)) * 0.5f), 16.0f,
-             col::kSuccess, 2.4f);
-    DrawParagraph(kNote, ImVec2(inner.Min.x + Px(8.0f) + Px(24.0f), note_y), note_width, 1.3f, col::kTabText, t_.autosave);
-    ImRect button(ImVec2(inner.Max.x - Px(8.0f) - width, top), ImVec2(inner.Max.x - Px(8.0f), top + Px(38.0f)));
+    std::snprintf(reset, sizeof(reset), t_.reset_category, category_word.c_str());
+    ButtonSpec spec{ButtonKind::kGhost, Type{Font::kSemiBold, 14}, 34, 16, 10};
+    float button_width = ButtonWidth(spec, reset);
+    constexpr Type kNote{Font::kRegular, 14};
+    DrawIcon(Icon::kCheck, ImVec2(foot.Min.x, foot.GetCenter().y - Px(9.0f)), 18.0f, col::kTextDim, 1.9f);
+    float note_x = foot.Min.x + Px(18.0f) + Px(10.0f);
+    DrawLabel(kNote, ImVec2(note_x, foot.GetCenter().y - LineHeight(kNote) * 0.5f), col::kTextMuted,
+              Ellipsize(kNote, t_.autosave, foot.Max.x - button_width - Px(24.0f) - note_x));
     ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
-    ItemState state = Item("##reset", button);
+    bool reset_pressed = Button("##reset", ImVec2(foot.Max.x - button_width, foot.GetCenter().y - Px(17.0f)), spec, reset);
     ImGui::PopItemFlag();
-    if (state.hovered) FillRect(button, col::kHairline, 19.0f);
-    StrokeRect(button, Hex(0xFFFFFF, 41), 19.0f);
-    DrawGlyph(PadButton::kY, ImVec2(button.Min.x + Px(14.0f), button.GetCenter().y - Px(10.0f)), 20.0f);
-    DrawLabel(kReset, ImVec2(button.Min.x + Px(14.0f) + GlyphWidth(PadButton::kY, 20.0f) + Px(8.0f), button.Min.y),
-              col::kText, reset, button.GetHeight());
-    bool reset_pressed = state.pressed || (!ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId) &&
-                                           ButtonPressed(PadButton::kY));
-    if (reset_pressed) {
+    if (reset_pressed || (!popup && ButtonPressed(PadButton::kX))) {
       if (category == 0) {
         ResetGame(o);
       } else if (category == 1) {
@@ -858,31 +889,10 @@ void App::SettingsPage(const ImRect& rect) {
     }
   }
 
-  // The help of the row in focus: the category, its title and text, its current value.
-  FillRect(help, col::kPanel, 14.0f);
-  StrokeRect(help, Hex(0xFFFFFF, 26), 14.0f);
-  if (!rows.empty()) {
+  // Y: the current row's whole help.
+  if (!popup && !rows.empty() && ButtonPressed(PadButton::kY)) {
     const OptionRow& row = rows[size_t(selected)];
-    ImVec2 p(help.Min.x + Px(24.0f), help.Min.y + Px(24.0f));
-    float width = help.GetWidth() - Px(48.0f);
-    constexpr Type kKicker{Font::kBold, 12, 0.14f};
-    DrawLabel(kKicker, p, col::kAccent, Upper(category_label));
-    p.y += LineHeight(kKicker) + Px(14.0f);
-    constexpr Type kHelpTitle{Font::kDisplayBold, 28};
-    p.y += DrawParagraph(kHelpTitle, p, width, 1.1f, col::kText, row.title) + Px(14.0f);
-    constexpr Type kHelpText{Font::kRegular, 16};
-    DrawParagraph(kHelpText, p, width, 1.5f, col::kTextSoft, row.help);
-    constexpr Type kCurrent{Font::kRegular, 13};
-    constexpr Type kCurrentValue{Font::kDisplaySemiBold, 20};
-    std::string value = row.Value();
-    if (!row.Tag().empty()) value += " · " + row.Tag();
-    float box_height = Px(14.0f) * 2.0f + LineHeight(kCurrent) + Px(4.0f) + LineHeight(kCurrentValue);
-    ImRect box(ImVec2(help.Min.x + Px(24.0f), help.Max.y - Px(24.0f) - box_height),
-               ImVec2(help.Max.x - Px(24.0f), help.Max.y - Px(24.0f)));
-    FillRect(box, Hex(0xFFFFFF, 15), 10.0f);
-    DrawLabel(kCurrent, ImVec2(box.Min.x + Px(16.0f), box.Min.y + Px(14.0f)), col::kTabText, t_.current_value);
-    DrawLabel(kCurrentValue, ImVec2(box.Min.x + Px(16.0f), box.Min.y + Px(14.0f) + LineHeight(kCurrent) + Px(4.0f)),
-              col::kText, Ellipsize(kCurrentValue, value, box.GetWidth() - Px(32.0f)));
+    OpenInfo(t_.more_info, row.title, row.help.empty() ? row.Sub() : row.help);
   }
 
   if (changed) {

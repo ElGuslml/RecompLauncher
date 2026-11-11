@@ -95,6 +95,11 @@ struct DlcRule {
   DlcForeign foreign = DlcForeign::kUnused;
 };
 
+// A part of the game's art, in the art's own units (its SVG's viewBox): game.h's kArtCorner.
+struct ArtPart {
+  float left, top, right, bottom;
+};
+
 // How the DLC page gives the game its downloadable content (game.h's kDlcMode).
 enum class DlcMode {
   // The packages of a folder the player chooses are extracted into the game's content folder, each by the game itself
@@ -126,6 +131,12 @@ inline constexpr DlcMode kDlcMode = DlcMode::kInstall;
 // fsr_native, dlaa, fsr_quality, dlss_quality...): the row shows it while it is the one in use, the launcher writes it
 // back as it is, and it goes once the player chooses another.
 inline constexpr bool kOffersTemporalUpscalers = true;
+// The art's corner under the pages other than Play (launcher 3.18): kArtCorner, a part of the art (in its own units,
+// launcher\art\background.svg's viewBox) drawn at half its size and faint, against the window's right edge, its top
+// kArtCornerRise dp above the window's bottom (the footer covers what falls under it). By default the art's lower right
+// quarter.
+inline constexpr ArtPart kArtCorner{640.0f, 380.0f, 1280.0f, 760.0f};
+inline constexpr float kArtCornerRise = 145.0f;
 }  // namespace defaults
 using namespace defaults;
 

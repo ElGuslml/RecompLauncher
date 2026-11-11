@@ -66,7 +66,7 @@ struct Texts {
 
   // Graphics.
   const char* graphics_api;
-  const char* recommended;  // a badge, upper case
+  const char* recommended;  // a chip beside the value (launcher 3.18: in sentence case)
   const char* native_text;
   const char* native_missing;
   const char* xenos_text;
@@ -411,7 +411,7 @@ struct Texts {
   const char* on_value;  // a switch's value
   const char* from_monitor;  // %s: the monitor's resolution
   const char* from_monitor_hint;
-  const char* screen_effects;  // the Graphics category's group, upper case
+  const char* screen_effects;  // the Graphics category's group (launcher 3.18: in sentence case)
   const char* screen_effects_needs;  // %s: the switch it needs
   const char* renderer_title;
   const char* renderer_native_sub;
@@ -598,6 +598,10 @@ struct Texts {
   const char* help_vocals_text;
   // Launcher 3.3: a controller's switch for its frets' strum (game::kKeyboardTapTarget).
   const char* help_tip_gamepad_tap;
+  // Launcher 3.18: the "More info" panel (Y on a page), its Close, and the Play page's status strip.
+  const char* more_info;
+  const char* close;
+  const char* strip_achievements;  // %d: unlocked, %d: in all
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

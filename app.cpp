@@ -98,6 +98,7 @@ bool App::Busy() const {
                   update == Update::State::kInstalling;
   // focus_page_ waits for the page, which the first run's screens do not draw.
   return listen_bind_ >= 0 || pad_listen_ >= 0 || whammy_cal_.step != WhammyCalibration::kOff || FocusRequested() ||
+         Animating() ||
          (focus_page_ && !installing_) || controls_focus_mapping_ ||
          std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
          profile_games_loading_.valid() ||
@@ -116,6 +117,7 @@ std::string App::BusyReasons() const {
   add(listen_bind_ >= 0 || pad_listen_ >= 0, "a key being assigned");
   add(whammy_cal_.step != WhammyCalibration::kOff, "the whammy calibration");
   add(FocusRequested(), "a focus request");
+  add(Animating(), "an animation");
   add(focus_page_ && !installing_, "the page's focus");
   add(controls_focus_mapping_, "the controls' focus");
   add(std::chrono::steady_clock::now() < notice_until_, "a notice");
@@ -402,6 +404,16 @@ void App::UseGlyphsOf(SDL_GamepadType type) {
 }
 
 void App::Frame(ImVec2 size) {
+  FrameContents(size);
+  // Over every window: the page fading in after it changed (launcher 3.18), then the focus outline (ui.h), which slides
+  // from the item that had the focus. Not over "Starting the game…".
+  if (!game_running_) {
+    DrawFade(page_rect_, col::kBackground);
+    DrawFocusFrame();
+  }
+}
+
+void App::FrameContents(ImVec2 size) {
   // ImGui's navigation must not take X (Square) held as its window switcher: the launcher's X is its own.
   GImGui->ConfigNavWindowingWithGamepad = false;
   if (!glyphs_chosen_) {
@@ -449,11 +461,21 @@ void App::Frame(ImVec2 size) {
   }
 
   ImVec2 origin = viewport->Pos;
-  // The art under the page, darkened under every page but Play's (the mockup's "oscurecer": ninguno, alto).
-  Background(size, page_ == Page::kPlay ? 0.0f : 0.9f);
+  // The art in full under Play; under the other pages a faint corner of it (launcher 3.18).
+  if (page_ == Page::kPlay) {
+    Background(size, 0.0f);
+  } else {
+    BackgroundCorner(size);
+  }
   float header_height = Snap(Px(72.0f));
   float footer_height = Snap(Px(52.0f));
   ImRect main(ImVec2(origin.x, origin.y + header_height), ImVec2(origin.x + size.x, origin.y + size.y - footer_height));
+  page_rect_ = main;
+  // Another page (the Settings tab's categories count as one): it fades in.
+  if (int key = page_ == Page::kVideo || page_ == Page::kGraphics ? int(Page::kGame) : int(page_); key != fade_key_) {
+    if (fade_key_ >= 0) StartFade();
+    fade_key_ = key;
+  }
   page_focus_ = 0;
   back_focus_ = 0;
   CaptureFirstItem();
@@ -548,8 +570,6 @@ void App::Frame(ImVec2 size) {
       // PLAY is the page's default button: Enter plays while no control shows the focus (ImGui would not activate
       // it then).
       result_ = Result::kPlay;
-    } else if (page_ == Page::kPlay && ButtonPressed(PadButton::kY)) {
-      Donate();
     } else if (ButtonPressed(PadButton::kB)) {
       if (settings_editing_) {
         settings_editing_ = false;  // B ends a Settings row's change
@@ -585,6 +605,7 @@ void App::Frame(ImVec2 size) {
 
   ImGui::End();
   ProfileDialogs(size);
+  InfoPanelWindow(size);
   // Not while a profile dialog waits (its first frame, before its popup takes the input).
   if (profile_dialog_ != ProfileDialog::kNone && result_ == Result::kPlay) {
     result_ = Result::kNone;

@@ -131,6 +131,9 @@ void DrawIcon(Icon icon, ImVec2 pos, float size, ImU32 color, float stroke = 1.8
 enum class Art : int { kBackground, kCount };
 // The art covering `rect` (CSS "slice"), cropped around `anchor` (0..1 per axis), with rounded corners.
 void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding = 0, ImDrawFlags corners = 0);
+// A part of the art: `source` (in the art's own units, its SVG's viewBox) drawn into `rect`, its alpha times `alpha`
+// (launcher 3.18: the corner of the art under the pages other than Play, faint).
+void DrawArtPart(Art art, const ImRect& rect, const ImRect& source, float alpha);
 
 // Pictures and icons are drawn at the current scale: drop them when it changes.
 void ReleasePictures();
@@ -151,8 +154,23 @@ struct ItemState {
 // item is drawn but cannot be focused or pressed.
 ItemState Item(const char* id, const ImRect& rect, bool enabled = true);
 ItemState Item(ImGuiID id, const ImRect& rect, bool enabled = true);
-// The mockup's :focus-visible outline: 2 dp of accent, 2 dp outside the item.
+// The focus (launcher 3.18, one style for every item): a white outline 2 dp wide, 3 dp outside the item ("outline:
+// 2px solid; outline-offset: 3px"). Items inside a list or a dialog draw FocusRow instead: the outline on the row's own
+// edge and a faint white fill under it. Both report where the outline goes; DrawFocusFrame draws it once a frame, over
+// every window, sliding from the item that had the focus before.
 void FocusRing(const ImRect& rect, float rounding);
+void FocusRow(const ImRect& rect, float rounding);
+void DrawFocusFrame();
+
+// --- Motion ---
+
+// Windows' animation effects (Settings > Accessibility > Visual effects): off, nothing slides nor fades.
+bool MotionEnabled();
+// The page's fade-in (160 ms): started when a page changes, drawn over `rect` (the page's area) in `color`.
+void StartFade();
+void DrawFade(const ImRect& rect, ImU32 color);
+// Something is still moving (the focus sliding, a page fading in): keep drawing.
+bool Animating();
 // A controller button is held (ImGui's gamepad keys).
 bool AnyGamepadButtonDown();
 // The first interactive item registered between the two calls (a page's first control; not a mouse-only one).
@@ -215,10 +233,18 @@ float ButtonWidth(const ButtonSpec& spec, std::string_view label);
 bool Button(const char* id, ImVec2 pos, const ButtonSpec& spec, std::string_view label, bool enabled = true,
             float width = 0);
 
-// The mockup's switch, 52 x 30 dp. True when toggled.
-bool Toggle(const char* id, ImVec2 pos, bool* value, bool enabled = true);
+// The mockup's switch, 52 x 30 dp. True when toggled. `mixed`: some of what it stands for is on, some off (the knob in
+// the middle; a press turns all on). `navigable` false: the mouse's only (a row around it takes the controller).
+bool Toggle(const char* id, ImVec2 pos, bool* value, bool enabled = true, bool mixed = false, bool navigable = true);
+// A switch drawn, not an item (a row that is the item draws its own value as one).
+void DrawToggle(ImVec2 pos, bool value, bool enabled = true, bool mixed = false, bool hovered = false);
 
-// An accent link with an arrow ("Ver logros →"). True when pressed.
+// A small chip beside a value ("Your screen", "Recommended", "Experimental"), 24 dp high, its left edge at `pos.x` and
+// centred on `pos.y`; its width in pixels. `warning`: written in the warning color (what is experimental).
+float ChipWidth(std::string_view text);
+void DrawChip(ImVec2 pos, std::string_view text, bool warning = false);
+
+// A link with an arrow ("Ver logros →"), written soft. True when pressed.
 bool Link(const char* id, ImVec2 pos, std::string_view label, float size = 14);
 
 // A progress bar.

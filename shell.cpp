@@ -23,17 +23,18 @@ namespace {
 // Where Donate leads (the header's button and Y on the Play page), the same for every game.
 constexpr const char* kDonateUrl = "https://ko-fi.com/elguslml";
 
-// The tabs, in the header's order (game.h decides whether the game has a DLC page).
-constexpr Page kTabs[] = {Page::kPlay, Page::kDlc, Page::kAchievements, Page::kControls, Page::kVideo, Page::kUpdates};
+// The tabs, in the header's order (game.h decides whether the game has a DLC page). The Settings tab opens on its first
+// category, Game (launcher 3.18's order: Game, Video, Graphics).
+constexpr Page kTabs[] = {Page::kPlay, Page::kDlc, Page::kAchievements, Page::kControls, Page::kGame, Page::kUpdates};
 
 bool HasPage(Page page) { return page != Page::kDlc || game::kHasDlcPage; }
 
 // The tab a page is under: the settings' categories are one tab; the profile's pages none.
 Page TabOf(Page page) {
   switch (page) {
+    case Page::kVideo:
     case Page::kGraphics:
-    case Page::kGame:
-      return Page::kVideo;
+      return Page::kGame;
     case Page::kProfiles:
     case Page::kProfile:
     case Page::kProfileGame:
@@ -135,32 +136,49 @@ void App::Background(ImVec2 size, float dim) {
   }
 }
 
+void App::BackgroundCorner(ImVec2 size) {
+  // Launcher 3.18 ("Camerino"): the art in full only on Play; under the other pages the window's own color and a corner
+  // of the art at 9 %, with no panel over it.
+  ImVec2 origin = ImGui::GetMainViewport()->Pos;
+  ImRect window(origin, ImVec2(origin.x + size.x, origin.y + size.y));
+  FillRect(window, col::kBackground);
+  const game::ArtPart& part = game::kArtCorner;
+  // The art's units at half the size the full art has in a 760 dp high window.
+  float unit = Px(1.0f) * 0.5f;
+  float width = (part.right - part.left) * unit;
+  float height = (part.bottom - part.top) * unit;
+  float top = window.Max.y - Px(game::kArtCornerRise);
+  DrawArtPart(Art::kBackground, ImRect(ImVec2(window.Max.x - width, top), ImVec2(window.Max.x, top + height)),
+              ImRect(ImVec2(part.left, part.top), ImVec2(part.right, part.bottom)), 0.09f);
+}
+
 void App::Header(const ImRect& rect) {
   FillRect(rect, col::kHeader);
   FillRect(ImRect(ImVec2(rect.Min.x, rect.Max.y - Snap(Px(1.0f))), rect.Max), col::kHairline);
   float left = rect.Min.x + Px(28.0f);
   float right = rect.Max.x - Px(28.0f);
 
-  // The brand: the game's logo (its icon, or its mark on accent) and its name on two lines.
+  // The brand: the game's logo (its icon, or its mark on accent) and its name on two lines, the second one the
+  // launcher's ("METALLICA · LAUNCHER").
   ImRect logo(ImVec2(left, rect.GetCenter().y - Px(18.0f)), ImVec2(left + Px(36.0f), rect.GetCenter().y + Px(18.0f)));
   GameLogo(logo, 20.0f);
-  constexpr Type kBrandTitle{Font::kDisplayBold, 17, 0.02f};
-  constexpr Type kBrandSubtitle{Font::kBold, 11, 0.16f};
-  // A game without a brand line (a name without a kicker): the art's title alone.
+  constexpr Type kBrandTitle{Font::kDisplaySemiBold, 17, 0.05f};
+  constexpr Type kBrandSubtitle{Font::kDisplayMedium, 12, 0.14f};
+  // A game without a brand line (a name without a kicker): the art's title, and the launcher's word under it.
   bool brand = *game::kBrandTitle;
   std::string title = Upper(brand ? game::kBrandTitle : game::kArtTitle);
-  std::string subtitle = brand ? Upper(game::kBrandSubtitle) : std::string();
-  // "line-height: 1.05": the two lines touch.
+  std::string subtitle = brand && *game::kBrandSubtitle ? Upper(game::kBrandSubtitle) + " \xC2\xB7 LAUNCHER" : "LAUNCHER";
+  // "line-height: 1.05", the second line 3 dp lower.
   float title_box = Px(17.0f * 1.05f);
-  float subtitle_box = subtitle.empty() ? 0.0f : Px(11.0f * 1.05f);
+  float subtitle_box = Px(12.0f * 1.05f) + Px(3.0f);
   float text_y = rect.GetCenter().y - (title_box + subtitle_box) * 0.5f;
   float text_x = logo.Max.x + Px(12.0f);
-  DrawLabel(kBrandTitle, ImVec2(text_x, text_y), col::kText, Ellipsize(kBrandTitle, title, Px(182.0f)), title_box);
-  DrawLabel(kBrandSubtitle, ImVec2(text_x, text_y + title_box), col::kLabel,
-            Ellipsize(kBrandSubtitle, subtitle, Px(182.0f)), subtitle_box);
+  DrawLabel(kBrandTitle, ImVec2(text_x, text_y), col::kText, Ellipsize(kBrandTitle, title, Px(190.0f)), title_box);
+  DrawLabel(kBrandSubtitle, ImVec2(text_x, text_y + title_box + Px(3.0f)), col::kLabel,
+            Ellipsize(kBrandSubtitle, subtitle, Px(190.0f)), subtitle_box - Px(3.0f));
 
-  // Right: Donate and the profile's avatar (none on the first run).
-  constexpr float kAvatar = 42.0f;
+  // Right: Donate (an outline) and the profile's avatar (none on the first run), 14 dp apart.
+  constexpr float kAvatar = 40.0f;
   float avatar_x = right - Px(kAvatar);
   const profiles::Profile* profile = installing_ ? nullptr : store_.Current();
   if (profile) {
@@ -170,15 +188,14 @@ void App::Header(const ImRect& rect) {
     header_items_.push_back(ImGui::GetItemID());
     if (TabOf(page_) == Page::kCount) header_focus_ = ImGui::GetItemID();
     DrawAvatar(avatar.Min, kAvatar, profile->avatar, AvatarTexture(*profile), profile->color);
-    bool on_profile = TabOf(page_) == Page::kCount;
-    if (on_profile) {
-      // "outline: 3px solid accent; outline-offset: 3px".
-      ImGui::GetWindowDrawList()->AddCircle(avatar.GetCenter(), Px(kAvatar) * 0.5f + Px(4.5f), col::kAccent, 64,
-                                            Px(3.0f));
+    if (TabOf(page_) == Page::kCount) {
+      // On the profile's pages: the selection's mark, an accent dot under the avatar.
+      float dot = Px(8.0f);
+      ImVec2 c(avatar.GetCenter().x, avatar.Max.y + Px(6.0f) + dot * 0.5f);
+      ImGui::GetWindowDrawList()->AddCircleFilled(c, dot * 0.5f, col::kAccent, 16);
     }
     if (state.focused) {
-      ImGui::GetWindowDrawList()->AddCircle(avatar.GetCenter(), Px(kAvatar) * 0.5f + Px(5.5f), col::kFocus, 64,
-                                            Px(3.0f));
+      FocusRing(avatar, kAvatar * 0.5f);
     }
     if (state.pressed) {
       profiles_selected_ = profile->id;
@@ -187,9 +204,9 @@ void App::Header(const ImRect& rect) {
   } else {
     avatar_x = right + Px(14.0f);
   }
-  ButtonSpec donate{ButtonKind::kDonate, Type{Font::kBold, 14}, 40, 14, 20, Icon::kHeart, 16, 0, true};
+  ButtonSpec donate{ButtonKind::kDonate, Type{Font::kSemiBold, 14}, 36, 14, 18, Icon::kHeart, 18, 1.8f, false};
   float donate_width = ButtonWidth(donate, t_.donate);
-  if (Button("##donate", ImVec2(avatar_x - Px(14.0f) - donate_width, rect.GetCenter().y - Px(20.0f)), donate,
+  if (Button("##donate", ImVec2(avatar_x - Px(14.0f) - donate_width, rect.GetCenter().y - Px(18.0f)), donate,
              t_.donate)) {
     Donate();
   }
@@ -202,31 +219,37 @@ void App::Header(const ImRect& rect) {
     return;
   }
 
-  // The tabs, centered between the brand's block and the right one (230 dp each), between LB and RB.
+  // The tabs, in the window's middle (not left of the brand's block), between LB and RB; the profile's pages have no
+  // bumpers (LB and RB change their sections there).
   const char* labels[] = {t_.nav_play, t_.nav_dlc, t_.nav_achievements, t_.nav_controls, t_.nav_settings, t_.nav_updates};
-  constexpr Type kTab{Font::kDisplaySemiBold, 16, 0.04f};
-  float tabs_width = GlyphWidth(PadButton::kLB, 24.0f) + GlyphWidth(PadButton::kRB, 24.0f) + Px(6.0f) * 2.0f;
+  constexpr Type kTab{Font::kDisplayMedium, 18, 0.02f};
+  constexpr float kPill = 22.0f;
+  constexpr float kGap = 6.0f;
+  const bool bumpers = TabOf(page_) != Page::kCount;
+  float tabs_width = 0.0f;
   int shown = 0;
   for (int i = 0; i < int(std::size(kTabs)); ++i) {
     if (HasPage(kTabs[i])) {
-      tabs_width += MeasureText(kTab, Upper(labels[i])).x + Px(26.0f);
+      tabs_width += MeasureText(kTab, labels[i]).x + Px(32.0f);
       ++shown;
     }
   }
-  tabs_width += Px(6.0f) * float(shown + 1);
-  float x = Snap(std::max(nav_left, (nav_left + nav_right - tabs_width) * 0.5f));
+  tabs_width += Px(kGap) * float(shown - 1);
+  if (bumpers) {
+    tabs_width += GlyphWidth(PadButton::kLB, kPill) + GlyphWidth(PadButton::kRB, kPill) + Px(kGap) * 2.0f;
+  }
+  float x = Snap(std::max(nav_left, rect.GetCenter().x - tabs_width * 0.5f));
   auto bumper = [&](PadButton button) {
-    DrawGlyph(button, ImVec2(x, rect.GetCenter().y - Px(12.0f)), 24.0f);
-    x += GlyphWidth(button, 24.0f);
+    DrawGlyph(button, ImVec2(x, rect.GetCenter().y - Px(kPill) * 0.5f), kPill);
+    x += GlyphWidth(button, kPill) + Px(kGap);
   };
-  bumper(PadButton::kLB);
-  x += Px(6.0f) + Px(6.0f);
+  if (bumpers) bumper(PadButton::kLB);
   for (int i = 0; i < int(std::size(kTabs)); ++i) {
     if (!HasPage(kTabs[i])) {
       continue;
     }
-    std::string label = Upper(labels[i]);
-    float width = MeasureText(kTab, label).x + Px(26.0f);
+    const char* label = labels[i];
+    float width = MeasureText(kTab, label).x + Px(32.0f);
     ImRect tab(ImVec2(x, rect.Min.y), ImVec2(x + width, rect.Max.y));
     ImGui::PushID(i);
     ItemState state = Item("##tab", tab);
@@ -234,29 +257,31 @@ void App::Header(const ImRect& rect) {
     ImGui::PopID();
     bool active = OnTab(kTabs[i]);
     if (active) header_focus_ = header_items_.back();
-    ImU32 color = active ? col::kTabActive : state.hovered ? Brighten(col::kTabText) : col::kTabText;
-    DrawLabel(kTab, ImVec2(tab.Min.x + Px(13.0f), tab.Min.y), color, label, tab.GetHeight());
+    ImU32 color = active ? col::kText : state.hovered ? col::kTextSoft : col::kTextMuted;
+    DrawLabel(kTab, ImVec2(tab.Min.x + Px(16.0f), tab.Min.y), color, label, tab.GetHeight());
     if (active) {
-      FillRect(ImRect(ImVec2(tab.Min.x, tab.Max.y - Px(3.0f)), tab.Max), col::kAccent);
+      // The selection's mark: 3 dp of accent under the label, its top corners rounded.
+      FillRect(ImRect(ImVec2(tab.Min.x + Px(16.0f), tab.Max.y - Px(3.0f)), ImVec2(tab.Max.x - Px(16.0f), tab.Max.y)),
+               col::kAccent, 3.0f, ImDrawFlags_RoundCornersTop);
     }
     // A new version: a dot on Updates.
     if (kTabs[i] == Page::kUpdates && updates_ && updates_->Newer(Version::Parse(kVersion))) {
       float dot = Px(7.0f);
-      ImVec2 c(tab.Max.x - Px(6.0f), rect.GetCenter().y - Px(12.0f));
+      ImVec2 c(tab.Max.x - Px(10.0f), rect.GetCenter().y - Px(11.0f));
       FillRect(ImRect(ImVec2(c.x - dot * 0.5f, c.y - dot * 0.5f), ImVec2(c.x + dot * 0.5f, c.y + dot * 0.5f)),
                col::kAccent, 4.0f);
     }
     if (state.focused) {
-      FocusRing(ImRect(ImVec2(tab.Min.x, tab.Min.y + Px(16.0f)), ImVec2(tab.Max.x, tab.Max.y - Px(16.0f))), 4.0f);
+      FocusRing(ImRect(ImVec2(tab.Min.x + Px(6.0f), tab.Min.y + Px(18.0f)), ImVec2(tab.Max.x - Px(6.0f), tab.Max.y - Px(18.0f))),
+                6.0f);
     }
     if (state.pressed) {
       // With A, the focus goes into the page (as with LB/RB); a click leaves it.
       Navigate(kTabs[i], PressedByNav());
     }
-    x += width + Px(6.0f);
+    x += width + Px(kGap);
   }
-  x += Px(6.0f) - Px(6.0f);
-  bumper(PadButton::kRB);
+  if (bumpers) bumper(PadButton::kRB);
 }
 
 // The first run's four steps (the mockup's install bar): done (a check on accent), current (an accent ring on a tint),
@@ -333,24 +358,25 @@ void App::Footer(const ImRect& rect, std::span<const Hint> hints) {
   // The controller that plays: a guitar, a drum kit, a gamepad, or the keyboard.
   Device device = ConnectedDevice();
   DrawIcon(device.icon, ImVec2(x, rect.GetCenter().y - Px(10.0f)), 20.0f, device.connected ? col::kSuccess : col::kLabel,
-           1.6f);
-  x += Px(20.0f) + Px(8.0f);
+           1.75f);
+  x += Px(20.0f) + Px(10.0f);
   const char* names[] = {t_.device_keyboard, t_.device_guitar, t_.device_drums, t_.device_gamepad};
   const char* name = names[device.kind];
-  DrawLabel(kText, ImVec2(x, rect.Min.y), col::kTextSoft, name, rect.GetHeight());
+  DrawLabel(kText, ImVec2(x, rect.Min.y), col::kTextMuted, name, rect.GetHeight());
   x += MeasureText(kText, name).x + Px(16.0f);
   char version[64];
   std::snprintf(version, sizeof(version), t_.version, kVersion);
   DrawLabel(kText, ImVec2(x, rect.Min.y), col::kTextDim, version, rect.GetHeight());
 
-  // The hints, right-aligned: each the glyph of its button (the controller in use, or the keyboard) and its label.
-  constexpr float kGlyph = 24.0f;
+  // The hints, right-aligned, 28 dp apart: each the glyph of its button (the controller in use, or the keyboard) and
+  // its label. Launcher 3.18: four at most, never the tabs' bumpers (the header shows them) nor Donate.
+  constexpr float kGlyph = 22.0f;
   auto key_width = [&](HintKey key) {
     switch (key) {
       case HintKey::kBumpers:
         return GlyphWidth(PadButton::kLB, kGlyph) + Px(4.0f) + GlyphWidth(PadButton::kRB, kGlyph);
       case HintKey::kArrows:
-        return Px(32.0f);
+        return Px(42.0f);
       default:
         return GlyphWidth(PadButton(int(key)), kGlyph);
     }
@@ -358,7 +384,7 @@ void App::Footer(const ImRect& rect, std::span<const Hint> hints) {
   float width = 0.0f;
   for (size_t i = 0; i < hints.size(); ++i) {
     width += key_width(hints[i].key) + Px(8.0f) + MeasureText(kText, hints[i].label).x;
-    width += i + 1 < hints.size() ? Px(20.0f) : 0.0f;
+    width += i + 1 < hints.size() ? Px(28.0f) : 0.0f;
   }
   x = rect.Max.x - Px(28.0f) - width;
   for (const Hint& hint : hints) {
@@ -368,81 +394,170 @@ void App::Footer(const ImRect& rect, std::span<const Hint> hints) {
       DrawGlyph(PadButton::kLB, at, kGlyph);
       DrawGlyph(PadButton::kRB, ImVec2(at.x + GlyphWidth(PadButton::kLB, kGlyph) + Px(4.0f), at.y), kGlyph);
     } else if (hint.key == HintKey::kArrows) {
-      // "◀ ▶": two small triangles (the D-pad's, or the arrow keys).
+      // "‹ ›": two chevrons in a pill (the D-pad's, or the arrow keys).
       ImRect chip(at, ImVec2(at.x + w, at.y + Px(kGlyph)));
-      FillRect(chip, col::kHintBumper, kGlyph * 0.5f);
-      ImDrawList* draw = ImGui::GetWindowDrawList();
+      FillRect(chip, col::kChip, kGlyph * 0.5f);
       ImVec2 c = chip.GetCenter();
-      float s = Px(4.0f);
-      draw->AddTriangleFilled(ImVec2(c.x - Px(7.0f), c.y), ImVec2(c.x - Px(1.5f), c.y - s), ImVec2(c.x - Px(1.5f), c.y + s),
-                              col::kOnHintBumper);
-      draw->AddTriangleFilled(ImVec2(c.x + Px(7.0f), c.y), ImVec2(c.x + Px(1.5f), c.y - s), ImVec2(c.x + Px(1.5f), c.y + s),
-                              col::kOnHintBumper);
+      DrawIcon(Icon::kChevronLeft, ImVec2(c.x - Px(15.0f), c.y - Px(7.0f)), 14.0f, col::kTextMuted, 2.2f);
+      DrawIcon(Icon::kChevronRight, ImVec2(c.x + Px(1.0f), c.y - Px(7.0f)), 14.0f, col::kTextMuted, 2.2f);
     } else {
       DrawGlyph(PadButton(int(hint.key)), at, kGlyph);
     }
     x += w + Px(8.0f);
-    DrawLabel(kText, ImVec2(x, rect.Min.y), col::kTextSoft, hint.label, rect.GetHeight());
-    x += MeasureText(kText, hint.label).x + Px(20.0f);
+    DrawLabel(kText, ImVec2(x, rect.Min.y), col::kTextMuted, hint.label, rect.GetHeight());
+    x += MeasureText(kText, hint.label).x + Px(28.0f);
   }
 }
 
 std::vector<App::Hint> App::PageHints() const {
+  // Launcher 3.18: four hints at most, the page's own buttons; LB and RB are the header's, Donate its button there.
+  if (info_.open) {
+    return {{HintKey::kB, t_.close}};
+  }
   if (installing_) {
     Extraction::State extraction = extraction_.Get().state;
     switch (install_step_) {
       case InstallStep::kWelcome:
-        return {{HintKey::kA, t_.continue_label}, {HintKey::kY, t_.donate}, {HintKey::kB, t_.quit}};
+        return {{HintKey::kA, t_.continue_label}, {HintKey::kB, t_.quit}};
       case InstallStep::kChooseIso:
-        return {{HintKey::kA, t_.continue_label}, {HintKey::kX, t_.browse_file}, {HintKey::kY, t_.donate},
-                {HintKey::kB, t_.back}};
+        return {{HintKey::kA, t_.continue_label}, {HintKey::kX, t_.browse_file}, {HintKey::kB, t_.back}};
       case InstallStep::kExtracting:
         if (extraction == Extraction::State::kRunning) {
-          return {{HintKey::kY, t_.donate}, {HintKey::kB, t_.cancel_install}};
+          return {{HintKey::kB, t_.cancel_install}};
         }
         if (extraction == Extraction::State::kDone) {
-          return {{HintKey::kA, t_.continue_label}, {HintKey::kY, t_.donate}};
+          return {{HintKey::kA, t_.continue_label}};
         }
-        return {{HintKey::kY, t_.donate}, {HintKey::kB, t_.back}};
+        return {{HintKey::kB, t_.back}};
       case InstallStep::kDone:
-        return {{HintKey::kA, t_.play}, {HintKey::kX, t_.review_settings}, {HintKey::kY, t_.donate}};
+        return {{HintKey::kA, t_.play}, {HintKey::kX, t_.review_settings}};
     }
   }
   switch (page_) {
     case Page::kPlay:
-      return {{HintKey::kA, t_.hint_play}, {HintKey::kY, t_.donate}, {HintKey::kView, t_.hint_profile},
-              {HintKey::kBumpers, t_.hint_tabs}, {HintKey::kB, t_.quit}};
+      return {{HintKey::kA, t_.hint_play}, {HintKey::kView, t_.hint_profile}, {HintKey::kB, t_.quit}};
     case Page::kVideo:
     case Page::kGraphics:
     case Page::kGame:
-      if (settings_editing_) {
-        return {{HintKey::kArrows, t_.hint_change}, {HintKey::kA, t_.hint_done}, {HintKey::kY, t_.hint_reset}};
-      }
-      return {{HintKey::kA, t_.hint_edit}, {HintKey::kY, t_.hint_reset}, {HintKey::kBumpers, t_.hint_tabs},
+      return {{HintKey::kA, t_.hint_change}, {HintKey::kX, t_.hint_reset}, {HintKey::kY, t_.more_info},
               {HintKey::kB, t_.hint_back}};
     case Page::kProfiles:
       return {{HintKey::kA, t_.hint_use_profile}, {HintKey::kY, t_.edit}, {HintKey::kX, t_.create_profile},
               {HintKey::kB, t_.hint_back}};
     case Page::kProfile:
-      return {{HintKey::kA, t_.hint_select}, {HintKey::kY, t_.edit_profile}, {HintKey::kBumpers, t_.hint_sections},
-              {HintKey::kB, t_.hint_back}};
+      return {{HintKey::kA, t_.hint_select}, {HintKey::kY, t_.edit_profile}, {HintKey::kB, t_.hint_back}};
     case Page::kProfileGame:
       return {{HintKey::kA, t_.hint_pin}, {HintKey::kX, t_.hint_filter}, {HintKey::kB, t_.my_games}};
     case Page::kProfileEdit:
       return {{HintKey::kA, t_.save}, {HintKey::kArrows, t_.hint_choose}, {HintKey::kB, t_.cancel}};
     case Page::kControls:
       return {{HintKey::kA, t_.hint_reassign}, {HintKey::kX, t_.hint_clear}, {HintKey::kY, t_.hint_reset},
-              {HintKey::kBumpers, t_.hint_tabs}, {HintKey::kB, t_.hint_back}};
+              {HintKey::kB, t_.hint_back}};
     case Page::kDlc:
-      return {{HintKey::kA, t_.hint_choose_folder}, {HintKey::kBumpers, t_.hint_tabs}, {HintKey::kB, t_.hint_back}};
+      return {{HintKey::kA, t_.hint_choose_folder}, {HintKey::kB, t_.hint_back}};
     case Page::kUpdates:
-      return {{HintKey::kA, t_.check_updates}, {HintKey::kBumpers, t_.hint_tabs}, {HintKey::kB, t_.hint_back}};
+      return {{HintKey::kA, t_.check_updates}, {HintKey::kB, t_.hint_back}};
     case Page::kAchievements:
       return {{HintKey::kA, t_.hint_view_detail}, {HintKey::kY, t_.hint_reveal}, {HintKey::kX, t_.hint_filter},
-              {HintKey::kBumpers, t_.hint_tabs}, {HintKey::kB, t_.hint_back}};
+              {HintKey::kB, t_.hint_back}};
     default:
-      return {{HintKey::kA, t_.hint_select}, {HintKey::kBumpers, t_.hint_tabs}, {HintKey::kB, t_.hint_back}};
+      return {{HintKey::kA, t_.hint_select}, {HintKey::kB, t_.hint_back}};
   }
+}
+
+void App::OpenInfo(std::string kicker, std::string title, std::string text, std::vector<std::string> bullets) {
+  info_ = InfoPanel{};
+  info_.open = true;
+  info_.kicker = std::move(kicker);
+  info_.title = std::move(title);
+  info_.text = std::move(text);
+  info_.bullets = std::move(bullets);
+}
+
+void App::InfoPanelWindow(ImVec2 size) {
+  if (!info_.open) {
+    return;
+  }
+  constexpr const char* kPopup = "##info";
+  if (!info_.opened) {
+    ImGui::OpenPopup(kPopup);
+  }
+  ImVec2 origin = ImGui::GetMainViewport()->Pos;
+  ImGui::SetNextWindowPos(origin);
+  ImGui::SetNextWindowSize(size);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleColor(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 0));
+  bool close = false;
+  if (ImGui::BeginPopupModal(kPopup, nullptr,
+                             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+                                 ImGuiWindowFlags_NoBackground)) {
+    const bool first = !info_.opened;
+    info_.opened = true;
+    float footer_height = Snap(Px(52.0f));
+    // The veil: flat, over the header and the page (the footer stays, with the panel's own hints).
+    ImRect above(origin, ImVec2(origin.x + size.x, origin.y + size.y - footer_height));
+    FillRect(above, Hex(0x000000, 158));  // rgba(0, 0, 0, 0.62)
+    // The sheet: 400 dp wide at the right, 12 dp under the header, 12 dp over the footer.
+    ImRect sheet(ImVec2(above.Max.x - Px(56.0f) - Px(400.0f), origin.y + Px(84.0f)),
+                 ImVec2(above.Max.x - Px(56.0f), above.Max.y - Px(12.0f)));
+    FillRect(sheet, col::kCardRaised, 18.0f);
+    StrokeRect(sheet, col::kHairline, 18.0f);
+    constexpr Type kKicker{Font::kSemiBold, 14};
+    constexpr Type kTitle{Font::kDisplayMedium, 28, 0.015f};
+    constexpr Type kText{Font::kRegular, 16};
+    constexpr Type kBullet{Font::kRegular, 15};
+    float left = sheet.Min.x + Px(28.0f);
+    float width = sheet.GetWidth() - Px(56.0f);
+    // Close: a small outlined button at the top right, the panel's only control.
+    {
+      ButtonSpec spec{ButtonKind::kGhost, Type{Font::kSemiBold, 14}, 34, 16, 10};
+      float w = ButtonWidth(spec, t_.close);
+      if (Button("##info_close", ImVec2(sheet.Max.x - Px(23.0f) - w, sheet.Min.y + Px(23.0f)), spec, t_.close)) {
+        close = true;
+      }
+      if (first) RequestFocus(ImGui::GetItemID(), gamepad_used_ || SDL_HasGamepad());
+    }
+    float y = sheet.Min.y + Px(28.0f);
+    DrawLabel(kKicker, ImVec2(left, y), col::kTextMuted, info_.kicker);
+    y += LineHeight(kKicker) + Px(6.0f);
+    // The text scrolls under the title when it is longer than the sheet.
+    y += DrawParagraph(kTitle, ImVec2(left, y), width - Px(70.0f), 1.15f, col::kText, info_.title) + Px(14.0f);
+    ImRect body(ImVec2(left, y), ImVec2(left + width + Px(10.0f), sheet.Max.y - Px(24.0f)));
+    BeginScroll("##info_body", body);
+    ImVec2 at = ImGui::GetCursorScreenPos();
+    float by = at.y;
+    if (!info_.text.empty()) {
+      by += DrawParagraph(kText, ImVec2(at.x, by), width, 1.5f, col::kTextSoft, info_.text) + Px(18.0f);
+    }
+    for (const std::string& bullet : info_.bullets) {
+      float dot = Px(6.0f);
+      ImVec2 c(at.x + Px(2.0f) + dot * 0.5f, by + Px(9.0f) + dot * 0.5f);
+      ImGui::GetWindowDrawList()->AddCircleFilled(c, dot * 0.5f, col::kTextDim, 12);
+      by += DrawParagraph(kBullet, ImVec2(at.x + Px(20.0f), by), width - Px(20.0f), 1.5f, col::kTextMuted, bullet) +
+            Px(14.0f);
+    }
+    ImGui::SetCursorScreenPos(at);
+    ImGui::Dummy(ImVec2(width, by - at.y));
+    EndScroll();
+    // B or Y closes it, as does a click on the veil (not in the frame Y opened it).
+    if (!first && (ButtonPressed(PadButton::kB) || ButtonPressed(PadButton::kY) ||
+                   (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !sheet.Contains(ImGui::GetMousePos()) &&
+                    above.Contains(ImGui::GetMousePos())))) {
+      close = true;
+    }
+    // The footer over the veil: the panel's hints.
+    std::vector<Hint> hints = PageHints();
+    Footer(ImRect(ImVec2(origin.x, above.Max.y), ImVec2(origin.x + size.x, origin.y + size.y)), hints);
+    if (close) {
+      info_ = InfoPanel{};
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
+  ImGui::PopStyleColor();
+  ImGui::PopStyleVar(3);
 }
 
 namespace {
@@ -470,16 +585,17 @@ float KeyButtonWidth(const KeyButtonSpec& spec, std::string_view label) {
 ItemState KeyButton(const char* id, ImVec2 pos, const KeyButtonSpec& spec, std::string_view label, bool enabled) {
   ImRect r(pos, ImVec2(pos.x + KeyButtonWidth(spec, label), pos.y + Px(spec.height)));
   ItemState state = Item(id, r, enabled);
-  ImU32 text = col::kText;
+  // Launcher 3.18: the accent only on the main button; the others an outline on nothing, written soft.
+  ImU32 text = col::kTextSoft;
   if (!enabled) {
-    FillRect(r, Hex(0xFFFFFF, 20), spec.radius);
+    FillRect(r, col::kChip, spec.radius);
     text = col::kTextDim;
   } else if (spec.look == KeyLook::kPrimary) {
     FillRect(r, state.hovered ? Brighten(col::kAccent) : col::kAccent, spec.radius);
     text = col::kOnAccent;
   } else {
-    FillRect(r, state.hovered ? Brighten(col::kGhostFill) : col::kGhostFill, spec.radius);
-    StrokeRect(r, spec.look == KeyLook::kDanger ? Fade(col::kError, 0.45f) : col::kGhostBorder, spec.radius);
+    if (state.hovered) FillRect(r, Fade(col::kFocus, 0.05f), spec.radius);
+    StrokeRect(r, spec.look == KeyLook::kDanger ? Fade(col::kError, 0.45f) : col::kOutline, spec.radius);
     if (spec.look == KeyLook::kDanger) text = col::kError;
   }
   float x = r.Min.x + Px(spec.padding);
