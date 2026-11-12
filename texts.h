@@ -613,6 +613,32 @@ struct Texts {
   // Launcher 3.18: the profile's strip of totals.
   const char* strip_completed;  // %d: the percentage ("%%" for the sign)
   const char* strip_streak;     // %s: the days ("6 days")
+  // Launcher 3.19: Settings > Audio (the SDK's change 85) and Settings > Graphics' GPU row (change 86).
+  const char* nav_audio;
+  const char* settings_intro_audio;
+  const char* audio_output;
+  const char* audio_output_hint;
+  const char* audio_output_help;
+  const char* audio_output_default;
+  const char* audio_output_missing;  // %s: the device's name
+  const char* audio_channels;
+  const char* audio_channels_auto;
+  const char* audio_channels_stereo;
+  const char* audio_channels_mono;
+  const char* audio_channels_auto_sub;
+  const char* audio_channels_stereo_sub;
+  const char* audio_channels_mono_sub;
+  const char* audio_channels_help;
+  const char* audio_volume;
+  const char* audio_volume_hint;
+  const char* audio_volume_help;
+  const char* audio_mute_unfocused;
+  const char* audio_mute_unfocused_hint;
+  const char* audio_mute_unfocused_help;
+  const char* gpu;
+  const char* gpu_hint;
+  const char* gpu_help;
+  const char* gpu_automatic;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

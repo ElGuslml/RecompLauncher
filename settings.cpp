@@ -7,6 +7,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <dxgi.h>
 #include <shellscalingapi.h>
 
 #include <algorithm>
@@ -64,6 +65,7 @@ void ResetVideo(Options& o) {
 
 void ResetGraphics(Options& o) {
   Options defaults;
+  o.gpu_adapter = defaults.gpu_adapter;
   o.native = defaults.native;
   o.vulkan = defaults.vulkan;
   o.vsync = defaults.vsync;
@@ -84,13 +86,46 @@ void ResetGame(Options& o) {
   Options defaults;
   o.launcher_language = defaults.launcher_language;
   o.language = SystemGameLanguage();
-  o.audio_exclusive = defaults.audio_exclusive;
   o.debug_hotkeys = defaults.debug_hotkeys;
   for (size_t i = 0; i < game::kToggles.size(); ++i) {
     if (game::kToggles[i].group == game::ToggleGroup::kGame) {
       o.toggles[i] = game::kToggles[i].default_value;
     }
   }
+}
+
+void ResetAudio(Options& o) {
+  Options defaults;
+  o.audio_device = defaults.audio_device;
+  o.audio_channels = defaults.audio_channels;
+  o.audio_volume = defaults.audio_volume;
+  o.audio_mute_unfocused = defaults.audio_mute_unfocused;
+  o.audio_exclusive = defaults.audio_exclusive;
+}
+
+std::vector<GpuAdapter> EnumerateGpus() {
+  std::vector<GpuAdapter> gpus;
+  IDXGIFactory1* factory = nullptr;
+  if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&factory)))) {
+    return gpus;
+  }
+  IDXGIAdapter1* adapter = nullptr;
+  for (UINT i = 0; factory->EnumAdapters1(i, &adapter) == S_OK; ++i) {
+    DXGI_ADAPTER_DESC1 desc;
+    if (SUCCEEDED(adapter->GetDesc1(&desc)) && !(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
+      char id[16];
+      std::snprintf(id, sizeof(id), "%04X:%04X", desc.VendorId, desc.DeviceId);
+      // One row per card (Windows can list one twice).
+      if (std::none_of(gpus.begin(), gpus.end(), [&](const GpuAdapter& g) { return g.id == id; })) {
+        char name[256] = {};
+        WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, name, int(sizeof(name)) - 1, nullptr, nullptr);
+        gpus.push_back({name, id});
+      }
+    }
+    adapter->Release();
+  }
+  factory->Release();
+  return gpus;
 }
 
 std::vector<game::FrameRate> FrameRates(const Monitor& monitor, bool any) {
@@ -331,6 +366,15 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   // Off where the game has no such row (game::kHasLowLatencyAudio), whatever an older launcher left in the file.
   o.audio_exclusive = game::kHasLowLatencyAudio && GetBool(c, "audio_wasapi_exclusive", false);
   o.debug_hotkeys = GetBool(c, "debug_hotkeys", false);
+  o.audio_device = GetEscapedString(c, "audio_output_device");
+  if (o.audio_device == "default") o.audio_device.clear();
+  {
+    std::string channels = GetString(c, "audio_channels");
+    o.audio_channels = channels == "stereo" ? kAudioStereo : channels == "mono" ? kAudioMono : kAudioAuto;
+  }
+  o.audio_volume = std::clamp(GetInt(c, "audio_volume", 100), 0, 100);
+  o.audio_mute_unfocused = GetBool(c, "audio_mute_unfocused", false);
+  o.gpu_adapter = GetString(c, "gpu_adapter");
   o.native = game::kHasNativeXRenderer && GetBool(c, "native_x_renderer", game::kNativeXRendererDefault);
   if (game::kShadowQuality) {
     double shadow_scale = std::strtod(GetString(c, "native_x_renderer_shadow_scale").c_str(), nullptr);
@@ -729,6 +773,7 @@ Settings LoadSettings(const std::filesystem::path& exe_dir) {
   ReadToml(exe_dir / game::kConfigFile, config);
   ReadToml(s.options_path, config);
   s.monitors = EnumerateMonitors();
+  s.gpus = EnumerateGpus();
   s.primary_dpi = s.monitors.front().dpi;
   s.o = OptionsFromConfig(config, s.primary_dpi);
   // A monitor that is not connected now (a TV) stays chosen: the page shows the primary for it
@@ -854,6 +899,16 @@ bool SaveOptions(const Settings& s) {
   }
   // The sound in exclusive mode (WASAPI), past Windows' audio engine; the shared output when the device refuses.
   f << "audio_wasapi_exclusive = " << boolean(o.audio_exclusive) << "\n";
+  // Settings > Audio (the SDK's change 85): the output device by name ("" = Windows' default), the channels (auto,
+  // stereo, mono), the volume (0-100) and the silence while the window is in the background.
+  static const char* const kChannelNames[] = {"auto", "stereo", "mono"};
+  f << "audio_output_device = \"" << Escaped(o.audio_device) << "\"\n";
+  f << "audio_channels = \"" << kChannelNames[std::clamp(o.audio_channels, 0, int(kAudioChannelsCount) - 1)]
+    << "\"\n";
+  f << "audio_volume = " << std::clamp(o.audio_volume, 0, 100) << "\n";
+  f << "audio_mute_unfocused = " << boolean(o.audio_mute_unfocused) << "\n";
+  // The GPU to draw with (the SDK's change 86: its PCI vendor and device IDs; "" = each renderer's own choice).
+  f << "gpu_adapter = \"" << o.gpu_adapter << "\"\n";
   // The SDK's developer keys (F3, F4, `): off, they do nothing in the game (a key on a control plays it either way).
   f << "debug_hotkeys = " << boolean(o.debug_hotkeys) << "\n";
   // Anisotropic filtering for textures with mipmaps, sharper at oblique angles (SDK cvar; the game itself

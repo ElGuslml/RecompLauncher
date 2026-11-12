@@ -2,6 +2,21 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.19.0
+
+Settings > Audio and the GPU (Gustavo, 2026-11-11). Needs the SDK's changes 85 and 86 (on `ghmetal`): with an older
+SDK the game ignores the new rows' settings.
+
+- Settings has a fourth category, Audio (`Page::kAudio`, after Game, Video, Graphics): the output device (Windows
+  default, or one of SDL's playback devices by name; a chosen one not connected stays chosen, marked "not
+  connected"; asked again every two seconds), the channels (Automatic, Stereo, Mono), the volume (0-100 % in tens),
+  mute in the background, and low latency audio, moved here from Game. Its Reset (X) resets them. Options file:
+  `audio_output_device`, `audio_channels`, `audio_volume`, `audio_mute_unfocused` (the SDK's change 85).
+- Settings > Graphics: the graphics card (`gpu_adapter`, the SDK's change 86, and NativeXRenderer's D141): Automatic,
+  or one of DXGI's hardware adapters by its PCI IDs (`EnumerateGpus`); for every renderer. Graphics' Reset sets it
+  back to Automatic.
+- Texts: `nav_audio`, `settings_intro_audio`, the audio rows' and the GPU row's (five languages).
+
 ## 3.18.0
 
 Gustavo's redesign ("Camerino", his 2026-11-11 mockup, `local_docs/launcher_design` in GHMetalRecomp): a calmer

@@ -34,6 +34,7 @@ Page TabOf(Page page) {
   switch (page) {
     case Page::kVideo:
     case Page::kGraphics:
+    case Page::kAudio:
       return Page::kGame;
     case Page::kProfiles:
     case Page::kProfile:
@@ -465,6 +466,7 @@ std::vector<App::Hint> App::PageHints() const {
     case Page::kVideo:
     case Page::kGraphics:
     case Page::kGame:
+    case Page::kAudio:
       return {{HintKey::kA, t_.hint_change}, {HintKey::kX, t_.hint_reset}, {HintKey::kY, t_.more_info},
               {HintKey::kB, t_.hint_back}};
     case Page::kProfiles:

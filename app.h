@@ -52,7 +52,7 @@ void OpenFolder(const std::filesystem::path& folder);
 // there, with the game's language and switches.
 // kProfiles .. kProfileEdit are not tabs: the header's avatar opens kProfiles, the others follow from it.
 enum class Page : int {
-  kPlay, kDlc, kAchievements, kControls, kVideo, kGraphics, kGame, kUpdates,
+  kPlay, kDlc, kAchievements, kControls, kVideo, kGraphics, kGame, kAudio, kUpdates,
   kProfiles, kProfile, kProfileGame, kProfileEdit, kCount
 };
 // A page's name, for the log.
@@ -193,7 +193,7 @@ class App {
   const std::string& PadKey(SDL_JoystickID id);
   void UpdateMicMeter();
   void CloseMicMeter();
-  // The Settings tab's categories: Game (page kGame), Video (kVideo), Graphics (kGraphics).
+  // The Settings tab's categories: Game (page kGame), Video (kVideo), Graphics (kGraphics), Audio (kAudio).
   void SettingsPage(const ImRect& rect);
   void UpdatesPage(const ImRect& rect);
   // The release notes (Markdown) at `pos`, `width` wide. Returns the height; draws only when `draw`.
@@ -243,7 +243,7 @@ class App {
   ImGuiID header_focus_ = 0;   // the header's control up from the page reaches: the current tab, or the avatar
   std::vector<ImGuiID> header_items_;  // the header's controls (tabs, Donate, avatar), this frame
   ImGuiID category_focus_ = 0; // the Settings tab's current category button
-  int settings_row_[3] = {};   // the row in focus in each Settings category (its help shows)
+  int settings_row_[4] = {};   // the row in focus in each Settings category (its help shows)
   bool settings_editing_ = false;  // A on a Settings row: left and right change its value until A or B
   ImGuiID settings_row_focus_ = 0;  // the Settings row in focus last (right from a category returns to it)
   bool controls_focus_mapping_ = false;  // a device chosen with A: the focus goes to its mapping

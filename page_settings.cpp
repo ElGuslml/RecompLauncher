@@ -1,14 +1,16 @@
 // The Settings tab (launcher 3.18, Gustavo's 2026-11-11 mockup "Camerino"): the title and its categories on the left
-// (Game, Video, Graphics: a dot marks the current one), the category's options as flat rows on the right, each its
-// value written as text (a switch for what is on or off); the row in focus grows to show its line of help, the arrows
-// and its place among the values ("‹ value ›", the controller's left and right, A the next). Y opens the row's whole
-// help, X resets the category. Every change is saved at once.
+// (Game, Video, Graphics, Audio since 3.19: a dot marks the current one), the category's options as flat rows on the
+// right, each its value written as text (a switch for what is on or off); the row in focus grows to show its line of
+// help, the arrows and its place among the values ("‹ value ›", the controller's left and right, A the next). Y opens
+// the row's whole help, X resets the category. Every change is saved at once.
 
 #include <algorithm>
 #include <cstdio>
 #include <functional>
 #include <string>
 #include <vector>
+
+#include <SDL3/SDL.h>
 
 #include "app.h"
 #include "pages.h"
@@ -78,19 +80,44 @@ std::string ChipText(const std::string& text) {
   return chip;
 }
 
+// The playback devices' names (SDL's, the names Windows shows and the SDK's audio_output_device matches), asked again
+// every two seconds while the page is shown: a headset plugged in appears.
+const std::vector<std::string>& AudioOutputs() {
+  static std::vector<std::string> names;
+  static uint64_t asked = 0;
+  const uint64_t now = SDL_GetTicks();
+  if (asked && now - asked < 2000) return names;
+  asked = now;
+  names.clear();
+  if (!SDL_WasInit(SDL_INIT_AUDIO) && !SDL_InitSubSystem(SDL_INIT_AUDIO)) return names;
+  int count = 0;
+  SDL_AudioDeviceID* ids = SDL_GetAudioPlaybackDevices(&count);
+  for (int i = 0; ids && i < count; ++i) {
+    const char* name = SDL_GetAudioDeviceName(ids[i]);
+    if (name && *name) names.push_back(name);
+  }
+  SDL_free(ids);
+  return names;
+}
+
 }  // namespace
 
 void App::SettingsPage(const ImRect& rect) {
   Options& o = settings_.o;
   const game::GameTexts& own = game::GameTextsFor(language_);
   bool changed = false;
-  int category = page_ == Page::kGame ? 0 : page_ == Page::kVideo ? 1 : 2;
+  int category = page_ == Page::kGame ? 0 : page_ == Page::kVideo ? 1 : page_ == Page::kGraphics ? 2 : 3;
 
   // --- The rows of the category ---
   std::vector<OptionRow> rows;
-  const char* category_label = category == 0 ? t_.nav_game : category == 1 ? t_.nav_video : t_.nav_graphics;
-  const char* intro = category == 0 ? t_.settings_intro_game : category == 1 ? t_.settings_intro_video
-                                                                             : t_.settings_intro_graphics;
+  const char* category_label = category == 0   ? t_.nav_game
+                               : category == 1 ? t_.nav_video
+                               : category == 2 ? t_.nav_graphics
+                                               : t_.nav_audio;
+  const char* intro = category == 0   ? t_.settings_intro_game
+                      : category == 1 ? t_.settings_intro_video
+                      : category == 2 ? t_.settings_intro_graphics
+                                      : t_.settings_intro_audio;
   auto toggle_rows = [&](game::ToggleGroup group, const char* group_title) {
     bool first = true;
     for (size_t i = 0; i < game::kToggles.size(); ++i) {
@@ -164,20 +191,6 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.language = index; };
       rows.push_back(std::move(row));
     }
-#ifdef _WIN32
-    if (game::kHasLowLatencyAudio) {
-      OptionRow row;
-      row.id = "audio_exclusive";
-      row.title = t_.audio_exclusive;
-      row.sub = t_.audio_exclusive_hint;
-      row.help = t_.audio_exclusive_help;
-      row.values = {t_.on, t_.off};
-      row.is_switch = true;
-      row.index = o.audio_exclusive ? 0 : 1;
-      row.apply = [&o](int index) { o.audio_exclusive = index == 0; };
-      rows.push_back(std::move(row));
-    }
-#endif
     // The SDK's developer keys (debug_hotkeys); on, the ones on the keyboard's controls are named: they play there.
     {
       OptionRow row;
@@ -200,6 +213,84 @@ void App::SettingsPage(const ImRect& rect) {
       rows.push_back(std::move(row));
     }
     toggle_rows(game::ToggleGroup::kGame, nullptr);
+  } else if (category == 3) {
+    // Launcher 3.19, the SDK's change 85. The output device: Windows' default (followed when it changes), or one by
+    // its name; a chosen one not connected now stays chosen, marked.
+    {
+      OptionRow row;
+      row.id = "audio_output";
+      row.title = t_.audio_output;
+      row.sub = t_.audio_output_hint;
+      row.help = t_.audio_output_help;
+      row.values.push_back(t_.audio_output_default);
+      std::vector<std::string> devices = {""};
+      for (const std::string& name : AudioOutputs()) {
+        if (name == o.audio_device) row.index = int(row.values.size());
+        row.values.push_back(name);
+        devices.push_back(name);
+      }
+      if (!o.audio_device.empty() && row.index == 0) {
+        char missing[320];
+        std::snprintf(missing, sizeof(missing), t_.audio_output_missing, o.audio_device.c_str());
+        row.index = int(row.values.size());
+        row.values.push_back(missing);
+        devices.push_back(o.audio_device);
+      }
+      row.apply = [&o, devices](int index) { o.audio_device = devices[size_t(index)]; };
+      rows.push_back(std::move(row));
+    }
+    // The channels: automatic (5.1 where the device has it), stereo, mono.
+    {
+      OptionRow row;
+      row.id = "audio_channels";
+      row.title = t_.audio_channels;
+      row.help = t_.audio_channels_help;
+      row.values = {t_.audio_channels_auto, t_.audio_channels_stereo, t_.audio_channels_mono};
+      row.subs = {t_.audio_channels_auto_sub, t_.audio_channels_stereo_sub, t_.audio_channels_mono_sub};
+      row.index = std::clamp(o.audio_channels, 0, int(kAudioChannelsCount) - 1);
+      row.apply = [&o](int index) { o.audio_channels = index; };
+      rows.push_back(std::move(row));
+    }
+    // The volume, 0-100 % in tens.
+    {
+      OptionRow row;
+      row.id = "audio_volume";
+      row.title = t_.audio_volume;
+      row.sub = t_.audio_volume_hint;
+      row.help = t_.audio_volume_help;
+      for (int v = 0; v <= 100; v += 10) row.values.push_back(std::to_string(v) + " %");
+      row.index = std::clamp((o.audio_volume + 5) / 10, 0, 10);
+      row.apply = [&o](int index) { o.audio_volume = index * 10; };
+      rows.push_back(std::move(row));
+    }
+    // Silence while another window is in front.
+    {
+      OptionRow row;
+      row.id = "audio_mute_unfocused";
+      row.title = t_.audio_mute_unfocused;
+      row.sub = t_.audio_mute_unfocused_hint;
+      row.help = t_.audio_mute_unfocused_help;
+      row.values = {t_.on, t_.off};
+      row.is_switch = true;
+      row.index = o.audio_mute_unfocused ? 0 : 1;
+      row.apply = [&o](int index) { o.audio_mute_unfocused = index == 0; };
+      rows.push_back(std::move(row));
+    }
+#ifdef _WIN32
+    // Low latency audio (moved from Game in 3.19).
+    if (game::kHasLowLatencyAudio) {
+      OptionRow row;
+      row.id = "audio_exclusive";
+      row.title = t_.audio_exclusive;
+      row.sub = t_.audio_exclusive_hint;
+      row.help = t_.audio_exclusive_help;
+      row.values = {t_.on, t_.off};
+      row.is_switch = true;
+      row.index = o.audio_exclusive ? 0 : 1;
+      row.apply = [&o](int index) { o.audio_exclusive = index == 0; };
+      rows.push_back(std::move(row));
+    }
+#endif
   } else if (category == 1) {
     // Monitor.
     {
@@ -492,6 +583,31 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.native = index == 0; };
       rows.push_back(std::move(row));
     }
+    // Launcher 3.19, the SDK's change 86: the graphics card, automatic or one by its PCI IDs (a laptop's integrated
+    // and dedicated ones); a chosen one not found now stays chosen, marked.
+    {
+      OptionRow row;
+      row.id = "gpu";
+      row.title = t_.gpu;
+      row.sub = t_.gpu_hint;
+      row.help = t_.gpu_help;
+      row.values.push_back(t_.gpu_automatic);
+      std::vector<std::string> ids = {""};
+      for (const GpuAdapter& gpu : settings_.gpus) {
+        if (gpu.id == o.gpu_adapter) row.index = int(row.values.size());
+        row.values.push_back(gpu.name);
+        ids.push_back(gpu.id);
+      }
+      if (!o.gpu_adapter.empty() && row.index == 0) {
+        char missing[160];
+        std::snprintf(missing, sizeof(missing), t_.audio_output_missing, o.gpu_adapter.c_str());
+        row.index = int(row.values.size());
+        row.values.push_back(missing);
+        ids.push_back(o.gpu_adapter);
+      }
+      row.apply = [&o, ids](int index) { o.gpu_adapter = ids[size_t(index)]; };
+      rows.push_back(std::move(row));
+    }
     // The frame rate: the rates the monitor reaches; those above 60 are experimental.
     if (*game::kFrameRateCvar) {
       std::vector<game::FrameRate> rates = FrameRates(settings_.CurrentMonitor(), o.any_frame_rate);
@@ -622,7 +738,10 @@ void App::SettingsPage(const ImRect& rect) {
     DrawLabel(title, ImVec2(page_left + Px(56.0f), page_top + Px(20.0f)), col::kText, label, Px(44.0f * 1.1f));
     constexpr Type kCategory{Font::kDisplayMedium, 22, 0.015f};
     const std::pair<Page, const char*> categories[] = {
-        {Page::kGame, t_.nav_game}, {Page::kVideo, t_.nav_video}, {Page::kGraphics, t_.nav_graphics}};
+        {Page::kGame, t_.nav_game},
+        {Page::kVideo, t_.nav_video},
+        {Page::kGraphics, t_.nav_graphics},
+        {Page::kAudio, t_.nav_audio}};
     std::vector<std::array<ImGuiID, 2>> category_ids;
     float y = page_top + Px(110.0f);
     for (const auto& [category_page, category_name] : categories) {
@@ -881,9 +1000,11 @@ void App::SettingsPage(const ImRect& rect) {
       } else if (category == 1) {
         ResetVideo(o);
         settings_.MonitorChanged();
-      } else {
+      } else if (category == 2) {
         ResetGraphics(o);
         o.native = o.native && settings_.has_vulkan && game::kHasNativeXRenderer;
+      } else {
+        ResetAudio(o);
       }
       changed = true;
     }

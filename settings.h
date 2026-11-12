@@ -149,9 +149,18 @@ struct Options {
   // cvar) and its switches. game::kUltrawideCvar follows native_aspect (the image format).
   int language = 0;
   std::array<bool, game::kToggles.size()> toggles{};
-  // The sound through WASAPI in exclusive mode (the SDK's audio_wasapi_exclusive, recomp change 64): less delay, and
-  // other programs silent on that device while the game runs.
+  // Settings > Audio (launcher 3.19). The sound through WASAPI in exclusive mode (the SDK's audio_wasapi_exclusive,
+  // recomp change 64): less delay, and other programs silent on that device while the game runs.
   bool audio_exclusive = false;
+  // The SDK's change 85: the output device by its name ("" = Windows' default: audio_output_device), the channels
+  // (audio_channels: kAudioAuto, kAudioStereo, kAudioMono), the volume (audio_volume, 0-100) and the silence while the
+  // window is in the background (audio_mute_unfocused).
+  std::string audio_device;
+  int audio_channels = 0;
+  int audio_volume = 100;
+  bool audio_mute_unfocused = false;
+  // Settings > Graphics: the GPU (the SDK's gpu_adapter, change 86: "VVVV:DDDD", its PCI IDs; "" = automatic).
+  std::string gpu_adapter;
   // The SDK's developer keys (debug_hotkeys: F3 the debug overlay, F4 its settings window, ` the console); off, those
   // keys do nothing in the game. A key bound to a control plays it either way.
   bool debug_hotkeys = false;
@@ -203,10 +212,14 @@ struct Options {
 // usb_microphone_1's value for the system's default recording device.
 inline constexpr const char* kSystemMicrophone = "default";
 
+// audio_channels' values (Options::audio_channels), in the row's order.
+enum AudioChannels { kAudioAuto, kAudioStereo, kAudioMono, kAudioChannelsCount };
+
 // The defaults of each page's "Reset" (the game's own, src/startup.cpp; the SDK's for the keyboard).
 void ResetVideo(Options& o);
 void ResetGraphics(Options& o);
 void ResetGame(Options& o);
+void ResetAudio(Options& o);
 void ResetKeyboard(Options& o);
 
 // --- The game's base settings and the options file ---
@@ -289,9 +302,17 @@ int SharpnessFromValue(int upscaler, double value);
 
 // --- The settings being edited ---
 
+// A graphics card (DXGI's hardware adapters, in Windows' order): its name and its gpu_adapter value ("10DE:2782").
+struct GpuAdapter {
+  std::string name;
+  std::string id;
+};
+std::vector<GpuAdapter> EnumerateGpus();
+
 struct Settings {
   Options o;
   std::vector<Monitor> monitors;
+  std::vector<GpuAdapter> gpus;
   std::vector<Size> window_sizes;  // of the chosen monitor (physical pixels)
   unsigned primary_dpi = 96;
   bool has_vulkan = false;  // vulkan-1.dll present (ships with the video driver)
