@@ -42,6 +42,16 @@ launcher, the accent kept for the main action, one focus style, flat rows instea
   and the Open link. The list: groups as rows (A folds, X or the switch sets all of it, the switch mixed while some are
   on) and packages as rows (A or a click toggles; "Not for this game" a quiet note; an extracted one's Remove by X).
   Right from the folder's column enters the list. The footer's hints follow the focus.
+- Achievements (phase 3): the totals beside the title (unlocked, gamerscore, its bar and percentage), the filters as
+  text tabs with their counts (X steps them), a grid of four columns of cards 100 dp high (the chosen one raised,
+  a locked one faint with a lock by its points, "Secret" a chip), and a strip under the grid with the one in focus:
+  its name, description, when it was unlocked and its points. No detail column: A reveals a secret one in focus (or
+  hides it again), the footer saying so only then.
+- Updates (phase 3): two columns without cards. The state as an icon and a heading (the version, up to date,
+  checking, a new version, a failed check) with its line, the installed version (and the launcher's) and the last
+  check as plain values, the main button as Play's (check, check again, update now; grey while it checks or updates)
+  with the update's progress under it, checking at start as a switch row, the history link; the release notes at the
+  right. The footer's A says what the button does.
 - Texts: `more_info`, `close`, `strip_achievements`, `tips`, `dlc_folder_short`, `dlc_drop_hint`, `dlc_not_for_game`,
   `dlc_hint_fold`, `dlc_hint_all_on`, `dlc_hint_all_off`, `dlc_hint_toggle`; `recommended`, `format_your_screen` and
   `screen_effects` in sentence case.

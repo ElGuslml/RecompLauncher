@@ -232,42 +232,45 @@ void App::UpdatesPage(const ImRect& rect) {
   // A game without releases to look for (game.h): its version, and nothing to check.
   const bool off = update_url_.empty();
 
-  ImRect main(ImVec2(rect.Min.x + Px(40.0f), rect.Min.y + Px(24.0f)), ImVec2(rect.Max.x - Px(40.0f), rect.Max.y - Px(20.0f)));
-  float left = main.Min.x;
-  float column = Px(520.0f);
-  constexpr Type kTitle{Font::kDisplayBold, 40};
-  DrawLabel(kTitle, main.Min, col::kText, Upper(t_.updates_title), Px(40.0f));
-  float y = main.Min.y + Px(40.0f) + Px(16.0f);
+  // --- The layout (launcher 3.18, the mockup's board 14; dp from the page's top left): the title at 56, 20; the state's
+  // column from 56, 104, 424 wide; a hairline at 544; the release notes from 584 to 56 from the right edge. ---
+  const float page_left = rect.Min.x;
+  const float page_top = rect.Min.y;
+  const float foot = rect.Max.y - Px(28.0f);
+  constexpr Type kTitle{Font::kDisplaySemiBold, 44, 0.015f};
+  constexpr Type kHeading{Font::kDisplayMedium, 26, 0.015f};
+  constexpr Type kSmall{Font::kRegular, 14};
+  constexpr Type kText{Font::kRegular, 15};
+  DrawLabel(kTitle, ImVec2(page_left + Px(56.0f), page_top + Px(20.0f)), col::kText, Title(t_.updates_title),
+            Px(44.0f * 1.1f));
+  const float top = page_top + Px(104.0f);
+  FillRect(ImRect(ImVec2(page_left + Px(544.0f), top), ImVec2(page_left + Px(544.0f) + Snap(Px(1.0f)), foot - Px(10.0f))),
+           col::kHairline);
 
-  // The state: its tile, title and line; the installed version and the last check; the button (check, or update to
-  // the new version, with its progress).
+  // The state: its icon and title, its line; the installed version and the last check; the main button (check, or
+  // update to the new version, with its progress); checking when the launcher opens; every version on GitHub.
   {
-    constexpr Type kStateTitle{Font::kDisplayBold, 26};
-    constexpr Type kStateSub{Font::kRegular, 14};
-    constexpr Type kStatLabel{Font::kBold, 12, 0.1f};
-    constexpr Type kStatValue{Font::kDisplaySemiBold, 20};
-    constexpr Type kSmall{Font::kRegular, 13};
+    const float x = page_left + Px(56.0f);
+    const float width = Px(424.0f);
+    float y = top;
     bool failed_check = updates_ && !updates_->ok && !checking;
     bool failed_update = progress.state == Update::State::kFailed;
-    // The state's words.
-    std::string title = t_.all_up_to_date;
-    std::string sub = t_.up_to_date;
-    ImU32 sub_color = col::kTabText;
-    Icon icon = Icon::kCheck;
-    ImU32 tile = Fade(col::kSuccess, 0.16f);
-    ImU32 ink = col::kSuccess;
+    char version[64];
+    std::snprintf(version, sizeof(version), t_.version, kVersion);
+    std::string title = version;
+    std::string sub = t_.check_on_start_hint;
+    ImU32 sub_color = col::kTextMuted;
+    Icon icon = Icon::kRefresh;
+    ImU32 ink = col::kTextMuted;
     if (off) {
-      char text[64];
-      std::snprintf(text, sizeof(text), t_.version, kVersion);
-      title = text;
       sub = t_.updates_off;
     } else if (checking) {
       title = t_.updates_checking_title;
       sub = t_.updates_checking_sub;
       icon = Icon::kNone;
-      tile = Fade(col::kAccent, 0.14f);
     } else if (newer) {
-      std::string number = newer->tag.size() > 1 && (newer->tag[0] == 'v' || newer->tag[0] == 'V') ? newer->tag.substr(1) : newer->tag;
+      std::string number = newer->tag.size() > 1 && (newer->tag[0] == 'v' || newer->tag[0] == 'V') ? newer->tag.substr(1)
+                                                                                                    : newer->tag;
       char text[96];
       std::snprintf(text, sizeof(text), t_.update_card_available, number.c_str());
       title = text;
@@ -276,8 +279,7 @@ void App::UpdatesPage(const ImRect& rect) {
                     Megabytes(newer->asset_size).c_str());
       sub = published;
       icon = Icon::kArrowDown;
-      tile = col::kAccent;
-      ink = col::kOnAccent;
+      ink = col::kAccent;
     } else if (failed_check) {
       title = t_.updates_failed_title;
       char text[512];
@@ -289,86 +291,71 @@ void App::UpdatesPage(const ImRect& rect) {
       sub = text;
       sub_color = col::kError;
       icon = Icon::kAlert;
-      tile = Fade(col::kError, 0.16f);
       ink = col::kError;
-    } else if (!updates_) {
-      // Not checked in this session: the version, when it was last checked.
-      char text[64];
-      std::snprintf(text, sizeof(text), t_.version, kVersion);
-      title = text;
-      sub = t_.check_on_start_hint;
-      icon = Icon::kRefresh;
-      tile = Fade(col::kAccent, 0.14f);
-      ink = col::kAccent;
+    } else if (updates_) {
+      title = t_.all_up_to_date;
+      sub = t_.up_to_date;
+      icon = Icon::kCheck;
+      ink = col::kSuccess;
     }
-    float inner_width = column - Px(48.0f);
-    float sub_height = DrawParagraph(kStateSub, ImVec2(0, 0), inner_width - Px(72.0f), 1.35f, 0, sub, false);
-    float head = std::max(Px(56.0f), Px(26.0f) * 1.1f + Px(4.0f) + sub_height);
-    float stats = Px(12.0f) * 2.0f + LineHeight(kStatLabel) + Px(4.0f) + LineHeight(kStatValue);
-    bool show_progress = updating || failed_update;
-    float progress_height = show_progress ? Px(14.0f) + LineHeight(kSmall) + Px(8.0f) + Px(6.0f) : 0.0f;
-    float height = Px(24.0f) * 2.0f + head + Px(18.0f) + stats + (off ? 0.0f : Px(18.0f) + Px(56.0f)) + progress_height;
-    ImRect card(ImVec2(left, y), ImVec2(left + column, y + height));
-    FillRect(card, col::kPanel, 14.0f);
-    StrokeRect(card, Hex(0xFFFFFF, 26), 14.0f);
-    float x = card.Min.x + Px(24.0f);
-    float top = card.Min.y + Px(24.0f);
-    ImRect icon_tile(ImVec2(x, top + (head - Px(56.0f)) * 0.5f), ImVec2(x + Px(56.0f), top + (head + Px(56.0f)) * 0.5f));
-    FillRect(icon_tile, tile, 12.0f);
+    // The icon (a spinning arc while it checks), 14 dp before the title.
+    float title_height = LineHeight(kHeading);
+    ImVec2 icon_pos(x, y + (title_height - Px(30.0f)) * 0.5f);
     if (checking) {
       ImDrawList* draw = ImGui::GetWindowDrawList();
+      ImVec2 c(icon_pos.x + Px(15.0f), icon_pos.y + Px(15.0f));
       float start = float(ImGui::GetTime()) * 5.0f;
-      draw->PathArcTo(icon_tile.GetCenter(), Px(10.5f), start, start + 4.7f, 32);
+      draw->PathArcTo(c, Px(11.0f), start, start + 4.7f, 32);
       draw->PathStroke(col::kAccent, ImDrawFlags_None, Px(2.4f));
     } else {
-      DrawIcon(icon, ImVec2(icon_tile.Min.x + Px(14.0f), icon_tile.Min.y + Px(14.0f)), 28.0f, ink, 2.4f);
+      DrawIcon(icon, icon_pos, 30.0f, ink, icon == Icon::kCheck ? 2.2f : 1.75f);
     }
-    float text_x = icon_tile.Max.x + Px(16.0f);
-    float text_y = top + (head - (Px(26.0f) * 1.1f + Px(4.0f) + sub_height)) * 0.5f;
-    DrawLabel(kStateTitle, ImVec2(text_x, text_y), col::kText, Ellipsize(kStateTitle, title, card.Max.x - Px(24.0f) - text_x),
-              Px(26.0f) * 1.1f);
-    DrawParagraph(kStateSub, ImVec2(text_x, text_y + Px(26.0f) * 1.1f + Px(4.0f)), card.Max.x - Px(24.0f) - text_x, 1.35f,
-                  sub_color, sub);
-    top += head + Px(18.0f);
-    // The two values.
-    float half = (inner_width - Px(10.0f)) * 0.5f;
-    for (int i = 0; i < 2; ++i) {
-      ImRect box(ImVec2(x + float(i) * (half + Px(10.0f)), top), ImVec2(x + float(i) * (half + Px(10.0f)) + half, top + stats));
-      FillRect(box, Hex(0xFFFFFF, 13), 8.0f);
-      const char* label = i == 0 ? t_.installed_version_short : t_.last_review;
-      std::string value = i == 0 ? std::string(kVersion) : (settings_.o.last_update_check > 0 ? LastCheckedText() : t_.never);
-      DrawLabel(kStatLabel, ImVec2(box.Min.x + Px(14.0f), box.Min.y + Px(12.0f)), col::kLabel,
-                Ellipsize(kStatLabel, Upper(label), half - Px(28.0f)));
-      DrawLabel(kStatValue, ImVec2(box.Min.x + Px(14.0f), box.Min.y + Px(12.0f) + LineHeight(kStatLabel) + Px(4.0f)), col::kText,
-                Ellipsize(kStatValue, value, half - Px(28.0f)));
-      if (i == 0) {
-        char launcher[64];
-        std::snprintf(launcher, sizeof(launcher), t_.launcher_version, kLauncherVersion);
-        float value_width = MeasureText(kStatValue, value).x;
-        float lx = box.Min.x + Px(14.0f) + value_width + Px(10.0f);
-        if (lx + MeasureText(kSmall, launcher).x < box.Max.x - Px(12.0f)) {
-          float baseline = box.Min.y + Px(12.0f) + LineHeight(kStatLabel) + Px(4.0f) + Px(20.0f) * 1.193f;
-          DrawLabel(kSmall, ImVec2(lx, baseline - Px(13.0f) * 1.024f), col::kTabText, launcher);
-        }
-      }
+    float title_x = x + Px(30.0f) + Px(14.0f);
+    DrawLabel(kHeading, ImVec2(title_x, y), col::kText, Ellipsize(kHeading, title, x + width - title_x));
+    y += title_height + Px(8.0f);
+    y += DrawParagraph(kText, ImVec2(x, y), width, 1.5f, sub_color, sub) + Px(26.0f);
+
+    // The two values: the installed version (with the launcher's) and the last check, 56 dp apart.
+    constexpr Type kValue{Font::kDisplayMedium, 22};
+    {
+      DrawLabel(kSmall, ImVec2(x, y), col::kTextDim, t_.installed_version_short);
+      DrawLabel(kValue, ImVec2(x, y + LineHeight(kSmall) + Px(2.0f)), col::kText, kVersion);
+      char launcher[64];
+      std::snprintf(launcher, sizeof(launcher), t_.launcher_version, kLauncherVersion);
+      float value_width = MeasureText(kValue, kVersion).x;
+      float baseline = y + LineHeight(kSmall) + Px(2.0f) + Px(22.0f) * 1.193f;
+      DrawLabel(kSmall, ImVec2(x + value_width + Px(8.0f), baseline - Px(14.0f) * 1.024f), col::kTextDim, launcher);
+      float second_x = x + std::max(value_width + Px(8.0f) + MeasureText(kSmall, launcher).x,
+                                    MeasureText(kSmall, t_.installed_version_short).x) + Px(56.0f);
+      DrawLabel(kSmall, ImVec2(second_x, y), col::kTextDim, t_.last_review);
+      DrawLabel(kValue, ImVec2(second_x, y + LineHeight(kSmall) + Px(2.0f)), col::kText,
+                Ellipsize(kValue, o.last_update_check > 0 ? LastCheckedText() : std::string(t_.never), x + width - second_x));
+      y += LineHeight(kSmall) + Px(2.0f) + LineHeight(kValue) + Px(28.0f);
     }
-    top += stats + Px(18.0f);
-    // The button: check (again), or update.
+
     if (!off) {
-      constexpr Type kButton{Font::kDisplayBold, 20, 0.05f};
-      const char* label = newer ? t_.update_now : checking ? t_.updates_checking_title : updates_ ? t_.check_again : t_.check_updates;
-      std::string text = Upper(label);
+      // The main button: Check for updates (again), or Update now; disabled while it checks or updates.
+      constexpr Type kButton{Font::kDisplaySemiBold, 28, 0.02f};
+      const char* label = newer ? t_.update_now : checking ? t_.updates_checking_title : updates_ ? t_.check_again
+                                                                                                  : t_.check_updates;
       bool enabled = !checking && !updating;
-      ImRect button(ImVec2(x, top), ImVec2(x + inner_width, top + Px(56.0f)));
+      constexpr float kGlyph = 28.0f;
+      float glyph = GlyphWidth(PadButton::kA, kGlyph);
+      float button_width = std::min(width, Px(20.0f) + glyph + Px(14.0f) + MeasureText(kButton, label).x + Px(30.0f));
+      ImRect button(ImVec2(x + Px(2.0f), y), ImVec2(x + Px(2.0f) + button_width, y + Px(64.0f)));
       ItemState state = Item("##update_button", button, enabled);
-      ImU32 background = state.hovered ? Brighten(col::kAccent) : col::kAccent;
-      FillRect(button, Fade(background, enabled ? 1.0f : 0.6f), 10.0f);
-      float glyph = GlyphWidth(PadButton::kA, 26.0f);
-      float content = glyph + Px(12.0f) + MeasureText(kButton, text).x;
-      float gx = button.GetCenter().x - content * 0.5f;
-      DrawGlyph(PadButton::kA, ImVec2(gx, button.GetCenter().y - Px(13.0f)), 26.0f, true);
-      DrawLabel(kButton, ImVec2(gx + glyph + Px(12.0f), button.Min.y), col::kOnAccent, text, button.GetHeight());
-      if (state.focused) FocusRing(button, 10.0f);
+      if (enabled) {
+        FillRect(button, state.hovered ? Brighten(col::kAccent) : col::kAccent, 14.0f);
+        DrawGlyph(PadButton::kA, ImVec2(button.Min.x + Px(20.0f), button.GetCenter().y - Px(kGlyph) * 0.5f), kGlyph, true);
+        DrawLabel(kButton, ImVec2(button.Min.x + Px(20.0f) + glyph + Px(14.0f), button.Min.y), col::kOnAccent,
+                  Ellipsize(kButton, label, button.Max.x - Px(29.0f) - (button.Min.x + Px(20.0f) + glyph + Px(14.0f))),
+                  button.GetHeight());
+      } else {
+        FillRect(button, col::kChip, 14.0f);
+        DrawLabel(kButton, ImVec2(button.GetCenter().x - MeasureText(kButton, label).x * 0.5f, button.Min.y), col::kTextDim,
+                  label, button.GetHeight());
+      }
+      if (state.focused) FocusRing(button, 14.0f);
       page_focus_ = ImGui::GetItemID();
       if (state.pressed) {
         if (newer) {
@@ -377,12 +364,12 @@ void App::UpdatesPage(const ImRect& rect) {
           CheckForUpdatesNow();
         }
       }
-      top += Px(56.0f);
+      y = button.Max.y;
       // The update's progress, or why it failed.
-      if (show_progress) {
-        top += Px(14.0f);
+      if (updating || failed_update) {
+        y += Px(14.0f);
         char status[512];
-        ImU32 status_color = col::kTextSoft;
+        ImU32 status_color = col::kTextMuted;
         if (failed_update) {
           char reason[384];
           switch (progress.problem) {
@@ -401,74 +388,64 @@ void App::UpdatesPage(const ImRect& rect) {
           }
           std::snprintf(status, sizeof(status), t_.update_failed, reason);
           status_color = col::kError;
-        } else if (progress.state == Update::State::kDownloading) {
-          std::snprintf(status, sizeof(status), t_.update_downloading, Megabytes(progress.done).c_str(),
-                        Megabytes(progress.total).c_str());
+          y += DrawParagraph(kSmall, ImVec2(x, y), width, 1.4f, status_color, status);
         } else {
-          std::snprintf(status, sizeof(status), "%s",
-                        progress.state == Update::State::kVerifying ? t_.update_verifying : t_.update_installing);
-        }
-        DrawLabel(kSmall, ImVec2(x, top), status_color, Ellipsize(kSmall, status, inner_width));
-        top += LineHeight(kSmall) + Px(8.0f);
-        if (!failed_update) {
+          if (progress.state == Update::State::kDownloading) {
+            std::snprintf(status, sizeof(status), t_.update_downloading, Megabytes(progress.done).c_str(),
+                          Megabytes(progress.total).c_str());
+          } else {
+            std::snprintf(status, sizeof(status), "%s",
+                          progress.state == Update::State::kVerifying ? t_.update_verifying : t_.update_installing);
+          }
+          DrawLabel(kSmall, ImVec2(x, y), status_color, Ellipsize(kSmall, status, width));
+          y += LineHeight(kSmall) + Px(8.0f);
           float fraction = progress.state == Update::State::kDownloading && progress.total
                                ? float(double(progress.done) / double(progress.total))
                                : 1.0f;
-          Progress(ImRect(ImVec2(x, top), ImVec2(x + inner_width, top + Px(6.0f))), fraction, col::kPanelTrack, col::kAccent);
+          Progress(ImRect(ImVec2(x, y), ImVec2(x + width, y + Px(6.0f))), fraction, col::kChip, col::kAccent);
+          y += Px(6.0f);
         }
       }
-    }
-    y = card.Max.y + Px(16.0f);
-  }
+      y += Px(36.0f);
 
-  // Checking when the launcher opens, and every version on GitHub.
-  if (!off) {
-    constexpr Type kSwitchTitle{Font::kBold, 15};
-    constexpr Type kSwitchHint{Font::kRegular, 13};
-    constexpr Type kLinkType{Font::kBold, 14};
-    float height = Px(18.0f) * 2.0f + LineHeight(kSwitchTitle) + Px(2.0f) + LineHeight(kSwitchHint) + Px(14.0f) +
-                   LineHeight(kLinkType);
-    ImRect card(ImVec2(left, y), ImVec2(left + column, y + height));
-    FillRect(card, col::kPanel, 14.0f);
-    StrokeRect(card, col::kHairline, 14.0f);
-    float x = card.Min.x + Px(20.0f);
-    float top = card.Min.y + Px(18.0f);
-    float row_height = LineHeight(kSwitchTitle) + Px(2.0f) + LineHeight(kSwitchHint);
-    ImRect row(ImVec2(x, top), ImVec2(card.Max.x - Px(20.0f), top + row_height));
-    ItemState state = Item("##check_on_start", row);
-    DrawLabel(kSwitchTitle, ImVec2(x, top), col::kText, t_.check_on_start);
-    DrawLabel(kSwitchHint, ImVec2(x, top + LineHeight(kSwitchTitle) + Px(2.0f)), col::kTabText, t_.check_on_start_hint);
-    // A 22 dp check box in accent.
-    ImRect box(ImVec2(row.Max.x - Px(22.0f), row.GetCenter().y - Px(11.0f)), ImVec2(row.Max.x, row.GetCenter().y + Px(11.0f)));
-    if (o.check_updates) {
-      FillRect(box, col::kAccent, 4.0f);
-      DrawIcon(Icon::kCheck, ImVec2(box.Min.x + Px(3.0f), box.Min.y + Px(3.0f)), 16.0f, col::kOnAccent, 3.0f);
-    } else {
-      FillRect(box, col::kGhostFill, 4.0f);
-      StrokeRect(box, Hex(0xFFFFFF, 90), 4.0f, 1.5f);
-    }
-    if (state.focused) FocusRing(row, 6.0f);
-    if (state.pressed) {
-      o.check_updates = !o.check_updates;
-      changed = true;
-    }
-    top += row_height + Px(14.0f);
-    if (Link("##history", ImVec2(x, top), t_.full_history, 14)) {
-      OpenUrl(game::kReleasesPage);
+      // Checking when the launcher opens: a row between two hairlines, the whole row its item, its switch at the right.
+      constexpr Type kLabel{Font::kMedium, 18};
+      ImRect row(ImVec2(x, y), ImVec2(x + width, y + Px(76.0f)));
+      ItemState row_state = Item("##check_on_start", row);
+      FillRect(ImRect(row.Min, ImVec2(row.Max.x, row.Min.y + Snap(Px(1.0f)))), col::kHairline);
+      if (row_state.focused) {
+        FocusRow(ImRect(ImVec2(row.Min.x - Px(12.0f), row.Min.y + Px(4.0f)), ImVec2(row.Max.x + Px(12.0f), row.Max.y - Px(4.0f))),
+                 12.0f);
+      } else {
+        FillRect(ImRect(ImVec2(row.Min.x, row.Max.y - Snap(Px(1.0f))), row.Max), col::kHairline);
+      }
+      if (row_state.pressed) {
+        o.check_updates = !o.check_updates;
+        changed = true;
+      }
+      float block = LineHeight(kLabel) + Px(2.0f) + LineHeight(kSmall);
+      float ty = row.GetCenter().y - block * 0.5f;
+      float text_width = width - Px(52.0f) - Px(16.0f);
+      DrawLabel(kLabel, ImVec2(x, ty), row_state.focused ? col::kText : col::kTextSoft,
+                Ellipsize(kLabel, t_.check_on_start, text_width));
+      DrawLabel(kSmall, ImVec2(x, ty + LineHeight(kLabel) + Px(2.0f)), col::kTextDim,
+                Ellipsize(kSmall, t_.check_on_start_hint, text_width));
+      DrawToggle(ImVec2(row.Max.x - Px(52.0f), row.GetCenter().y - Px(15.0f)), o.check_updates, true, false,
+                 row_state.hovered);
+      y = row.Max.y + Px(20.0f);
+      if (Link("##history", ImVec2(x, y), t_.full_history, 15)) {
+        OpenUrl(game::kReleasesPage);
+      }
     }
   }
 
   // The release notes: what is new since the installed version, or the installed version's.
   {
-    ImRect card(ImVec2(left + column + Px(24.0f), main.Min.y), main.Max);
-    FillRect(card, col::kPanel, 14.0f);
-    StrokeRect(card, col::kHairline, 14.0f);
-    constexpr Type kHeading{Font::kDisplayBold, 24};
-    constexpr Type kMeta{Font::kRegular, 13};
-    float x = card.Min.x + Px(24.0f);
-    float width = card.GetWidth() - Px(48.0f);
-    float top = card.Min.y + Px(24.0f);
-    DrawLabel(kHeading, ImVec2(x, top), col::kText, Upper(t_.release_notes_title));
+    const float x = page_left + Px(584.0f);
+    const float right = rect.Max.x - Px(56.0f);
+    const float width = right - x;
+    float y = top;
+    DrawLabel(kHeading, ImVec2(x, y), col::kText, t_.release_notes_title);
     std::vector<const Release*> shown;
     if (updates_ && updates_->ok) {
       for (const Release& release : updates_->releases) {
@@ -479,20 +456,19 @@ void App::UpdatesPage(const ImRect& rect) {
       }
     }
     if (!shown.empty()) {
-      std::string meta = shown.front()->tag + " · " + PublishedDate(shown.front()->published, language_);
-      DrawLabel(kMeta, ImVec2(card.Max.x - Px(24.0f) - MeasureText(kMeta, meta).x, top + Px(24.0f) * 1.193f - Px(13.0f) * 1.024f),
-                col::kTabText, meta);
+      std::string meta = shown.front()->tag + " \xC2\xB7 " + PublishedDate(shown.front()->published, language_);
+      DrawLabel(kSmall, ImVec2(right - MeasureText(kSmall, meta).x, y + Px(26.0f) * 1.193f - Px(14.0f) * 1.024f),
+                col::kTextDim, meta);
     }
-    top += LineHeight(kHeading) + Px(16.0f);
-    ImRect notes(ImVec2(x, top), ImVec2(card.Max.x - Px(16.0f), card.Max.y - Px(24.0f)));
+    y += LineHeight(kHeading) + Px(12.0f);
+    ImRect notes(ImVec2(x, y), ImVec2(right + Px(16.0f), foot));
     if (shown.empty()) {
-      DrawParagraph(Type{Font::kRegular, 15}, notes.Min, width, 1.5f, col::kTextSoft,
+      DrawParagraph(kText, notes.Min, width, 1.5f, col::kTextMuted,
                     off ? t_.updates_off : checking ? t_.checking_updates : t_.release_notes_none);
     } else {
-      constexpr Type kSection{Font::kBold, 12, 0.1f};
+      constexpr Type kSection{Font::kSemiBold, 14};
       BeginScroll("##notes", notes);
       ImVec2 origin = ImGui::GetCursorScreenPos();
-      float notes_width = ImGui::GetContentRegionAvail().x - Px(16.0f);
       float notes_y = origin.y;
       for (const Release* release : shown) {
         // Several versions: each one's title before its notes.
@@ -501,12 +477,12 @@ void App::UpdatesPage(const ImRect& rect) {
           std::snprintf(title, sizeof(title), running < release->version ? t_.whats_new : t_.release_notes,
                         release->tag.c_str());
           if (notes_y > origin.y) notes_y += Px(18.0f);
-          DrawLabel(kSection, ImVec2(origin.x, notes_y), col::kLabel, title);
+          DrawLabel(kSection, ImVec2(origin.x, notes_y), col::kTextMuted, title);
           notes_y += LineHeight(kSection) + Px(12.0f);
         }
-        notes_y += ReleaseNotes(release->notes, ImVec2(origin.x, notes_y), notes_width, true);
+        notes_y += ReleaseNotes(release->notes, ImVec2(origin.x, notes_y), width, true);
       }
-      ImGui::Dummy(ImVec2(notes_width, notes_y - origin.y));
+      ImGui::Dummy(ImVec2(width, notes_y - origin.y));
       EndScroll();
     }
   }

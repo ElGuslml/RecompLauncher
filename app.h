@@ -319,6 +319,7 @@ class App {
   int achievement_filter_ = 0;
   size_t achievement_selected_ = 0;          // the detail's achievement (an index of achievements_->items)
   std::set<uint32_t> revealed_achievements_;  // secret ones revealed this session (their ids)
+  int achievement_focus_secret_ = 0;  // launcher 3.18, the footer's A: the focused card is a secret one, 1 hidden, 2 revealed
 
   // The achievements (achievements.h): read on a thread when the launcher opens, and once the first run has
   // extracted the game; the game is asked to write their list when it is missing. The game's icon with them.

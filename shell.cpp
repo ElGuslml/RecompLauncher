@@ -473,11 +473,20 @@ std::vector<App::Hint> App::PageHints() const {
         }
       }
       return {{HintKey::kA, t_.hint_choose_folder}, {HintKey::kB, t_.hint_back}};
-    case Page::kUpdates:
-      return {{HintKey::kA, t_.check_updates}, {HintKey::kB, t_.hint_back}};
-    case Page::kAchievements:
-      return {{HintKey::kA, t_.hint_view_detail}, {HintKey::kY, t_.hint_reveal}, {HintKey::kX, t_.hint_filter},
+    case Page::kUpdates: {
+      // The main button's own words.
+      const Release* newer = updates_ ? updates_->Newer(Version::Parse(kVersion)) : nullptr;
+      if (update_url_.empty()) return {{HintKey::kB, t_.hint_back}};
+      return {{HintKey::kA, newer ? t_.update_now : updates_ ? t_.check_again : t_.check_updates},
               {HintKey::kB, t_.hint_back}};
+    }
+    case Page::kAchievements:
+      // A reveals a secret one in focus (or hides it again); the strip shows the one in focus without a key.
+      if (achievement_focus_secret_) {
+        return {{HintKey::kA, achievement_focus_secret_ == 1 ? t_.hint_reveal : t_.hide_again},
+                {HintKey::kX, t_.hint_filter}, {HintKey::kB, t_.hint_back}};
+      }
+      return {{HintKey::kX, t_.hint_filter}, {HintKey::kB, t_.hint_back}};
     default:
       return {{HintKey::kA, t_.hint_select}, {HintKey::kB, t_.hint_back}};
   }
