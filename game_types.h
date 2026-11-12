@@ -177,6 +177,9 @@ inline constexpr bool kGuitarControlsApart = false;
 // buttons in a song apart from the menus' (the SDK's gamepad_song_binds, recomp change 113: "In a song" and
 // "Navigation"), and the options file's gamepad_guitar_layout. False: none of them.
 inline constexpr bool kHasGh3PadLayout = false;
+// The Video page's DLSS model row (launcher 3.24), with NVIDIA DLSS: Transformer or CNN (NativeXRenderer's
+// native_x_renderer_dlss_model). False: no row, and the options file gains no key.
+inline constexpr bool kHasDlssModel = false;
 }  // namespace defaults
 using namespace defaults;
 

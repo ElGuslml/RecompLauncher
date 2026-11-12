@@ -724,6 +724,11 @@ struct Texts {
   const char* gameinput_title;
   const char* gameinput_text;
   const char* gameinput_action;
+  // Launcher 3.24: DLSS's model (Settings > Video, game::kHasDlssModel).
+  const char* dlss_model;
+  const char* dlss_model_help;
+  const char* dlss_model_transformer_sub;
+  const char* dlss_model_cnn_sub;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,
