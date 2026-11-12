@@ -662,8 +662,9 @@ bool TextField(const char* id, const ImRect& rect, std::string* value, size_t ma
   ImGuiID item = ImGui::GetID(id);
   bool active = ImGui::GetActiveID() == item;
   bool hovered = ImGui::IsMouseHoveringRect(rect.Min, rect.Max);
-  FillRect(rect, col::kField, 8.0f);
-  StrokeRect(rect, active ? col::kAccent : hovered ? col::kTextDim : col::kFieldBorder, 8.0f, active ? 1.5f : 1.0f);
+  // Launcher 3.18: 12 dp corners; being typed in (or focused) it shows the focus's outline, not the accent.
+  FillRect(rect, col::kField, 12.0f);
+  StrokeRect(rect, hovered && !active ? col::kTextDim : col::kFieldBorder, 12.0f);
 
   // Dear ImGui's own field, without its frame, over the text's line.
   ImFont* font = FontOf(kType);
@@ -691,8 +692,8 @@ bool TextField(const char* id, const ImRect& rect, std::string* value, size_t ma
   ImGui::PopStyleColor(7);
   ImGui::PopStyleVar();
   ImGui::PopFont();
-  if (focused && !active) {
-    FocusRing(rect, 8.0f);
+  if (focused || active) {
+    FocusRow(rect, 12.0f);
   }
   if (changed) {
     *value = buffer;

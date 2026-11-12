@@ -611,6 +611,9 @@ struct Texts {
   const char* dlc_hint_all_on;
   const char* dlc_hint_all_off;
   const char* dlc_hint_toggle;
+  // Launcher 3.18: the profile's strip of totals.
+  const char* strip_completed;  // %d: the percentage ("%%" for the sign)
+  const char* strip_streak;     // %s: the days ("6 days")
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

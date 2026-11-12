@@ -19,6 +19,7 @@
 
 #include "game.h"
 #include "launcher_version.h"
+#include "pages.h"
 #include "profile_art.h"
 #include "ui/gfx.h"
 
@@ -65,18 +66,121 @@ std::string WindowsUserName() {
   return {};
 }
 
-// A centered card over the page; returns its rectangle.
-ImRect Card(ImVec2 size, float width_dp, float height) {
+// A centered card over the page (launcher 3.18: the card's color, a hairline, 18 dp corners); returns its rectangle.
+// Centred in the space over the footer, which the dialog keeps.
+ImRect DialogCard(ImVec2 size, float width_dp, float height) {
   ImVec2 origin = ImGui::GetMainViewport()->Pos;
   float width = Px(width_dp);
-  ImRect card(Snap(ImVec2(origin.x + (size.x - width) * 0.5f, origin.y + (size.y - height) * 0.5f)),
-              Snap(ImVec2(origin.x + (size.x + width) * 0.5f, origin.y + (size.y + height) * 0.5f)));
-  FillRect(card, col::kCard, 16.0f);
-  StrokeRect(card, col::kOutline, 16.0f);
+  float space = size.y - Snap(Px(52.0f));
+  ImRect card(Snap(ImVec2(origin.x + (size.x - width) * 0.5f, origin.y + (space - height) * 0.5f)),
+              Snap(ImVec2(origin.x + (size.x + width) * 0.5f, origin.y + (space + height) * 0.5f)));
+  FillRect(card, col::kCard, 18.0f);
+  StrokeRect(card, col::kHairline, 18.0f);
   return card;
 }
 
 }  // namespace
+
+void FieldLabel(ImVec2 pos, float width, std::string_view title, std::string_view count) {
+  constexpr Type kTitle{Font::kSemiBold, 15};
+  constexpr Type kCount{Font::kRegular, 13};
+  DrawLabel(kTitle, pos, col::kTextSoft, title);
+  if (!count.empty()) {
+    DrawLabel(kCount, ImVec2(pos.x + width - MeasureText(kCount, count).x, pos.y), col::kTextDim, count, LineHeight(kTitle));
+  }
+}
+
+int AvatarPicker(const char* id, ImVec2 pos, float size, float gap, int selected, ImTextureID photo,
+                 std::string_view photo_label) {
+  int pressed = -1;
+  ImDrawList* draw = ImGui::GetWindowDrawList();
+  const float side = Px(size);
+  ImGui::PushID(id);
+  for (size_t i = 0; i <= profiles::kAvatars.size(); ++i) {
+    bool is_photo = i == profiles::kAvatars.size();
+    float x = pos.x + float(i) * (side + Px(gap));
+    ImRect r(ImVec2(x, pos.y), ImVec2(x + side, pos.y + side));
+    ImGui::PushID(int(i));
+    ItemState state = Item("##avatar", r);
+    ImGui::PopID();
+    bool on = is_photo ? selected < 0 : selected == int(i);
+    ImVec2 center = r.GetCenter();
+    if (!is_photo) {
+      DrawSvg(profiles::kAvatars[i].key, profiles::kAvatars[i].body, 100.0f, r, true);
+    } else if (photo != ImTextureID_Invalid) {
+      DrawTexture(photo, r, true);
+    } else {
+      // The photo's place: a dashed circle, a camera and its word.
+      DashedRect(r, state.hovered ? col::kTextDim : col::kOutline, size * 0.5f / col::kRoundness);
+      constexpr Type kSmall{Font::kSemiBold, 12};
+      std::string caption = Ellipsize(kSmall, photo_label, side - Px(10.0f));
+      float block = Px(20.0f) + Px(2.0f) + LineHeight(kSmall);
+      float top = center.y - block * 0.5f;
+      DrawIcon(Icon::kCamera, ImVec2(center.x - Px(10.0f), top), 20.0f, col::kTextMuted, 1.8f);
+      DrawLabel(kSmall, ImVec2(center.x - MeasureText(kSmall, caption).x * 0.5f, top + Px(22.0f)), col::kTextMuted,
+                caption);
+    }
+    if (state.hovered && !on && !state.focused) {
+      draw->AddCircle(center, side * 0.5f + Px(3.0f), Fade(col::kText, 0.25f), 48, Px(2.0f));
+    }
+    if (on) {
+      // The chosen one: a check on an accent badge at its lower right, ringed in the window's color.
+      float badge = Px(22.0f);
+      ImVec2 c(r.Max.x + Px(4.0f) - badge * 0.5f, r.Max.y + Px(2.0f) - badge * 0.5f);
+      draw->AddCircleFilled(c, badge * 0.5f + Px(2.0f), col::kBackground, 24);
+      draw->AddCircleFilled(c, badge * 0.5f, col::kAccent, 24);
+      DrawIcon(Icon::kCheck, ImVec2(c.x - Px(7.0f), c.y - Px(7.0f)), 14.0f, col::kOnAccent, 2.6f);
+    }
+    if (state.focused) FocusRing(r, size * 0.5f / col::kRoundness);
+    if (state.pressed) pressed = int(i);
+  }
+  ImGui::PopID();
+  return pressed;
+}
+
+int ColorPicker(const char* id, ImVec2 pos, float size, float gap, int selected) {
+  int pressed = -1;
+  ImDrawList* draw = ImGui::GetWindowDrawList();
+  const float side = Px(size);
+  ImGui::PushID(id);
+  for (size_t i = 0; i < profiles::kColors.size(); ++i) {
+    float x = pos.x + float(i) * (side + Px(gap));
+    ImRect r(ImVec2(x, pos.y), ImVec2(x + side, pos.y + side));
+    ImGui::PushID(int(i));
+    ItemState state = Item("##color", r);
+    ImGui::PopID();
+    ImU32 color = ProfileColor(int(i));
+    draw->AddCircleFilled(r.GetCenter(), side * 0.5f, state.hovered ? Brighten(color) : color, 40);
+    if (selected == int(i)) {
+      DrawIcon(Icon::kCheck, ImVec2(r.GetCenter().x - Px(9.0f), r.GetCenter().y - Px(9.0f)), 18.0f, col::kBackground, 2.6f);
+    }
+    if (state.focused) FocusRing(r, size * 0.5f / col::kRoundness);
+    if (state.pressed) pressed = int(i);
+  }
+  ImGui::PopID();
+  return pressed;
+}
+
+void DrawStrip(ImVec2 pos, std::span<const StripPart> parts) {
+  // As Play's: 44 dp high, the panel over the art with a hairline, each part 16 dp in, hairlines between.
+  constexpr Type kPart{Font::kMedium, 15};
+  float width = Px(8.0f);
+  for (const StripPart& part : parts) width += Px(16.0f) * 2.0f + Px(18.0f) + Px(8.0f) + MeasureText(kPart, part.text).x;
+  ImRect strip(pos, ImVec2(pos.x + width, pos.y + Px(44.0f)));
+  FillRect(strip, col::kPanel, 12.0f);
+  StrokeRect(strip, col::kHairline, 12.0f);
+  float x = strip.Min.x + Px(4.0f);
+  for (size_t i = 0; i < parts.size(); ++i) {
+    float part_width = Px(16.0f) * 2.0f + Px(18.0f) + Px(8.0f) + MeasureText(kPart, parts[i].text).x;
+    if (i > 0) {
+      FillRect(ImRect(ImVec2(x, strip.Min.y + Px(13.0f)), ImVec2(x + Snap(Px(1.0f)), strip.Max.y - Px(13.0f))), col::kHairline);
+    }
+    DrawIcon(parts[i].icon, ImVec2(x + Px(16.0f), strip.GetCenter().y - Px(9.0f)), 18.0f, parts[i].icon_color, 1.75f);
+    DrawLabel(kPart, ImVec2(x + Px(16.0f) + Px(18.0f) + Px(8.0f), strip.Min.y), col::kTextSoft, parts[i].text,
+              strip.GetHeight());
+    x += part_width;
+  }
+}
 
 void App::LoadProfiles() {
   store_ = profiles::Load();
@@ -237,13 +341,17 @@ void App::ProfileDialogs(ImVec2 size) {
   if (ImGui::BeginPopupModal(kPopup, nullptr,
                              ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                                  ImGuiWindowFlags_NoBackground)) {
-    ImGui::GetWindowDrawList()->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y),
-                                              Fade(col::kBackground, 0.82f));
+    // Launcher 3.18: a flat veil over the header and the page; the footer stays, with the dialog's own hints.
+    float footer_height = Snap(Px(52.0f));
+    ImGui::GetWindowDrawList()->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y - footer_height),
+                                              Hex(0x000000, 158));
     if (profile_dialog_ == ProfileDialog::kCreate) {
       CreateProfileCard(size);
     } else if (profile_dialog_ == ProfileDialog::kConflict) {
       ConflictCard(size);
     }
+    std::vector<Hint> hints = PageHints();
+    Footer(ImRect(ImVec2(origin.x, origin.y + size.y - footer_height), ImVec2(origin.x + size.x, origin.y + size.y)), hints);
     profile_dialog_opened_ = true;
     if (profile_dialog_ == ProfileDialog::kNone) {
       profile_dialog_opened_ = false;
@@ -256,161 +364,99 @@ void App::ProfileDialogs(ImVec2 size) {
 }
 
 void App::CreateProfileCard(ImVec2 size) {
-  constexpr Type kTitle{Font::kDisplayBold, 30};
+  // Launcher 3.18 (the mockup's board 21): the chosen avatar beside the title and what a profile keeps; the name; the
+  // avatars and the photo; the colors; Create (the main action) at the lower right, Cancel beside it after the first.
+  constexpr Type kTitle{Font::kDisplayMedium, 30, 0.015f};
   constexpr Type kSubtitle{Font::kRegular, 15};
-  constexpr Type kLabel{Font::kSemiBold, 14};
-  constexpr Type kCount{Font::kRegular, 13};
-  constexpr Type kSmall{Font::kSemiBold, 11};
+  constexpr Type kLabel{Font::kSemiBold, 15};
   constexpr Type kError{Font::kMedium, 13};
   constexpr float kWidth = 600.0f;
-  constexpr float kPadding = 28.0f;
-  constexpr float kAvatarButton = 76.0f;  // an avatar of 64 in its selection ring
-  constexpr float kSwatch = 44.0f;
+  constexpr float kPadding = 32.0f;
+  constexpr float kAvatar = 64.0f;
+  constexpr float kSwatch = 36.0f;
   const char* title = profile_first_ ? t_.profile_create_title : t_.profile_new_title;
   const float inner_width = Px(kWidth - kPadding * 2.0f);
-  const float text_width = inner_width - Px(72.0f + 20.0f) - (profile_first_ ? 0.0f : Px(36.0f));
+  const float text_width = inner_width - Px(72.0f + 20.0f) - (profile_first_ ? 0.0f : Px(40.0f));
   const float subtitle_height = DrawParagraph(kSubtitle, ImVec2(0, 0), text_width, 1.5f, 0, t_.profile_create_text, false);
-  const float header = std::max(Px(72.0f), LineHeight(kTitle) + Px(6.0f) + subtitle_height);
+  const float header = std::max(Px(72.0f), LineHeight(kTitle) + Px(4.0f) + subtitle_height);
   const float label = LineHeight(kLabel);
-  float height = Px(kPadding) + header + Px(24.0f) + label + Px(8.0f) + Px(48.0f) + Px(22.0f) + label + Px(10.0f) +
-                 Px(kAvatarButton) + Px(22.0f) + label + Px(10.0f) + Px(kSwatch) + Px(26.0f) + Px(46.0f) + Px(kPadding);
+  float height = Px(kPadding) + header + Px(28.0f) + label + Px(8.0f) + Px(48.0f) + Px(26.0f) + label + Px(12.0f) +
+                 Px(kAvatar) + Px(26.0f) + label + Px(12.0f) + Px(kSwatch) + Px(30.0f) + Px(52.0f) + Px(kPadding);
   if (!profile_error_.empty()) {
     height += LineHeight(kError) + Px(12.0f);
   }
-  ImRect card = Card(size, kWidth, height);
+  ImRect card = DialogCard(size, kWidth, height);
   const float x = card.Min.x + Px(kPadding);
   float y = card.Min.y + Px(kPadding);
 
   // The header: the chosen avatar, the title and what a profile keeps.
   std::string_view avatar = new_avatar_ < 0 ? profiles::kPhoto : std::string_view(profiles::kAvatars[size_t(new_avatar_)].key);
-  DrawAvatar(ImVec2(x, y), 72.0f, avatar, new_photo_texture_, new_color_);
+  DrawAvatar(ImVec2(x, y + (header - Px(72.0f)) * 0.5f), 72.0f, avatar, new_photo_texture_, new_color_);
   float text_x = x + Px(72.0f + 20.0f);
-  DrawLabel(kTitle, ImVec2(text_x, y), col::kText, Title(title));
-  DrawParagraph(kSubtitle, ImVec2(text_x, y + LineHeight(kTitle) + Px(6.0f)), text_width, 1.5f, col::kTextMuted,
+  float text_y = y + (header - (LineHeight(kTitle) + Px(4.0f) + subtitle_height)) * 0.5f;
+  DrawLabel(kTitle, ImVec2(text_x, text_y), col::kText, title);
+  DrawParagraph(kSubtitle, ImVec2(text_x, text_y + LineHeight(kTitle) + Px(4.0f)), text_width, 1.5f, col::kTextMuted,
                 t_.profile_create_text);
   if (!profile_first_) {
     ImRect close(ImVec2(card.Max.x - Px(kPadding + 32.0f), y), ImVec2(card.Max.x - Px(kPadding), y + Px(32.0f)));
     ItemState state = Item("##close", close);
-    if (state.hovered || state.focused) {
-      FillRect(close, col::kCardRaised, 8.0f);
-    }
+    if (state.hovered) FillRect(close, col::kCardRaised, 8.0f);
     DrawIcon(Icon::kClose, ImVec2(close.Min.x + Px(6.0f), close.Min.y + Px(6.0f)), 20.0f, col::kTextMuted, 2.0f);
-    if (state.focused) {
-      FocusRing(close, 8.0f);
-    }
+    if (state.focused) FocusRing(close, 8.0f);
     if (state.pressed || ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||
         ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
       profile_dialog_ = ProfileDialog::kNone;
     }
   }
-  y += header + Px(24.0f);
+  y += header + Px(28.0f);
 
   // The name, with its count of characters.
-  DrawLabel(kLabel, ImVec2(x, y), col::kText, t_.profile_name);
   char count[16];
-  std::snprintf(count, sizeof(count), "%zu/%zu", profiles::CountChars(new_name_), profiles::kNameMax);
-  DrawLabel(kCount, ImVec2(x + inner_width - MeasureText(kCount, count).x, y), col::kTextDim, count, label);
+  std::snprintf(count, sizeof(count), "%zu / %zu", profiles::CountChars(new_name_), profiles::kNameMax);
+  FieldLabel(ImVec2(x, y), inner_width, t_.profile_name, count);
   y += label + Px(8.0f);
   if (!profile_dialog_opened_) {
     ImGui::SetKeyboardFocusHere();
   }
   TextField("##profile_name", ImRect(ImVec2(x, y), ImVec2(x + inner_width, y + Px(48.0f))), &new_name_,
             profiles::kNameMax, t_.profile_name_hint);
-  y += Px(48.0f) + Px(22.0f);
+  y += Px(48.0f) + Px(26.0f);
 
   // The avatars, and the photo.
-  DrawLabel(kLabel, ImVec2(x, y), col::kText, t_.profile_avatar);
-  y += label + Px(10.0f);
-  const float button = Px(kAvatarButton);
-  const float gap = Px(10.0f);
-  for (size_t i = 0; i <= profiles::kAvatars.size(); ++i) {
-    bool photo = i == profiles::kAvatars.size();
-    ImRect rect(ImVec2(x + float(i) * (button + gap), y), ImVec2(x + float(i) * (button + gap) + button, y + button));
-    char id[32];
-    std::snprintf(id, sizeof(id), "##avatar%zu", i);
-    ItemState state = Item(id, rect);
-    bool selected = photo ? new_avatar_ < 0 : new_avatar_ == int(i);
-    ImVec2 center = rect.GetCenter();
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-    if (selected) {
-      draw->AddCircle(center, button * 0.5f - Px(1.5f), col::kAccent, 64, Px(3.0f));
-    } else if (state.hovered) {
-      draw->AddCircle(center, button * 0.5f - Px(1.5f), col::kOutline, 64, Px(3.0f));
-    }
-    ImVec2 picture(rect.Min.x + Px(6.0f), rect.Min.y + Px(6.0f));
-    if (!photo) {
-      DrawSvg(profiles::kAvatars[i].key, profiles::kAvatars[i].body, 100.0f,
-              ImRect(picture, ImVec2(picture.x + Px(64.0f), picture.y + Px(64.0f))), true);
-    } else if (new_photo_texture_ != ImTextureID_Invalid) {
-      DrawTexture(new_photo_texture_, ImRect(picture, ImVec2(picture.x + Px(64.0f), picture.y + Px(64.0f))), true);
+  DrawLabel(kLabel, ImVec2(x, y), col::kTextSoft, t_.profile_avatar);
+  y += label + Px(12.0f);
+  int avatar_pressed = AvatarPicker("##avatars", ImVec2(x, y), kAvatar, 20.0f, new_avatar_, new_photo_texture_,
+                                    t_.profile_photo);
+  if (avatar_pressed >= 0) {
+    if (avatar_pressed < int(profiles::kAvatars.size())) {
+      new_avatar_ = avatar_pressed;
+    } else if (new_photo_ && new_avatar_ >= 0) {
+      new_avatar_ = -1;
     } else {
-      // The photo's button: a dashed circle with a camera.
-      draw->AddCircleFilled(center, button * 0.5f - Px(2.0f), col::kCardRaised, 64);
-      if (!selected) {
-        DashedRect(ImRect(ImVec2(rect.Min.x + Px(1.0f), rect.Min.y + Px(1.0f)), ImVec2(rect.Max.x - Px(1.0f), rect.Max.y - Px(1.0f))),
-                   col::kDashed, kAvatarButton * 0.5f / col::kRoundness);
-      }
-      DrawIcon(Icon::kCamera, ImVec2(center.x - Px(10.0f), center.y - Px(18.0f)), 20.0f, col::kTextSoft, 2.0f);
-      std::string caption = Ellipsize(kSmall, t_.profile_photo, button - Px(8.0f));
-      DrawLabel(kSmall, ImVec2(center.x - MeasureText(kSmall, caption).x * 0.5f, center.y + Px(5.0f)), col::kTextSoft,
-                caption);
-    }
-    if (state.focused) {
-      FocusRing(rect, kAvatarButton * 0.5f / col::kRoundness);
-    }
-    if (state.pressed) {
-      if (!photo) {
-        new_avatar_ = int(i);
-      } else if (new_photo_ && new_avatar_ >= 0) {
-        new_avatar_ = -1;
-      } else {
-        BrowsePhoto();
-      }
+      BrowsePhoto();
     }
   }
-  y += button + Px(22.0f);
+  y += Px(kAvatar) + Px(26.0f);
 
   // The profile's color.
-  DrawLabel(kLabel, ImVec2(x, y), col::kText, t_.profile_color);
-  y += label + Px(10.0f);
-  const float swatch = Px(kSwatch);
-  for (size_t i = 0; i < profiles::kColors.size(); ++i) {
-    ImRect rect(ImVec2(x + float(i) * (swatch + gap), y), ImVec2(x + float(i) * (swatch + gap) + swatch, y + swatch));
-    char id[32];
-    std::snprintf(id, sizeof(id), "##color%zu", i);
-    ItemState state = Item(id, rect);
-    ImVec2 center = rect.GetCenter();
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-    draw->AddCircleFilled(center, swatch * 0.5f - Px(5.0f), ProfileColor(int(i)), 48);
-    if (new_color_ == int(i)) {
-      draw->AddCircle(center, swatch * 0.5f - Px(1.5f), col::kText, 48, Px(3.0f));
-    } else if (state.hovered) {
-      draw->AddCircle(center, swatch * 0.5f - Px(1.5f), col::kOutline, 48, Px(3.0f));
-    }
-    if (state.focused) {
-      FocusRing(rect, kSwatch * 0.5f / col::kRoundness);
-    }
-    if (state.pressed) {
-      new_color_ = int(i);
-    }
+  DrawLabel(kLabel, ImVec2(x, y), col::kTextSoft, t_.profile_color);
+  y += label + Px(12.0f);
+  if (int color = ColorPicker("##colors", ImVec2(x, y), kSwatch, 20.0f, new_color_); color >= 0) {
+    new_color_ = color;
   }
-  y += swatch + Px(26.0f);
+  y += Px(kSwatch) + Px(30.0f);
 
   if (!profile_error_.empty()) {
     DrawLabel(kError, ImVec2(x, y - Px(14.0f)), col::kError, Ellipsize(kError, profile_error_, inner_width));
     y += LineHeight(kError) + Px(12.0f);
   }
 
-  // The buttons.
+  // The buttons: Create (A), Cancel after the first profile.
   const std::string name = profiles::Trim(new_name_);
-  ButtonSpec create;
-  create.kind = name.empty() ? ButtonKind::kDisabled : ButtonKind::kPrimary;
-  create.type = Type{Font::kBold, 15};
-  create.height = 46;
-  create.padding = 24;
-  float create_width = ButtonWidth(create, t_.profile_create);
+  KeyButtonSpec create{KeyLook::kPrimary, 'A', Type{Font::kDisplaySemiBold, 22, 0.02f}, 52, 24, 14, 26, 12};
+  float create_width = KeyButtonWidth(create, t_.profile_create);
   float right = card.Max.x - Px(kPadding);
-  if (Button("##create_profile", ImVec2(right - create_width, y), create, t_.profile_create, !name.empty())) {
+  if (KeyButton("##create_profile", ImVec2(right - create_width, y), create, t_.profile_create, !name.empty()).pressed) {
     std::string avatar_key = new_avatar_ < 0 ? std::string(profiles::kPhoto) : profiles::kAvatars[size_t(new_avatar_)].key;
     profiles::Profile* profile = profiles::Create(store_, name, avatar_key, new_color_, RECOMP_LAUNCHER_VERSION_STR);
     if (!profile) {
@@ -431,12 +477,17 @@ void App::CreateProfileCard(ImVec2 size) {
       LoadProfileGames();
     }
   }
+  if (name.empty()) {
+    constexpr Type kNeeded{Font::kRegular, 14};
+    float needed_x = right - create_width - Px(14.0f) - MeasureText(kNeeded, t_.name_needed).x;
+    if (profile_first_ && needed_x > x) {
+      DrawLabel(kNeeded, ImVec2(needed_x, y), col::kTextMuted, t_.name_needed, Px(52.0f));
+    }
+  }
   if (!profile_first_) {
-    ButtonSpec cancel;
-    cancel.kind = ButtonKind::kGhost;
-    cancel.height = 46;
+    ButtonSpec cancel{ButtonKind::kGhost, Type{Font::kSemiBold, 16}, 44, 20, 12};
     float cancel_width = ButtonWidth(cancel, t_.cancel);
-    if (Button("##cancel_profile", ImVec2(right - create_width - Px(10.0f) - cancel_width, y), cancel, t_.cancel)) {
+    if (Button("##cancel_profile", ImVec2(right - create_width - Px(14.0f) - cancel_width, y + Px(4.0f)), cancel, t_.cancel)) {
       profile_dialog_ = ProfileDialog::kNone;
       SetPhoto(std::nullopt);
     }
@@ -455,7 +506,7 @@ void App::ConflictCard(ImVec2 size) {
   const float title_height = DrawParagraph(kTitle, ImVec2(0, 0), inner_width, 1.15f, 0, shown, false);
   const float text_height = DrawParagraph(kText, ImVec2(0, 0), inner_width, 1.5f, 0, t_.migrate_conflict_text, false);
   float height = Px(kPadding) + title_height + Px(12.0f) + text_height + Px(28.0f) + Px(46.0f) + Px(kPadding);
-  ImRect card = Card(size, kWidth, height);
+  ImRect card = DialogCard(size, kWidth, height);
   float x = card.Min.x + Px(kPadding);
   float y = card.Min.y + Px(kPadding);
   DrawParagraph(kTitle, ImVec2(x, y), inner_width, 1.15f, col::kText, shown);

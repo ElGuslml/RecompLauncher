@@ -414,6 +414,16 @@ std::vector<App::Hint> App::PageHints() const {
   if (info_.open) {
     return {{HintKey::kB, t_.close}};
   }
+  // A dialog's own (it keeps the footer under its veil).
+  if (profile_dialog_ == ProfileDialog::kCreate) {
+    if (profile_first_) {
+      return {{HintKey::kA, t_.profile_create}, {HintKey::kArrows, t_.hint_choose}};
+    }
+    return {{HintKey::kA, t_.profile_create}, {HintKey::kArrows, t_.hint_choose}, {HintKey::kB, t_.cancel}};
+  }
+  if (profile_dialog_ == ProfileDialog::kConflict) {
+    return {{HintKey::kA, t_.hint_select}};
+  }
   if (installing_) {
     Extraction::State extraction = extraction_.Get().state;
     switch (install_step_) {
@@ -442,14 +452,16 @@ std::vector<App::Hint> App::PageHints() const {
       return {{HintKey::kA, t_.hint_change}, {HintKey::kX, t_.hint_reset}, {HintKey::kY, t_.more_info},
               {HintKey::kB, t_.hint_back}};
     case Page::kProfiles:
-      return {{HintKey::kA, t_.hint_use_profile}, {HintKey::kY, t_.edit}, {HintKey::kX, t_.create_profile},
+      return {{HintKey::kA, t_.hint_use_profile}, {HintKey::kX, t_.edit}, {HintKey::kY, t_.create_profile},
               {HintKey::kB, t_.hint_back}};
     case Page::kProfile:
-      return {{HintKey::kA, t_.hint_select}, {HintKey::kY, t_.edit_profile}, {HintKey::kB, t_.hint_back}};
+      if (profile_tab_ == 0) return {{HintKey::kX, t_.edit_profile}, {HintKey::kB, t_.hint_back}};
+      return {{HintKey::kA, t_.hint_select}, {HintKey::kX, t_.edit_profile}, {HintKey::kB, t_.hint_back}};
     case Page::kProfileGame:
       return {{HintKey::kA, t_.hint_pin}, {HintKey::kX, t_.hint_filter}, {HintKey::kB, t_.my_games}};
     case Page::kProfileEdit:
-      return {{HintKey::kA, t_.save}, {HintKey::kArrows, t_.hint_choose}, {HintKey::kB, t_.cancel}};
+      return {{HintKey::kA, edit_id_.empty() ? t_.create_profile : t_.save}, {HintKey::kArrows, t_.hint_choose},
+              {HintKey::kB, t_.cancel}};
     case Page::kControls:
       if (game::kHasMicrophones && microphone_selected_) {
         return {{HintKey::kA, t_.hint_change}, {HintKey::kX, t_.hint_clear}, {HintKey::kY, t_.tips},

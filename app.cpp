@@ -414,6 +414,10 @@ void App::Frame(ImVec2 size) {
 }
 
 void App::FrameContents(ImVec2 size) {
+  if (focus_next_frame_) {
+    focus_next_frame_ = false;
+    focus_page_ = true;
+  }
   // ImGui's navigation must not take X (Square) held as its window switcher: the launcher's X is its own.
   GImGui->ConfigNavWindowingWithGamepad = false;
   if (!glyphs_chosen_) {
@@ -554,7 +558,8 @@ void App::FrameContents(ImVec2 size) {
   }
   if (!popup && !popup_was_open && !Listening() && !pad_release_wait_) {
     if (page_ == Page::kProfile && (ButtonPressed(PadButton::kLB) || ButtonPressed(PadButton::kRB))) {
-      profile_tab_ = 1 - profile_tab_;  // the profile's sections
+      profile_tab_ = 1 - profile_tab_;  // the profile's sections, the focus on the new one's first control
+      focus_next_frame_ = true;  // once the new section is drawn
     } else if (ButtonPressed(PadButton::kLB)) {
       NextTab(-1);
     } else if (ButtonPressed(PadButton::kRB)) {

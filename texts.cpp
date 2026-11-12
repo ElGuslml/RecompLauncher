@@ -584,6 +584,8 @@ const Texts kEnglish = {
     .dlc_hint_all_on = "Turn all on",
     .dlc_hint_all_off = "Turn all off",
     .dlc_hint_toggle = "Turn on or off",
+    .strip_completed = "%d %% complete",
+    .strip_streak = "Streak of %s",
 };
 
 const Texts kGerman = {
@@ -1161,6 +1163,8 @@ const Texts kGerman = {
     .dlc_hint_all_on = "Alle einschalten",
     .dlc_hint_all_off = "Alle ausschalten",
     .dlc_hint_toggle = "Ein- oder ausschalten",
+    .strip_completed = "%d %% abgeschlossen",
+    .strip_streak = "Serie von %s",
 };
 
 const Texts kFrench = {
@@ -1738,6 +1742,8 @@ const Texts kFrench = {
     .dlc_hint_all_on = "Tout activer",
     .dlc_hint_all_off = "Tout désactiver",
     .dlc_hint_toggle = "Activer ou désactiver",
+    .strip_completed = "%d %% terminé",
+    .strip_streak = "Série de %s",
 };
 
 const Texts kSpanish = {
@@ -2314,6 +2320,8 @@ const Texts kSpanish = {
     .dlc_hint_all_on = "Activar todo",
     .dlc_hint_all_off = "Desactivar todo",
     .dlc_hint_toggle = "Activar o desactivar",
+    .strip_completed = "%d %% completado",
+    .strip_streak = "Racha de %s",
 };
 
 const Texts kItalian = {
@@ -2890,6 +2898,8 @@ const Texts kItalian = {
     .dlc_hint_all_on = "Attiva tutto",
     .dlc_hint_all_off = "Disattiva tutto",
     .dlc_hint_toggle = "Attiva o disattiva",
+    .strip_completed = "%d %% completato",
+    .strip_streak = "Serie di %s",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.

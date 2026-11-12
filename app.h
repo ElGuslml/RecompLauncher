@@ -250,6 +250,7 @@ class App {
   ImGuiID mapping_first_ = 0;  // the Controls tab's first row control (the mapping's)
   std::vector<std::array<ImGuiID, 2>> mapping_rows_;  // its rows' controls, this frame (ColumnNav)
   bool focus_page_ = false;    // focus page_focus_ on the next frame (back from the game)
+  bool focus_next_frame_ = false;  // set focus_page_ when the next frame starts (a section changed in this one)
   int focus_page_wait_ = 0;    // frames focus_page_ waited for a page with nothing to focus
   bool game_running_ = false;
   uint32_t game_exit_code_ = 0;

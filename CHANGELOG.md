@@ -52,7 +52,18 @@ launcher, the accent kept for the main action, one focus style, flat rows instea
   check as plain values, the main button as Play's (check, check again, update now; grey while it checks or updates)
   with the update's progress under it, checking at start as a switch row, the history link; the release notes at the
   right. The footer's A says what the button does.
-- Texts: `more_info`, `close`, `strip_achievements`, `tips`, `dlc_folder_short`, `dlc_drop_hint`, `dlc_not_for_game`,
+- The profile (phase 4), no cards anywhere: "Who's playing" as tiles (the current one marked by a dot), See my profile
+  the main action, Edit (X) beside it, Y creates one. The profile's page: the avatar, name, motto and level at the left,
+  the sections as text tabs between LB and RB and Edit at the right; the summary a strip of the totals and three
+  columns (the week's bars, neutral with today in the accent; the recent achievements and the showcase as rows,
+  without the games' colors); My games a row each, its columns lined up (one bar and one percentage, the gamerscore's,
+  as the Achievements tab), Play the accent only on this launcher's game. A game's achievements: back (B), its name,
+  totals and bar, the filters as text tabs, two columns of flat rows (`AchievementCard`) with the showcase's star.
+  Editing and creating: the preview without a card, the form with the shared pickers (`AvatarPicker` with an accent
+  badge, `ColorPicker` with a check, `FieldLabel`); the last profile's Delete disabled with its reason shown (not on
+  hover only). The first profile's dialog over a flat veil with its own footer; text fields show the focus's outline.
+  LB and RB on the profile's page move the focus into the new section.
+- Texts: `more_info`, `close`, `strip_achievements`, `strip_completed`, `strip_streak`, `tips`, `dlc_folder_short`, `dlc_drop_hint`, `dlc_not_for_game`,
   `dlc_hint_fold`, `dlc_hint_all_on`, `dlc_hint_all_off`, `dlc_hint_toggle`; `recommended`, `format_your_screen` and
   `screen_effects` in sentence case.
 

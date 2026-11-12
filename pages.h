@@ -65,6 +65,22 @@ float KeyButtonWidth(const KeyButtonSpec& spec, std::string_view label);
 ui::ItemState KeyButton(const char* id, ImVec2 pos, const KeyButtonSpec& spec, std::string_view label,
                         bool enabled = true);
 
+// The profile's forms (launcher 3.18, page_profile.cpp): a field's label with its count at the right ("Name   6 / 15");
+// the avatars as circles `size` dp wide `gap` apart, the chosen one with an accent badge, then the photo's dashed
+// circle (`photo` its picture, or none); the profile's colors as circles, the chosen one with a check. The pickers
+// return what was pressed: an avatar's index, kAvatars.size() for the photo, a color's index; -1 for nothing.
+void FieldLabel(ImVec2 pos, float width, std::string_view title, std::string_view count);
+int AvatarPicker(const char* id, ImVec2 pos, float size, float gap, int selected, ImTextureID photo,
+                 std::string_view photo_label);
+int ColorPicker(const char* id, ImVec2 pos, float size, float gap, int selected);
+// A row of a strip (Play's, the profile's): its parts' icons and texts in a panel, hairlines between them.
+struct StripPart {
+  ui::Icon icon;
+  ImU32 icon_color;
+  std::string text;
+};
+void DrawStrip(ImVec2 pos, std::span<const StripPart> parts);
+
 // A card whose height is known after its rows: its background goes under them through a draw list channel.
 class Card {
  public:
