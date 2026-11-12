@@ -2,7 +2,7 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
-## 3.18.0 (in progress, branch `redesign`)
+## 3.18.0
 
 Gustavo's redesign ("Camerino", his 2026-11-11 mockup, `local_docs/launcher_design` in GHMetalRecomp): a calmer
 launcher, the accent kept for the main action, one focus style, flat rows instead of nested cards, long help on demand.
