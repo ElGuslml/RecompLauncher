@@ -174,7 +174,7 @@ struct Options {
   bool gamepad_tap = false;
   float mnk_sensitivity = 1.0f;
   std::array<std::string, int(Bind::kCount)> binds;
-  // The keyboard's keys while it plays drums (game::kHasDrums, launcher 3.20), the same controls kept apart so that the
+  // The keyboard's keys while it plays drums (game::kHasDrums, launcher 3.19.1), the same controls kept apart so that the
   // guitar's stay as they were: launcher_drums_keybind_* in the options file. While the keyboard is a drum kit
   // (gamepad_device_subtypes' keyboard=8) they are written as keybind_*, the guitar's as launcher_guitar_keybind_*.
   std::array<std::string, int(Bind::kCount)> drum_binds;

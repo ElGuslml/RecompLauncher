@@ -2,9 +2,11 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
-## 3.20.0
+## 3.19.1
 
-Drums on the keyboard and the controllers (Gustavo, 2026-11-11). Needs the SDK's change 87 for four lanes.
+A patch of 3.19 (Gustavo: these changes as 3.19.1; the commits before this one called it 3.20.0): drums on the
+keyboard and the controllers (2026-11-11), rows of values changed after A, Settings' focus without a jump. Needs the
+SDK's change 87 for four lanes.
 
 - The Instrument row has three parts: the game's instrument (the guitar), Drums (`game::kHasDrums`) and Vocals. A
   controller or the keyboard playing drums is XInput's drum kit in `gamepad_device_subtypes` (`8`).
@@ -35,6 +37,7 @@ Drums on the keyboard and the controllers (Gustavo, 2026-11-11). Needs the SDK's
   screenshots, ten moves up and down without that frame.
 - The keyboard back on drums takes its kit's default keys while they are the other kit's (`FitDrumKeys`, also when
   the options file is read).
+- Settings: the dot of the current category 8 dp further left, clear of the focus's outline.
 
 ## 3.19.0
 

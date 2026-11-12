@@ -710,7 +710,7 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
       return y - origin.y;
     }
   }
-  // A drum kit's lanes, a real one's too (launcher 3.20).
+  // A drum kit's lanes, a real one's too (launcher 3.19.1).
   if (game::kHasDrums && drums) {
     y += KitRow(ImVec2(origin.x, y), width, key, real_kit);
   }

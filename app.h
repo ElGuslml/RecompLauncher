@@ -187,7 +187,7 @@ class App {
   float PartRow(ImVec2 origin, float width, const std::string& key);
   // A selector row (the part, the drum kit): -1, 0 or 1, the step asked.
   int SelectorRow(const char* id, ImVec2 origin, float width, const char* label, const std::string& value);
-  // A drum kit's lanes (launcher 3.20): five (Guitar Hero) or four (Rock Band). `real_kit`: a drum kit of its own.
+  // A drum kit's lanes (launcher 3.19.1): five (Guitar Hero) or four (Rock Band). `real_kit`: a drum kit of its own.
   float KitRow(ImVec2 origin, float width, const std::string& key, bool real_kit);
   // The keyboard's keys of what it plays: the drum keys while it plays drums, else the guitar's.
   std::array<std::string, int(Bind::kCount)>& KeyBinds();

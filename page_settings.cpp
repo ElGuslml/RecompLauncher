@@ -865,7 +865,7 @@ void App::SettingsPage(const ImRect& rect) {
       selected = i;
       changed = true;
     };
-    // The controller (launcher 3.20.1, as before 3.18): A on a row of values starts changing it, left and right then
+    // The controller (launcher 3.19.1, as before 3.18): A on a row of values starts changing it, left and right then
     // step it until A or B; a switch flips with A at once. Otherwise left goes back to the categories. A click steps
     // the value, as its arrows do.
     const bool editing = RowEditing(row_id);

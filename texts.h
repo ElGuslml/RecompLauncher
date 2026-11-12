@@ -639,7 +639,7 @@ struct Texts {
   const char* gpu_hint;
   const char* gpu_help;
   const char* gpu_automatic;
-  // Launcher 3.20: drums on the keyboard and the controllers (the Instrument row's third part, the Drum kit row).
+  // Launcher 3.19.1: drums on the keyboard and the controllers (the Instrument row's third part, the Drum kit row).
   const char* part_drums;
   const char* drum_kit;
   const char* drum_kit_five;
