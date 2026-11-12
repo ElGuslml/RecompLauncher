@@ -467,7 +467,9 @@ std::vector<App::Hint> App::PageHints() const {
     case Page::kGraphics:
     case Page::kGame:
     case Page::kAudio:
-      return {{HintKey::kA, t_.hint_change}, {HintKey::kX, t_.hint_reset}, {HintKey::kY, t_.more_info},
+      // A row being changed: left and right step it, A (or B) ends it.
+      if (AnyRowEditing()) return {{HintKey::kArrows, t_.hint_change}, {HintKey::kA, t_.hint_done}};
+      return {{HintKey::kA, t_.hint_edit}, {HintKey::kX, t_.hint_reset}, {HintKey::kY, t_.more_info},
               {HintKey::kB, t_.hint_back}};
     case Page::kProfiles:
       return {{HintKey::kA, t_.hint_use_profile}, {HintKey::kX, t_.edit}, {HintKey::kY, t_.create_profile},
@@ -481,6 +483,7 @@ std::vector<App::Hint> App::PageHints() const {
       return {{HintKey::kA, edit_id_.empty() ? t_.create_profile : t_.save}, {HintKey::kArrows, t_.hint_choose},
               {HintKey::kB, t_.cancel}};
     case Page::kControls:
+      if (AnyRowEditing()) return {{HintKey::kArrows, t_.hint_change}, {HintKey::kA, t_.hint_done}};
       if (game::kHasMicrophones && microphone_selected_) {
         return {{HintKey::kA, t_.hint_change}, {HintKey::kX, t_.hint_clear}, {HintKey::kY, t_.tips},
                 {HintKey::kB, t_.hint_back}};

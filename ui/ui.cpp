@@ -879,6 +879,28 @@ void FocusRing(const ImRect& rect, float rounding) {
               Radius(rounding) + offset);
 }
 
+namespace {
+ImGuiID g_editing_row = 0;  // the row a controller is changing (RowEditing)
+}  // namespace
+
+bool RowEditing(ImGuiID id) {
+  ImGuiContext& g = *GImGui;
+  if (g_editing_row && g.NavId != g_editing_row) g_editing_row = 0;  // the focus left it (a click elsewhere)
+  return id && g_editing_row == id;
+}
+
+void SetRowEditing(ImGuiID id) { g_editing_row = id; }
+
+bool AnyRowEditing() { return RowEditing(g_editing_row); }
+
+int EditingStep(ImGuiID id) {
+  ImGuiContext& g = *GImGui;
+  if (!RowEditing(id) || !g.NavMoveSubmitted) return 0;
+  const int step = g.NavMoveDir == ImGuiDir_Left ? -1 : g.NavMoveDir == ImGuiDir_Right ? 1 : 0;
+  ImGui::NavMoveRequestCancel();
+  return step;
+}
+
 void FocusRow(const ImRect& rect, float rounding) {
   // "outline-offset: -2px" and a white fill at 6 %: the line inside the row's edge.
   FillRect(rect, Fade(col::kFocus, 0.06f), rounding);

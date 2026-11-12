@@ -144,8 +144,9 @@ std::string App::MicStatus(ImU32* dot) {
 }
 
 int App::SelectorRow(const char* id, ImVec2 origin, float width, const char* label, const std::string& value) {
-  // A selector (launcher 3.18): the row is its item; A, a click or right step it forward, left back. Its value a chip
-  // with a chevron.
+  // A selector (launcher 3.18): the row is its item, its value a chip with a chevron. A starts changing it, then left
+  // and right step it until A or B (ui::RowEditing; the chip outlined in the accent meanwhile); a click steps it
+  // forward.
   ImGuiContext& g = *GImGui;
   ImRect r(origin, ImVec2(origin.x + width, origin.y + Px(kMappingRow)));
   // Wider than a control's chip: "4 carriles · Rock Band".
@@ -156,16 +157,20 @@ int App::SelectorRow(const char* id, ImVec2 origin, float width, const char* lab
   ImGui::PopID();
   if (!mapping_first_) mapping_first_ = item;
   mapping_rows_.push_back({item, item});
-  int step = state.pressed ? 1 : 0;
-  if (g.NavId == item && g.NavMoveSubmitted && (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right)) {
-    step = g.NavMoveDir == ImGuiDir_Left ? -1 : 1;
-    ImGui::NavMoveRequestCancel();
+  const bool editing = RowEditing(item);
+  int step = EditingStep(item);
+  if (state.pressed) {
+    if (PressedByNav()) {
+      SetRowEditing(editing ? 0 : item);
+    } else {
+      step = 1;
+    }
   }
   MappingRow(r, 0, label, chip.Min.x - Px(16.0f), false, state.focused);
   if (state.hovered && !state.focused) FillRect(r, Fade(col::kFocus, 0.03f), 12.0f);
   // Drawn only: the row is the item.
   FillRect(chip, state.hovered ? Brighten(col::kField) : col::kField, 8.0f);
-  StrokeRect(chip, col::kFieldBorder, 8.0f);
+  StrokeRect(chip, editing ? col::kAccent : col::kFieldBorder, 8.0f, editing ? 2.0f : 1.0f);
   constexpr Type kChip{Font::kSemiBold, 15};
   std::string shown = Ellipsize(kChip, value, chip.GetWidth() - Px(28.0f) - Px(22.0f));
   float text_width = MeasureText(kChip, shown).x;
@@ -193,6 +198,8 @@ float App::PartRow(ImVec2 origin, float width, const std::string& key) {
     index = (index + step + int(parts.size())) % int(parts.size());
     const bool four = FourLanes(settings_.o.device_subtypes, key);
     settings_.o.device_subtypes = WithPart(settings_.o.device_subtypes, key, parts[size_t(index)], four);
+    // The keyboard back on drums: its keys the kit's while they are the other kit's defaults.
+    FitDrumKeys(settings_.o);
     Changed();
   }
   return Px(kMappingRow);
@@ -279,22 +286,24 @@ void App::CloseMicMeter() {
 
 namespace {
 
-// A row whose value steps (launcher 3.18, the mockup's board 10, as Settings' rows): 56 dp, the row its item; left and
-// right (or the arrows of the focused row) step the value, A or a click the next one. Returns -1 or 1 for a step, 2
-// for X (clear), 0 for none.
+// A row whose value steps (launcher 3.18, the mockup's board 10, as Settings' rows): 56 dp, the row its item; A starts
+// changing it, then left and right step the value until A or B (ui::RowEditing); the arrows of the focused row or a
+// click step it too. Returns -1 or 1 for a step, 2 for X (clear), 0 for none.
 int ValueRow(const char* id, const ImRect& r, std::string_view label, std::string_view value, bool enabled) {
   ImGuiContext& g = *GImGui;
   ImGui::PushID(id);
   ImGui::SetNextItemAllowOverlap();
   ItemState state = Item("##row", r, enabled);
   ImGuiID item = ImGui::GetItemID();
-  int step = 0;
-  if (enabled && g.NavId == item && g.NavMoveSubmitted &&
-      (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right)) {
-    step = g.NavMoveDir == ImGuiDir_Left ? -1 : 1;
-    ImGui::NavMoveRequestCancel();
+  const bool editing = enabled && RowEditing(item);
+  int step = enabled ? EditingStep(item) : 0;
+  if (state.pressed) {
+    if (PressedByNav()) {
+      SetRowEditing(editing ? 0 : item);
+    } else {
+      step = 1;
+    }
   }
-  if (state.pressed) step = 1;
   if (enabled && ClearPressed(state)) step = 2;
   if (state.focused) {
     FocusRow(r, 12.0f);
@@ -324,7 +333,7 @@ int ValueRow(const char* id, const ImRect& r, std::string_view label, std::strin
       ItemState a = Item(side == 0 ? "##prev" : "##next", arrow);
       if (a.hovered) FillRect(arrow, Fade(col::kFocus, 0.08f), 14.0f);
       DrawIcon(side == 0 ? Icon::kChevronLeft : Icon::kChevronRight, ImVec2(arrow.Min.x + Px(2.0f), arrow.Min.y + Px(2.0f)),
-               24.0f, a.hovered ? col::kText : col::kTextSoft, 1.9f);
+               24.0f, editing ? col::kAccent : a.hovered ? col::kText : col::kTextSoft, editing ? 2.4f : 1.9f);
       if (a.pressed) step = side == 0 ? -1 : 1;
     }
     ImGui::PopItemFlag();

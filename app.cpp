@@ -368,7 +368,7 @@ void App::WaitForTasks() {
 
 void App::Navigate(Page page, bool focus) {
   StopListening();
-  settings_editing_ = false;
+  SetRowEditing(0);
   page_ = page;
   if (focus) {
     focus_page_ = true;
@@ -580,8 +580,8 @@ void App::FrameContents(ImVec2 size) {
       // it then).
       result_ = Result::kPlay;
     } else if (ButtonPressed(PadButton::kB)) {
-      if (settings_editing_) {
-        settings_editing_ = false;  // B ends a Settings row's change
+      if (AnyRowEditing()) {
+        SetRowEditing(0);  // B ends a row's change (Settings, the microphone, a controller's part)
       } else if (back_focus_ && g.NavId != back_focus_) {
         // From a page's list back to its first column (the Settings tab's categories).
         RequestFocus(back_focus_);

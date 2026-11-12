@@ -212,6 +212,12 @@ void ResetDrumKeys(Options& o, bool four_lanes) {
   }
 }
 
+void FitDrumKeys(Options& o) {
+  if (!KeyboardDrums(o)) return;
+  const bool four = KeyboardFourLanes(o);
+  if (DrumKeysAreDefault(o, !four)) ResetDrumKeys(o, four);
+}
+
 bool DrumKeysAreDefault(const Options& o, bool four_lanes) {
   for (int i = 0; i < int(Bind::kCount); ++i) {
     if (o.drum_binds[size_t(i)] != DefaultDrumKeys(i, four_lanes)) return false;
@@ -563,6 +569,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
       auto it = c.find(std::string("launcher_drums_") + kBinds[i].cvar);
       o.drum_binds[size_t(i)] = it != c.end() ? it->second : DefaultDrumKeys(i, four);
     }
+    FitDrumKeys(o);
   }
 
   o.any_frame_rate = GetBool(c, "launcher_any_frame_rate", false);

@@ -251,7 +251,6 @@ class App {
   std::vector<ImGuiID> header_items_;  // the header's controls (tabs, Donate, avatar), this frame
   ImGuiID category_focus_ = 0; // the Settings tab's current category button
   int settings_row_[4] = {};   // the row in focus in each Settings category (its help shows)
-  bool settings_editing_ = false;  // A on a Settings row: left and right change its value until A or B
   ImGuiID settings_row_focus_ = 0;  // the Settings row in focus last (right from a category returns to it)
   bool controls_focus_mapping_ = false;  // a device chosen with A: the focus goes to its mapping
   ImGuiID mapping_first_ = 0;  // the Controls tab's first row control (the mapping's)

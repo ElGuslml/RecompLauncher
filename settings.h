@@ -242,6 +242,9 @@ void ResetKeyboard(Options& o);
 // The keyboard's drum keys by default (game::kDrumKeyboardDefaults, or ...FourLanes); whether they are those.
 void ResetDrumKeys(Options& o, bool four_lanes);
 bool DrumKeysAreDefault(const Options& o, bool four_lanes);
+// The keyboard playing drums with the other kit's default keys gets its own kit's (the kit chosen again after the
+// guitar, or an options file written by hand).
+void FitDrumKeys(Options& o);
 
 // --- The game's base settings and the options file ---
 

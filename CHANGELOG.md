@@ -22,6 +22,16 @@ Drums on the keyboard and the controllers (Gustavo, 2026-11-11). Needs the SDK's
   (`PartOf`, `FourLanes`, `WithPart`). A selector row (`App::SelectorRow`, 224 dp chip) serves the part and the kit.
 - Texts: `part_drums`, `drum_kit`, `drum_kit_five`, `drum_kit_four`, `help_tip_drum_kit`; `help_tip_part` names the
   drums (five languages).
+- A row of values changes only after A, as before 3.18 (Gustavo: left on a Settings row changed its value instead of
+  reaching the categories): A starts changing it, left and right then step it and up and down stay, until A or B or
+  the focus leaves (`ui::RowEditing`, `SetRowEditing`, `EditingStep`; the arrows, or a selector's chip, in the
+  accent meanwhile; the footer says "Change value" and "Done"). Otherwise left goes to the column at the left (the
+  Settings categories, the Controls devices). A switch flips with A at once; the mouse steps a value with a click or
+  the arrows. For Settings' rows, the microphone's and the Instrument and Drum kit selectors.
+- Settings: the row the focus moves to is the big one in that frame (it grew a frame late: one frame without an
+  outlined row, a jump when moving up).
+- The keyboard back on drums takes its kit's default keys while they are the other kit's (`FitDrumKeys`, also when
+  the options file is read).
 
 ## 3.19.0
 

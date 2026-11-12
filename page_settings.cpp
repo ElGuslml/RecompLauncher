@@ -62,14 +62,15 @@ constexpr Type kRowDescription{Font::kRegular, 14};
 constexpr Type kGroupTitle{Font::kSemiBold, 14};
 
 // A chevron of the focused row (the mouse's; the controller steps with left and right).
-bool ArrowButton(const char* id, ImVec2 pos, bool left) {
+bool ArrowButton(const char* id, ImVec2 pos, bool left, bool active = false) {
   ImRect rect(pos, ImVec2(pos.x + Px(28.0f), pos.y + Px(28.0f)));
   ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
   ItemState state = Item(id, rect);
   ImGui::PopItemFlag();
   if (state.hovered) FillRect(rect, Fade(col::kFocus, 0.08f), 14.0f);
+  // While the row is changing (A), the arrows in the accent: left and right step it.
   DrawIcon(left ? Icon::kChevronLeft : Icon::kChevronRight, ImVec2(pos.x + Px(2.0f), pos.y + Px(2.0f)), 24.0f,
-           state.hovered ? col::kText : col::kTextSoft, 1.9f);
+           active ? col::kAccent : state.hovered ? col::kText : col::kTextSoft, active ? 2.4f : 1.9f);
   return state.pressed;
 }
 
@@ -811,6 +812,19 @@ void App::SettingsPage(const ImRect& rect) {
   float y = origin.y;
   const float row_left = origin.x;
   const float row_right = origin.x + (rows_right - rows_left);
+  // The row the controller's focus is on is the big one from this frame: chosen while drawing, it grew a frame late
+  // and no row was outlined for that frame (a jump, moving up).
+  if (g.NavWindow == ImGui::GetCurrentWindow()) {
+    for (int i = 0; i < int(rows.size()); ++i) {
+      ImGui::PushID(rows[size_t(i)].id.c_str());
+      const ImGuiID id = ImGui::GetID("##row");
+      ImGui::PopID();
+      if (id == g.NavId) {
+        selected = i;
+        break;
+      }
+    }
+  }
   std::vector<std::array<ImGuiID, 2>> row_ids;
   for (int i = 0; i < int(rows.size()); ++i) {
     OptionRow& row = rows[size_t(i)];
@@ -847,18 +861,23 @@ void App::SettingsPage(const ImRect& rect) {
       selected = i;
       changed = true;
     };
-    // The controller: left and right step the value (left from a row that cannot change goes back to the categories);
-    // A steps it forward, as a click does.
-    if (nav_here && g.NavMoveSubmitted && (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right)) {
-      if (changeable) {
-        step(g.NavMoveDir == ImGuiDir_Left ? -1 : 1);
-      } else if (g.NavMoveDir == ImGuiDir_Left) {
-        RequestFocus(category_focus_);
-      }
+    // The controller (launcher 3.20.1, as before 3.18): A on a row of values starts changing it, left and right then
+    // step it until A or B; a switch flips with A at once. Otherwise left goes back to the categories. A click steps
+    // the value, as its arrows do.
+    const bool editing = RowEditing(row_id);
+    if (int delta = EditingStep(row_id)) {
+      step(delta);
+    } else if (nav_here && !editing && g.NavMoveSubmitted &&
+               (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right)) {
+      if (g.NavMoveDir == ImGuiDir_Left) RequestFocus(category_focus_);
       ImGui::NavMoveRequestCancel();
     }
     if (state.pressed) {
-      step(1);
+      if (PressedByNav() && !row.is_switch) {
+        if (changeable) SetRowEditing(editing ? 0 : row_id);
+      } else {
+        step(1);
+      }
       selected = i;
     }
 
@@ -922,8 +941,8 @@ void App::SettingsPage(const ImRect& rect) {
           dx += dot + gap;
         }
       }
-      if (ArrowButton("##prev", ImVec2(left_arrow, r.GetCenter().y - Px(14.0f)), true)) step(-1);
-      if (ArrowButton("##next", ImVec2(right_arrow, r.GetCenter().y - Px(14.0f)), false)) step(1);
+      if (ArrowButton("##prev", ImVec2(left_arrow, r.GetCenter().y - Px(14.0f)), true, editing)) step(-1);
+      if (ArrowButton("##next", ImVec2(right_arrow, r.GetCenter().y - Px(14.0f)), false, editing)) step(1);
       value_left = left_arrow;
     } else {
       const Type& type = big ? kRowValueFocused : kRowValue;

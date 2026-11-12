@@ -160,6 +160,14 @@ ItemState Item(ImGuiID id, const ImRect& rect, bool enabled = true);
 // every window, sliding from the item that had the focus before.
 void FocusRing(const ImRect& rect, float rounding);
 void FocusRow(const ImRect& rect, float rounding);
+// A row of values the controller changes (launcher 3.20.1, as before 3.18): A on it starts changing it, then left and
+// right step its value and up and down stay, until A, B (App::Frame) or the focus leaves it. Otherwise left and right
+// move the focus. RowEditing: whether `id` is changing; SetRowEditing(0) ends it; AnyRowEditing for the footer;
+// EditingStep: the step asked of the row this frame (-1, 1; the controller's move taken), 0 for none.
+bool RowEditing(ImGuiID id);
+void SetRowEditing(ImGuiID id);
+bool AnyRowEditing();
+int EditingStep(ImGuiID id);
 void DrawFocusFrame();
 
 // --- Motion ---
