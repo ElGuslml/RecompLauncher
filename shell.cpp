@@ -451,9 +451,27 @@ std::vector<App::Hint> App::PageHints() const {
     case Page::kProfileEdit:
       return {{HintKey::kA, t_.save}, {HintKey::kArrows, t_.hint_choose}, {HintKey::kB, t_.cancel}};
     case Page::kControls:
-      return {{HintKey::kA, t_.hint_reassign}, {HintKey::kX, t_.hint_clear}, {HintKey::kY, t_.hint_reset},
+      if (game::kHasMicrophones && microphone_selected_) {
+        return {{HintKey::kA, t_.hint_change}, {HintKey::kX, t_.hint_clear}, {HintKey::kY, t_.tips},
+                {HintKey::kB, t_.hint_back}};
+      }
+      return {{HintKey::kA, t_.hint_reassign}, {HintKey::kX, t_.hint_clear}, {HintKey::kY, t_.tips},
               {HintKey::kB, t_.hint_back}};
     case Page::kDlc:
+      if constexpr (game::kDlcMode == game::DlcMode::kFolder) {
+        switch (dlc_focus_kind_) {
+          case 1:
+            return {{HintKey::kA, t_.dlc_hint_fold}, {HintKey::kX, dlc_focus_all_on_ ? t_.dlc_hint_all_off : t_.dlc_hint_all_on},
+                    {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
+          case 2:
+            return {{HintKey::kA, t_.dlc_hint_toggle}, {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
+          case 3:
+            return {{HintKey::kA, t_.dlc_hint_toggle}, {HintKey::kX, t_.dlc_remove}, {HintKey::kY, t_.more_info},
+                    {HintKey::kB, t_.hint_back}};
+          default:
+            return {{HintKey::kA, t_.hint_select}, {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
+        }
+      }
       return {{HintKey::kA, t_.hint_choose_folder}, {HintKey::kB, t_.hint_back}};
     case Page::kUpdates:
       return {{HintKey::kA, t_.check_updates}, {HintKey::kB, t_.hint_back}};

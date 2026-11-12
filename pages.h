@@ -21,9 +21,15 @@ inline std::string FrameRateText(int fps, const char* experimental) {
 // still locked (page_achievements.cpp).
 void DrawAchievementIcon(ImTextureID texture, const ImRect& box, bool unlocked, bool secret);
 
-// The Controls tab's rows (page_controls.cpp; the keyboard's in page_keyboard.cpp): a function's swatch (a fret's
-// color, or 0 for an empty ring) and name, cut at `label_right`; on accent while its chip waits for a button or a key.
-void MappingRow(const ImRect& row, ImU32 swatch, std::string_view label, float label_right, bool listening);
+// The Controls tab's rows (page_controls.cpp; the keyboard's in page_keyboard.cpp, the microphone's in
+// page_microphone.cpp), launcher 3.18: flat rows 44 dp high with a hairline under them, a function's swatch (a fret's
+// color, or 0 for none) and name, cut at `label_right`; faintly on accent while its chip waits for a button or a key;
+// with the focus's fill and outline when `focused` (its chip, switch or value has the focus: RowFocused).
+constexpr float kMappingRow = 44.0f;
+void MappingRow(const ImRect& row, ImU32 swatch, std::string_view label, float label_right, bool listening,
+                bool focused);
+// The controller's focus is on the item `id` (an item registered later in this frame, its id from ImGui::GetID).
+bool RowFocused(ImGuiID id);
 // A row's chip: what presses the function.
 struct ChipLook {
   std::string text;
@@ -33,7 +39,11 @@ struct ChipLook {
   bool empty = false;      // nothing presses it: dashed
   bool enabled = true;     // false: what cannot be moved (the D-pad, a stick), not focusable
 };
+// 140 dp wide, 32 high, 16 dp from the row's right edge (the keyboard's two 128 wide, 8 apart).
+ImRect MappingChipRect(const ImRect& row, float width = 140.0f, float right_inset = 16.0f);
 ui::ItemState MappingChip(const char* id, const ImRect& rect, const ChipLook& look);
+// A row that is a switch (launcher 3.18): the whole row is its item, A or a click toggles it. True when toggled.
+bool SwitchRow(const char* id, const ImRect& row, std::string_view label, bool* value, bool enabled = true);
 // X on a controller, Delete or Backspace on the focused chip, or a right click on it: clear it.
 bool ClearPressed(const ui::ItemState& state);
 

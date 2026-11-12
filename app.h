@@ -410,6 +410,11 @@ class App {
   bool dlc_free_opened_ = false;
   std::string dlc_freed_text_;  // what the last removal freed, shown under the folder
   std::map<uint64_t, bool> dlc_group_open_;  // the list's groups the player opened or shut (page_dlc.cpp's keys)
+  // Launcher 3.18: what the focus is on in the list, for the footer's hints: 0 another control, 1 a group (all of it
+  // on: dlc_focus_all_on_), 2 a package of the folder, 3 an extracted one.
+  int dlc_focus_kind_ = 0;
+  bool dlc_focus_all_on_ = false;
+  ImGuiID dlc_list_entry_ = 0;  // where right from the folder's column enters the list: its row in focus last, or its first
   std::future<std::vector<InstalledDlc>> dlc_listing_;
   std::optional<std::vector<InstalledDlc>> dlc_installed_;
   std::string dlc_confirm_;  // the installed folder whose Remove waits for a second press

@@ -498,53 +498,78 @@ DeviceLook LookOf(SDL_JoystickType kind, bool keyboard) {
 
 }  // namespace
 
-void MappingRow(const ImRect& row, ImU32 swatch, std::string_view label, float label_right, bool listening) {
-  FillRect(row, listening ? Fade(col::kAccent, 0.12f) : Hex(0xFFFFFF, 8), 8.0f);
-  ImVec2 center(row.Min.x + Px(14.0f) + Px(7.0f), row.GetCenter().y);
-  if (swatch) {
-    ImGui::GetWindowDrawList()->AddCircleFilled(center, Px(7.0f), swatch, 24);
+void MappingRow(const ImRect& row, ImU32 swatch, std::string_view label, float label_right, bool listening,
+                bool focused) {
+  // The mockup's ".mrow": a hairline under it; the focused one the focus's fill and outline instead.
+  if (focused) {
+    FocusRow(row, 12.0f);
   } else {
-    ImGui::GetWindowDrawList()->AddCircle(center, Px(6.0f), Hex(0xFFFFFF, 46), 24, Px(2.0f));
+    if (listening) FillRect(row, Fade(col::kAccent, 0.08f), 12.0f);
+    FillRect(ImRect(ImVec2(row.Min.x, row.Max.y - Snap(Px(1.0f))), row.Max), col::kHairline);
   }
-  constexpr Type kLabel{Font::kSemiBold, 15};
-  float x = row.Min.x + Px(14.0f) + Px(14.0f) + Px(14.0f);
-  DrawLabel(kLabel, ImVec2(x, row.Min.y), col::kText, Ellipsize(kLabel, label, label_right - x), row.GetHeight());
+  // A 12 dp swatch 16 dp in (a fret's color), the name 16 dp after its place.
+  if (swatch) {
+    ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(row.Min.x + Px(16.0f) + Px(6.0f), row.GetCenter().y), Px(6.0f),
+                                                swatch, 24);
+  }
+  const Type type{focused ? Font::kSemiBold : Font::kMedium, 17};
+  float x = row.Min.x + Px(16.0f) + Px(12.0f) + Px(16.0f);
+  DrawLabel(type, ImVec2(x, row.Min.y), focused ? col::kText : col::kTextSoft, Ellipsize(type, label, label_right - x),
+            row.GetHeight());
+}
+
+bool RowFocused(ImGuiID id) {
+  ImGuiContext& g = *GImGui;
+  return id != 0 && g.NavId == id && g.NavCursorVisible;
+}
+
+ImRect MappingChipRect(const ImRect& row, float width, float right_inset) {
+  float right = row.Max.x - Px(right_inset);
+  return ImRect(ImVec2(right - Px(width), row.GetCenter().y - Px(16.0f)), ImVec2(right, row.GetCenter().y + Px(16.0f)));
 }
 
 ItemState MappingChip(const char* id, const ImRect& rect, const ChipLook& look) {
+  // The mockup's ".kc": the field's grey with its border, 8 dp corners; nothing on it dashed and dim; waiting for a
+  // button or a key on the accent, pulsing.
   ItemState state = Item(id, rect, look.enabled);
-  constexpr Type kChip{Font::kBold, 14};
+  Type type{Font::kSemiBold, 15};
   ImU32 text = col::kText;
   if (look.listening) {
     // The mockup's pulse: the chip's opacity between 1 and 0.45 once a second.
     float pulse = 0.725f + 0.275f * std::cos(float(ImGui::GetTime()) * 6.2831853f);
-    FillRect(rect, Fade(col::kAccent, pulse), 6.0f);
+    FillRect(rect, Fade(col::kAccent, pulse), 8.0f);
     text = Fade(col::kOnAccent, pulse);
   } else if (look.empty) {
-    DashedRect(rect, state.hovered ? Hex(0xFFFFFF, 102) : Hex(0xFFFFFF, 64), 6.0f);
-    text = col::kLabel;
-  } else if (!look.enabled) {
-    StrokeRect(rect, col::kHairline, 6.0f);
-    text = col::kTabText;
+    DashedRect(rect, state.hovered ? col::kTextDim : col::kOutline, 8.0f);
+    type.font = Font::kMedium;
+    text = col::kTextDim;
   } else {
-    FillRect(rect, state.hovered ? Brighten(col::kPanelChip) : col::kPanelChip, 6.0f);
-    StrokeRect(rect, Hex(0xFFFFFF, 31), 6.0f);
+    FillRect(rect, state.hovered && look.enabled ? Brighten(col::kField) : col::kField, 8.0f);
+    StrokeRect(rect, state.focused ? col::kTextDim : col::kFieldBorder, 8.0f);
+    if (!look.enabled) text = col::kTextMuted;
   }
   // The text and the icon after it, centered.
   float icon = look.icon != Icon::kNone ? Px(16.0f) : 0.0f;
-  float gap = icon > 0.0f && !look.text.empty() ? Px(4.0f) : 0.0f;
-  std::string shown = Ellipsize(kChip, look.text, rect.GetWidth() - Px(28.0f) - icon - gap);
-  float text_width = MeasureText(kChip, shown).x;
+  float gap = icon > 0.0f && !look.text.empty() ? Px(6.0f) : 0.0f;
+  std::string shown = Ellipsize(type, look.text, rect.GetWidth() - Px(28.0f) - icon - gap);
+  float text_width = MeasureText(type, shown).x;
   float x = rect.GetCenter().x - (text_width + gap + icon) * 0.5f;
-  DrawLabel(kChip, ImVec2(x, rect.Min.y), text, shown, rect.GetHeight());
+  DrawLabel(type, ImVec2(x, rect.Min.y), text, shown, rect.GetHeight());
   if (icon > 0.0f) {
     DrawIcon(look.icon, ImVec2(x + text_width + gap, rect.GetCenter().y - Px(8.0f)), 16.0f,
-             look.listening || !look.enabled ? text : look.icon_color, 2.2f);
-  }
-  if (state.focused) {
-    FocusRing(rect, 6.0f);
+             look.listening || !look.enabled ? text : look.icon_color, 2.0f);
   }
   return state;
+}
+
+bool SwitchRow(const char* id, const ImRect& row, std::string_view label, bool* value, bool enabled) {
+  ItemState state = Item(id, row, enabled);
+  ImVec2 pos(row.Max.x - Px(16.0f) - Px(52.0f), row.GetCenter().y - Px(15.0f));
+  MappingRow(row, 0, label, pos.x - Px(16.0f), false, state.focused);
+  if (state.hovered && !state.focused) FillRect(row, Fade(col::kFocus, 0.03f), 12.0f);
+  if (state.pressed) *value = !*value;
+  DrawToggle(pos, *value, enabled, false, state.hovered);
+  return state.pressed;
 }
 
 bool ClearPressed(const ItemState& state) {
@@ -680,24 +705,19 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
     if (Sings(key)) {
       return y - origin.y;
     }
-    y += Px(6.0f);
   }
   // Its frets strum as they are pressed (game.h's kKeyboardTapTarget, the SDK's gamepad_tap_target): one switch for
   // every controller playing guitar, as the keyboard's on its page.
   const game::GameTexts& own = game::GameTextsFor(language_);
   if (*game::kKeyboardTapTarget && own.keyboard_tap_title && kind != SDL_JOYSTICK_TYPE_GUITAR &&
       kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
-    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(44.0f)));
-    ImVec2 pos(r.Max.x - Px(6.0f) - Px(52.0f), r.GetCenter().y - Px(15.0f));
-    MappingRow(r, 0, own.keyboard_tap_title, pos.x - Px(14.0f), false);
-    ImGui::PushID("gamepad_tap");
-    if (Toggle("##toggle", pos, &settings_.o.gamepad_tap)) {
+    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kMappingRow)));
+    if (SwitchRow("##gamepad_tap", r, own.keyboard_tap_title, &settings_.o.gamepad_tap)) {
       Changed();
     }
-    ImGui::PopID();
     if (!mapping_first_) mapping_first_ = ImGui::GetItemID();
     mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
-    y += Px(44.0f) + Px(6.0f);
+    y += Px(kMappingRow);
   }
   // The whammy bar and the tilt: a guitar's, or those of a controller playing guitar (a drum kit has neither).
   if (game::kHasWhammy && kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
@@ -706,14 +726,17 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
   }
   for (int i = 0; i < int(rows.size()); ++i) {
     const Row& row = rows[size_t(i)];
-    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(44.0f)));
-    ImRect chip(ImVec2(r.Max.x - Px(6.0f) - Px(190.0f), r.Min.y + Px(4.0f)), ImVec2(r.Max.x - Px(6.0f), r.Max.y - Px(4.0f)));
+    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kMappingRow)));
+    ImRect chip = MappingChipRect(r);
     bool listening = row.control >= 0 && pad_listen_ == row.control;
-    // A fret's color, or A, B, X and Y's; an empty ring for the rest.
+    // A fret's color, or A, B, X and Y's; none for the rest.
     ImU32 swatch = row.function ? (*row.function->chip ? 0 : Hex(row.function->chip_color))
                                 : row.xbox_row < 4 ? kGlyphColors[row.xbox_row] : 0;
-    MappingRow(r, swatch, row.function ? row.function->name : t_.pad_buttons[row.xbox_row], chip.Min.x - Px(14.0f),
-               listening);
+    ImGui::PushID(i);
+    bool focused = RowFocused(ImGui::GetID("##chip"));
+    ImGui::PopID();
+    MappingRow(r, swatch, row.function ? row.function->name : t_.pad_buttons[row.xbox_row], chip.Min.x - Px(16.0f),
+               listening, focused);
     ChipLook look;
     int input = row.control >= 0 ? PrimaryInput(sources[size_t(row.control)]) : -1;
     if (listening) {
@@ -756,9 +779,9 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
           WithDeviceLayout(settings_.o.device_remap, key, sources, SourcesFor(remap, type_key, true));
       Changed();
     }
-    y += Px(44.0f) + Px(6.0f);
+    y += Px(kMappingRow);
   }
-  return y - Px(6.0f) - origin.y;
+  return y - origin.y;
 }
 
 float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickType kind, bool tilt) {
@@ -878,11 +901,11 @@ float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickTy
     }
   }
 
-  // The row: what it is (or the step), its position, the assignment's chip.
-  ImRect r(origin, ImVec2(origin.x + width, origin.y + Px(44.0f)));
-  ImRect chip(ImVec2(r.Max.x - Px(6.0f) - Px(190.0f), r.Min.y + Px(4.0f)), ImVec2(r.Max.x - Px(6.0f), r.Max.y - Px(4.0f)));
-  ImRect meter(ImVec2(chip.Min.x - Px(14.0f) - Px(120.0f), r.GetCenter().y - Px(4.0f)),
-               ImVec2(chip.Min.x - Px(14.0f), r.GetCenter().y + Px(4.0f)));
+  // The row: what it is (or the step), its position (the mockup's ".mt", live: the accent), the assignment's chip.
+  ImRect r(origin, ImVec2(origin.x + width, origin.y + Px(kMappingRow)));
+  ImRect chip = MappingChipRect(r);
+  ImRect meter(ImVec2(chip.Min.x - Px(18.0f) - Px(120.0f), r.GetCenter().y - Px(3.0f)),
+               ImVec2(chip.Min.x - Px(18.0f), r.GetCenter().y + Px(3.0f)));
   const bool active = mine && WhammyCalibrating();
   const char* step_hold = tilt ? t_.tilt_step_hold : t_.whammy_step_hold;
   const char* step_release = tilt ? t_.tilt_step_release : t_.whammy_step_release;
@@ -892,15 +915,12 @@ float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickTy
                           : std::string(tilt ? t_.tilt_name : t_.whammy_bar) + " \xC2\xB7 " +
                                 (assigned ? std::string(t_.whammy_calibrated) + " (" + AxisLabel(entry.axis) + ")"
                                           : std::string(t_.whammy_automatic));
-  MappingRow(r, 0, label, meter.Min.x - Px(14.0f), active);
-  FillRect(meter, Hex(0xFFFFFF, 26), 4.0f);
-  if (position > 0.0) {
-    FillRect(ImRect(meter.Min, ImVec2(meter.Min.x + float(position) * meter.GetWidth(), meter.Max.y)), col::kAccent, 4.0f);
-  }
+  ImGui::PushID(tilt ? "tilt" : "whammy");
+  MappingRow(r, 0, label, meter.Min.x - Px(16.0f), active, RowFocused(ImGui::GetID("##chip")));
+  Progress(meter, float(position), col::kChip, col::kAccent);
   ChipLook look;
   look.text = active ? "..." : assigned ? t_.whammy_calibrate_again : t_.whammy_calibrate;
   look.listening = active;
-  ImGui::PushID(tilt ? "tilt" : "whammy");
   ItemState state = MappingChip("##chip", chip, look);
   ImGui::PopID();
   if (!mapping_first_) mapping_first_ = ImGui::GetItemID();
@@ -920,7 +940,7 @@ float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickTy
     assignments = WithWhammyEntry(assignments, key, "");
     Changed();
   }
-  return Px(44.0f) + Px(6.0f);
+  return Px(kMappingRow);
 }
 
 void App::ControlsPage(const ImRect& rect) {
@@ -948,15 +968,16 @@ void App::ControlsPage(const ImRect& rect) {
            : kind == SDL_JOYSTICK_TYPE_DRUM_KIT ? t_.help_drums_kicker
                                                 : t_.help_pad_kicker;
   };
-  DeviceLook look = microphone ? kMicrophoneLook : LookOf(pad ? pad->kind : SDL_JOYSTICK_TYPE_GAMEPAD, !pad);
 
-  // --- The layout: 24 40 20 dp of padding, the devices 280 dp wide, the help 300, 20 dp between ---
-  ImRect main(ImVec2(rect.Min.x + Px(40.0f), rect.Min.y + Px(24.0f)), ImVec2(rect.Max.x - Px(40.0f), rect.Max.y - Px(20.0f)));
-  ImRect devices(main.Min, ImVec2(main.Min.x + Px(280.0f), main.Max.y));
-  ImRect help(ImVec2(main.Max.x - Px(300.0f), main.Min.y), main.Max);
-  ImRect mapping(ImVec2(devices.Max.x + Px(20.0f), main.Min.y), ImVec2(help.Min.x - Px(20.0f), main.Max.y));
+  // --- The layout (launcher 3.18, the mockup's boards 6-10; dp from the page's top left): the title at 56, 20; the
+  // devices from 40, 126, 320 wide; the mapping from 392 to 56 from the right edge: its title at 28, its hint at 70,
+  // its rows from 104. No help column: Y opens the tips. ---
+  const float page_left = rect.Min.x;
+  const float page_top = rect.Min.y;
+  const float map_left = page_left + Px(392.0f);
+  const float map_right = rect.Max.x - Px(56.0f);
 
-  // The devices: the title, a button each (the chosen one on accent), the note at the foot.
+  // The devices: a row each (icon, name, a dot and its status), an accent dot left of the chosen one.
   ImGuiID device_focus = 0;
   std::vector<ImGuiID> device_ids;
   // A device chosen with A (or right on one): its mapping is drawn now; the focus goes to its first row after it, once
@@ -966,29 +987,31 @@ void App::ControlsPage(const ImRect& rect) {
   mapping_first_ = 0;
   mapping_rows_.clear();
   {
-    constexpr Type kTitle{Font::kDisplayBold, 40};
-    DrawLabel(kTitle, devices.Min, col::kText, Upper(t_.nav_controls), Px(40.0f));
-    float y = devices.Min.y + Px(40.0f) + Px(6.0f) + Px(10.0f) + Px(6.0f);
-    constexpr Type kSection{Font::kBold, 12, 0.12f};
-    DrawLabel(kSection, ImVec2(devices.Min.x, y), col::kTabText, Upper(t_.devices_detected));
-    y += LineHeight(kSection) + Px(10.0f);
-    constexpr Type kName{Font::kBold, 15};
-    constexpr Type kStatus{Font::kRegular, 13};
-    float height = Px(66.0f);
+    constexpr Type kTitle{Font::kDisplaySemiBold, 44, 0.015f};
+    DrawLabel(kTitle, ImVec2(page_left + Px(56.0f), page_top + Px(20.0f)), col::kText, Title(t_.nav_controls),
+              Px(44.0f * 1.1f));
+    constexpr Type kSection{Font::kSemiBold, 14};
+    DrawLabel(kSection, ImVec2(page_left + Px(56.0f), page_top + Px(98.0f)), col::kTextMuted, t_.devices_detected);
+    constexpr Type kName{Font::kSemiBold, 16};
+    constexpr Type kStatus{Font::kRegular, 14};
+    const float left = page_left + Px(40.0f);
+    const float width = Px(320.0f);
+    const float height = Px(64.0f);
+    float y = page_top + Px(126.0f);
     int entries = int(pads.size()) + 1 + (game::kHasMicrophones ? 1 : 0);
     for (int i = 0; i < entries; ++i) {
       bool keyboard = i == int(pads.size());
       bool mic = i == int(pads.size()) + 1;
       const Pad* p = keyboard || mic ? nullptr : &pads[size_t(i)];
-      ImRect r(ImVec2(devices.Min.x, y), ImVec2(devices.Max.x, y + height));
       if (keyboard && pads.empty()) {
         // No controller: a dashed place for one above the keyboard.
-        DashedRect(r, Hex(0xFFFFFF, 46), 10.0f);
-        DrawLabel(kStatus, ImVec2(r.GetCenter().x - MeasureText(kStatus, t_.no_controller_title).x * 0.5f, r.Min.y),
-                  col::kLabel, t_.no_controller_title, r.GetHeight());
-        y += height + Px(10.0f);
-        r = ImRect(ImVec2(devices.Min.x, y), ImVec2(devices.Max.x, y + height));
+        ImRect place(ImVec2(left, y), ImVec2(left + width, y + height));
+        DashedRect(place, col::kOutline, 12.0f);
+        DrawLabel(kStatus, ImVec2(place.Min.x + Px(30.0f), place.Min.y), col::kTextDim, t_.no_controller_title,
+                  place.GetHeight());
+        y += height + Px(6.0f);
       }
+      ImRect r(ImVec2(left, y), ImVec2(left + width, y + height));
       ImGui::PushID(mic ? -2 : keyboard ? -1 : int(p->id));
       ItemState state = Item("##device", r);
       ImGuiID id = ImGui::GetItemID();
@@ -1007,21 +1030,20 @@ void App::ControlsPage(const ImRect& rect) {
         }
         controls_focus_mapping_ = PressedByNav();
       }
-      ImU32 background = on ? Fade(col::kAccent, 0.14f) : col::kPanel;
-      FillRect(r, state.hovered ? Brighten(background) : background, 10.0f);
-      StrokeRect(r, col::kHairline, 10.0f);
+      if (state.focused) {
+        FocusRow(r, 12.0f);
+      } else if (state.hovered) {
+        FillRect(r, Fade(col::kFocus, 0.03f), 12.0f);
+      }
       if (on) {
-        // "outline: 3px solid accent; outline-offset: 2px".
-        StrokeRect(ImRect(ImVec2(r.Min.x - Px(3.5f), r.Min.y - Px(3.5f)), ImVec2(r.Max.x + Px(3.5f), r.Max.y + Px(3.5f))),
-                   col::kAccent, 13.5f, 3.0f);
+        float dot = Px(8.0f);
+        ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(r.Min.x + Px(10.0f) + dot * 0.5f, r.GetCenter().y), dot * 0.5f,
+                                                    col::kAccent, 16);
       }
       DeviceLook device = mic ? kMicrophoneLook : LookOf(p ? p->kind : SDL_JOYSTICK_TYPE_GAMEPAD, keyboard);
-      ImRect tile(ImVec2(r.Min.x + Px(14.0f), r.GetCenter().y - Px(20.0f)),
-                  ImVec2(r.Min.x + Px(54.0f), r.GetCenter().y + Px(20.0f)));
-      FillRect(tile, device.tile, 8.0f);
-      DrawIcon(device.icon, ImVec2(tile.Min.x + Px(8.0f), tile.Min.y + Px(8.0f)), 24.0f, device.ink, 1.6f);
+      DrawIcon(device.icon, ImVec2(r.Min.x + Px(30.0f), r.GetCenter().y - Px(13.0f)), 26.0f, col::kTextMuted, 1.75f);
       // The name, and under it a dot and the status: connected (green) with its kind, or the keyboard on or off.
-      float text_x = tile.Max.x + Px(12.0f);
+      float text_x = r.Min.x + Px(30.0f) + Px(26.0f) + Px(14.0f);
       float text_width = r.Max.x - Px(14.0f) - text_x;
       std::string name = keyboard ? std::string(t_.device_keyboard) : mic ? std::string(t_.device_microphone) : name_of(*p);
       std::string status;
@@ -1042,19 +1064,16 @@ void App::ControlsPage(const ImRect& rect) {
         const game::GameTexts& own = game::GameTextsFor(language_);
         status += std::string(" \xC2\xB7 ") + (own.part_vocals ? own.part_vocals : t_.part_vocals);
       }
-      float block = LineHeight(kName) + Px(2.0f) + LineHeight(kStatus);
+      float block = LineHeight(kName) + Px(1.0f) + LineHeight(kStatus);
       float top = r.GetCenter().y - block * 0.5f;
       DrawLabel(kName, ImVec2(text_x, top), col::kText, Ellipsize(kName, name, text_width));
-      float status_y = top + LineHeight(kName) + Px(2.0f);
-      FillRect(ImRect(ImVec2(text_x, status_y + LineHeight(kStatus) * 0.5f - Px(4.0f)),
-                      ImVec2(text_x + Px(8.0f), status_y + LineHeight(kStatus) * 0.5f + Px(4.0f))),
-               dot, 4.0f);
-      DrawLabel(kStatus, ImVec2(text_x + Px(14.0f), status_y), col::kTabText,
-                Ellipsize(kStatus, status, text_width - Px(14.0f)));
-      if (state.focused) {
-        FocusRing(r, 10.0f);
-      }
-      y += height + Px(10.0f);
+      float status_y = top + LineHeight(kName) + Px(1.0f);
+      float dot_size = Px(8.0f);
+      ImGui::GetWindowDrawList()->AddCircleFilled(
+          ImVec2(text_x + dot_size * 0.5f, status_y + LineHeight(kStatus) * 0.5f), dot_size * 0.5f, dot, 16);
+      DrawLabel(kStatus, ImVec2(text_x + dot_size + Px(7.0f), status_y), col::kTextDim,
+                Ellipsize(kStatus, status, text_width - dot_size - Px(7.0f)));
+      y += height + Px(6.0f);
     }
     // The controller starts on the chosen device; up and down go through the devices, right to the mapping.
     page_focus_ = device_focus;
@@ -1078,45 +1097,46 @@ void App::ControlsPage(const ImRect& rect) {
       controls_focus_mapping_ = true;
       ImGui::NavMoveRequestCancel();
     }
-    // "Connect another guitar…" at the foot.
-    constexpr Type kNote{Font::kRegular, 13};
-    float note_height = DrawParagraph(kNote, ImVec2(0, 0), devices.GetWidth() - Px(28.0f), 1.45f, 0, t_.connect_more, false);
-    ImRect note(ImVec2(devices.Min.x, devices.Max.y - note_height - Px(24.0f)), devices.Max);
-    FillRect(note, col::kPanel, 10.0f);
-    StrokeRect(note, col::kHairline, 10.0f);
-    DrawParagraph(kNote, ImVec2(note.Min.x + Px(14.0f), note.Min.y + Px(12.0f)), note.GetWidth() - Px(28.0f), 1.45f,
-                  col::kTabText, t_.connect_more);
+    // "Connect another guitar…" at the foot, 28 dp over the footer.
+    constexpr Type kNote{Font::kRegular, 14};
+    float note_width = Px(290.0f);
+    float note_height = DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.45f, 0, t_.connect_more, false);
+    DrawParagraph(kNote, ImVec2(page_left + Px(56.0f), rect.Max.y - Px(28.0f) - note_height), note_width, 1.45f,
+                  col::kTextDim, t_.connect_more);
   }
 
-  // The mapping: the title, the hint, the rows (scrolling when they do not fit).
-  FillRect(mapping, col::kPanel, 14.0f);
-  StrokeRect(mapping, col::kHairline, 14.0f);
+  // The mapping: its title (with "Experimental" for the keyboard and the microphone) and Reset at its right, the hint,
+  // the rows (scrolling when they do not fit).
+  ImGuiID reset_id = 0;
+  bool reset = false;
   {
-    float x = mapping.Min.x + Px(20.0f);
-    float width = mapping.GetWidth() - Px(40.0f);
-    float y = mapping.Min.y + Px(20.0f);
-    constexpr Type kTitle{Font::kDisplayBold, 24};
+    constexpr Type kTitle{Font::kDisplayMedium, 26, 0.015f};
     char title[192];
     if (microphone) {
       std::snprintf(title, sizeof(title), "%s", t_.device_microphone);
     } else {
       std::snprintf(title, sizeof(title), t_.mapping_of, pad ? name_of(*pad).c_str() : t_.device_keyboard);
     }
-    DrawLabel(kTitle, ImVec2(x, y), col::kText, Ellipsize(kTitle, Upper(title), width));
-    if (microphone) {
-      // Singing is experimental: a badge after the title, as a Settings value's.
-      constexpr Type kTag{Font::kBold, 10, 0.08f};
-      std::string tag = Upper(t_.experimental);
-      float tag_x = x + MeasureText(kTitle, Upper(title)).x + Px(12.0f);
-      ImRect badge(ImVec2(tag_x, y + (LineHeight(kTitle) - Px(18.0f)) * 0.5f),
-                   ImVec2(tag_x + MeasureText(kTag, tag).x + Px(12.0f), y + (LineHeight(kTitle) + Px(18.0f)) * 0.5f));
-      FillRect(badge, Fade(col::kGlyphY, 0.18f), 4.0f);
-      DrawLabel(kTag, ImVec2(badge.Min.x + Px(6.0f), badge.Min.y), col::kGlyphY, tag, badge.GetHeight());
+    ButtonSpec spec{ButtonKind::kGhost, Type{Font::kSemiBold, 14}, 34, 16, 10};
+    float reset_width = ButtonWidth(spec, t_.hint_reset);
+    float title_y = page_top + Px(28.0f);
+    float title_center = title_y + LineHeight(kTitle) * 0.5f;
+    if (Button("##reset", ImVec2(map_right - reset_width, title_center - Px(17.0f)), spec, t_.hint_reset)) {
+      reset = true;
     }
-    y += LineHeight(kTitle);
+    reset_id = ImGui::GetItemID();
+    bool experimental = microphone || !pad;
+    std::string tag = experimental ? std::string(t_.experimental) : std::string();
+    if (!tag.empty() && tag[0] >= 'a' && tag[0] <= 'z') tag[0] = char(tag[0] - 'a' + 'A');
+    float tag_width = tag.empty() ? 0.0f : Px(14.0f) + ChipWidth(tag);
+    std::string shown = Ellipsize(kTitle, title, map_right - reset_width - Px(24.0f) - tag_width - map_left);
+    DrawLabel(kTitle, ImVec2(map_left, title_y), col::kText, shown);
+    if (!tag.empty()) {
+      DrawChip(ImVec2(map_left + MeasureText(kTitle, shown).x + Px(14.0f), title_center), tag, true);
+    }
     // The hint (the microphone's: who sings); for a moment after Shift, Ctrl or Alt was pressed alone, why it was not
     // taken.
-    constexpr Type kHint{Font::kRegular, 13};
+    constexpr Type kHint{Font::kRegular, 14};
     bool notice = !pad && !microphone && std::chrono::steady_clock::now() < notice_until_;
     std::string hint = microphone ? SingersText() : pad ? t_.mapping_select_hint : t_.mapping_select_key_hint;
     if (game::kHasMicrophones && pad && pad->kind != SDL_JOYSTICK_TYPE_GUITAR &&
@@ -1125,23 +1145,26 @@ void App::ControlsPage(const ImRect& rect) {
       ImU32 dot = 0;
       hint = std::string(t_.device_microphone) + ": " + MicStatus(&dot);
     }
-    DrawLabel(kHint, ImVec2(x, y), notice ? col::kAccentLight : col::kTabText,
-              Ellipsize(kHint, notice ? notice_ : hint, width));
-    y += LineHeight(kHint) + Px(12.0f);
-    // 3 dp around the rows for the focus outline.
-    ImRect list(ImVec2(x - Px(3.0f), y), ImVec2(mapping.Max.x - Px(17.0f), mapping.Max.y - Px(17.0f)));
+    DrawLabel(kHint, ImVec2(map_left, page_top + Px(70.0f)), notice ? col::kAccentLight : col::kTextDim,
+              Ellipsize(kHint, notice ? notice_ : hint, map_right - map_left));
+    float rows_top = page_top + Px(104.0f);
+    FillRect(ImRect(ImVec2(map_left, rows_top), ImVec2(map_right, rows_top + Snap(Px(1.0f)))), col::kHairline);
+    // The scroll bar 16 dp right of the rows.
+    ImRect list(ImVec2(map_left, rows_top + Snap(Px(1.0f))), ImVec2(map_right + Px(16.0f), rect.Max.y - Px(28.0f)));
     BeginScroll("##mapping", list);
     ImVec2 origin = ImGui::GetCursorScreenPos();
-    float rows_width = list.GetWidth() - Px(6.0f) - (ImGui::GetCurrentWindow()->ScrollbarY ? Px(12.0f) : 0.0f);
-    ImVec2 rows_origin(origin.x + Px(3.0f), origin.y + Px(3.0f));
-    float height = microphone ? MicRows(rows_origin, rows_width)
-                   : pad      ? PadRows(rows_origin, rows_width, pad->id, pad->type, pad->kind, game::kHasMicrophones)
-                              : KeyRows(rows_origin, rows_width);
+    float rows_width = map_right - map_left;
+    float height = microphone ? MicRows(origin, rows_width)
+                   : pad      ? PadRows(origin, rows_width, pad->id, pad->type, pad->kind, game::kHasMicrophones)
+                              : KeyRows(origin, rows_width);
     ImGui::SetCursorScreenPos(origin);
-    ImGui::Dummy(ImVec2(list.GetWidth(), height + Px(6.0f)));
+    ImGui::Dummy(ImVec2(rows_width, height));
+    // Reset is above the rows: up from the first reaches it, up from it the header.
+    mapping_rows_.insert(mapping_rows_.begin(), {reset_id, reset_id});
     // The rows: up and down in their column; left from a row's first control (or B) back to the device.
     ColumnNav(mapping_rows_);
-    if (g.NavWindow == ImGui::GetCurrentWindow()) {
+    bool in_mapping = g.NavWindow == ImGui::GetCurrentWindow() || g.NavId == reset_id;
+    if (in_mapping) {
       back_focus_ = device_focus;
       bool first_column = std::any_of(mapping_rows_.begin(), mapping_rows_.end(),
                                       [&](const std::array<ImGuiID, 2>& row) { return row[0] == g.NavId; });
@@ -1156,12 +1179,9 @@ void App::ControlsPage(const ImRect& rect) {
     }
   }
 
-  // The help: the device's kind, what to do, its tips; Reset (Y) and "saved automatically" at the foot.
-  FillRect(help, col::kPanel, 14.0f);
-  StrokeRect(help, Hex(0xFFFFFF, 26), 14.0f);
-  {
-    ImVec2 p(help.Min.x + Px(22.0f), help.Min.y + Px(22.0f));
-    float width = help.GetWidth() - Px(44.0f);
+  // The tips (Y): the device's kind, what to do, its tips, as the help column showed them before launcher 3.18.
+  const bool popup = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
+  if (!popup && !Listening() && ButtonPressed(PadButton::kY)) {
     SDL_JoystickType kind = pad ? pad->kind : SDL_JOYSTICK_TYPE_GAMEPAD;
     bool guitar = kind == SDL_JOYSTICK_TYPE_GUITAR;
     bool drums = kind == SDL_JOYSTICK_TYPE_DRUM_KIT;
@@ -1174,7 +1194,7 @@ void App::ControlsPage(const ImRect& rect) {
     const char* body = microphone ? t_.help_mic_text : !pad ? t_.help_keyboard_text
                        : singer ? t_.help_vocals_text : guitar ? t_.help_guitar_text
                        : drums ? t_.help_drums_text : t_.help_pad_text;
-    std::vector<const char*> tips;
+    std::vector<std::string> tips;
     if (microphone) {
       tips = {t_.help_mic_tip_level, t_.help_mic_tip_channel, t_.help_mic_tip_privacy};
     } else if (singer) {
@@ -1197,58 +1217,38 @@ void App::ControlsPage(const ImRect& rect) {
       tips.push_back(t_.help_tip_escape);
       tips.push_back(t_.help_tip_clear);
     }
-    constexpr Type kKicker{Font::kBold, 12, 0.12f};
-    DrawLabel(kKicker, p, look.ink, Upper(kicker));
-    p.y += LineHeight(kKicker) + Px(8.0f);
-    constexpr Type kHelpTitle{Font::kDisplayBold, 26};
-    p.y += DrawParagraph(kHelpTitle, p, width, 1.1f, col::kText, title) + Px(14.0f);
-    constexpr Type kBody{Font::kRegular, 15};
-    p.y += DrawParagraph(kBody, p, width, 1.5f, col::kTextSoft, body) + Px(14.0f);
-    constexpr Type kTip{Font::kRegular, 14};
-    for (const char* tip : tips) {
-      float line = Px(14.0f) * 1.4f;
-      FillRect(ImRect(ImVec2(p.x, p.y + line * 0.5f - Px(4.0f)), ImVec2(p.x + Px(8.0f), p.y + line * 0.5f + Px(4.0f))),
-               col::kAccent);
-      p.y += DrawParagraph(kTip, ImVec2(p.x + Px(16.0f), p.y), width - Px(16.0f), 1.4f, col::kTextSoft, tip) + Px(8.0f);
-    }
-
-    constexpr Type kNote{Font::kRegular, 13};
-    float note_y = help.Max.y - Px(22.0f) - LineHeight(kNote);
-    DrawLabel(kNote, ImVec2(help.GetCenter().x - MeasureText(kNote, t_.autosaved).x * 0.5f, note_y), col::kLabel,
-              t_.autosaved);
-    ImRect button(ImVec2(p.x, note_y - Px(8.0f) - Px(46.0f)), ImVec2(p.x + width, note_y - Px(8.0f)));
-    ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
-    ItemState state = Item("##reset", button);
-    ImGui::PopItemFlag();
-    FillRect(button, state.hovered ? Brighten(col::kGhostFill) : col::kGhostFill, 10.0f);
-    StrokeRect(button, col::kGhostBorder, 10.0f);
-    constexpr Type kReset{Font::kBold, 15};
-    float glyph = GlyphWidth(PadButton::kY, 24.0f);
-    float content = glyph + Px(10.0f) + MeasureText(kReset, t_.reset_defaults).x;
-    float gx = button.GetCenter().x - content * 0.5f;
-    DrawGlyph(PadButton::kY, ImVec2(gx, button.GetCenter().y - Px(12.0f)), 24.0f);
-    DrawLabel(kReset, ImVec2(gx + glyph + Px(10.0f), button.Min.y), col::kText, t_.reset_defaults, button.GetHeight());
-    bool reset = state.pressed || (!Listening() && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId) &&
-                                   ButtonPressed(PadButton::kY));
-    if (reset) {
-      StopListening();
-      if (microphone) {
-        settings_.o.microphones = {};
-        settings_.o.microphone_channels = {};
-        settings_.o.microphone_gains = {game::kMicrophoneGainDefault, game::kMicrophoneGainDefault};
-      } else if (pad) {
-        // Back to the standard layout, for this controller, and its whammy bar and tilt to the SDK's own judgment.
-        settings_.o.whammy_calibration = WithWhammyEntry(settings_.o.whammy_calibration, PadKey(pad->id), "");
-        settings_.o.tilt_calibration = WithWhammyEntry(settings_.o.tilt_calibration, PadKey(pad->id), "");
-        std::string type_key = TypeKey(type);
-        settings_.o.device_remap =
-            WithDeviceLayout(settings_.o.device_remap, PadKey(pad->id), SourcesFor(settings_.o.gamepad_remap, type_key, false),
-                             SourcesFor(settings_.o.gamepad_remap, type_key, true));
-      } else {
-        ResetKeyboard(settings_.o);
+    // The kicker as a word ("Guitar"), not in capitals.
+    std::string word = kicker;
+    if (word.size() > 1) {
+      std::string lower = word.substr(1);
+      bool caps = std::none_of(lower.begin(), lower.end(), [](char c) { return c >= 'a' && c <= 'z'; });
+      if (caps) {
+        for (char& c : lower) c = char(std::tolower(static_cast<unsigned char>(c)));
+        word = word.substr(0, 1) + lower;
       }
-      Changed();
     }
+    OpenInfo(word, title, body, std::move(tips));
+  }
+
+  // Reset: the button (with A on it, or a click). Back to the standard layout for this controller, its whammy bar and
+  // tilt to the SDK's own judgment; the keyboard's defaults; the microphone's.
+  if (reset) {
+    StopListening();
+    if (microphone) {
+      settings_.o.microphones = {};
+      settings_.o.microphone_channels = {};
+      settings_.o.microphone_gains = {game::kMicrophoneGainDefault, game::kMicrophoneGainDefault};
+    } else if (pad) {
+      settings_.o.whammy_calibration = WithWhammyEntry(settings_.o.whammy_calibration, PadKey(pad->id), "");
+      settings_.o.tilt_calibration = WithWhammyEntry(settings_.o.tilt_calibration, PadKey(pad->id), "");
+      std::string type_key = TypeKey(type);
+      settings_.o.device_remap =
+          WithDeviceLayout(settings_.o.device_remap, PadKey(pad->id), SourcesFor(settings_.o.gamepad_remap, type_key, false),
+                           SourcesFor(settings_.o.gamepad_remap, type_key, true));
+    } else {
+      ResetKeyboard(settings_.o);
+    }
+    Changed();
   }
 }
 

@@ -28,8 +28,23 @@ launcher, the accent kept for the main action, one focus style, flat rows instea
   click) the next one, B goes back to the categories, X resets the category, Y opens the row's whole help. No help
   column, no "Current value" box.
 - "More info" (`App::OpenInfo`): a panel at the right over a flat veil, with its own footer (B closes it).
-- Texts: `more_info`, `close`, `strip_achievements`; `recommended`, `format_your_screen` and `screen_effects` in
-  sentence case.
+- Controls (phase 2): two columns. The devices as rows (icon, name, a dot and the status), an accent dot by the chosen
+  one; the mapping's title with Reset at its right (above the rows in the controller's path) and "Experimental" as a
+  chip for the keyboard and the microphone. Flat rows 44 dp high (`MappingRow` with the focus's look, `RowFocused`),
+  chips in the field's grey (`MappingChip`, `MappingChipRect`; the keyboard's two 128 dp), switches as whole rows
+  (`SwitchRow`), the part a selector with a chevron, the whammy bar's and tilt's live meters 120 x 6. The microphone's
+  rows like Settings' (56 dp, the value as text, left and right step it, its arrows when focused) and its level over
+  three faint zones. No help column: Y opens "Tips" (the device's kind, what to do, its tips) in the panel; the footer
+  A, X, Y, B.
+- DLC (phase 2, the folder mode): two columns without cards. The folder's column: its heading, two sentences
+  (`dlc_folder_short`; the long text in "More info"), the folder as a line with its count (the path cut in its
+  middle), the drop hint, the copies' notice, Change folder (an outline once a folder is chosen, the accent before)
+  and the Open link. The list: groups as rows (A folds, X or the switch sets all of it, the switch mixed while some are
+  on) and packages as rows (A or a click toggles; "Not for this game" a quiet note; an extracted one's Remove by X).
+  Right from the folder's column enters the list. The footer's hints follow the focus.
+- Texts: `more_info`, `close`, `strip_achievements`, `tips`, `dlc_folder_short`, `dlc_drop_hint`, `dlc_not_for_game`,
+  `dlc_hint_fold`, `dlc_hint_all_on`, `dlc_hint_all_off`, `dlc_hint_toggle`; `recommended`, `format_your_screen` and
+  `screen_effects` in sentence case.
 
 ## 3.17.0
 

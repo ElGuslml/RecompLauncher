@@ -602,6 +602,15 @@ struct Texts {
   const char* more_info;
   const char* close;
   const char* strip_achievements;  // %d: unlocked, %d: in all
+  const char* tips;                // the Controls tab's Y: its help in the "More info" panel
+  // Launcher 3.18: the DLC page's folder column (its long text in "More info"), a package's note, the footer's hints.
+  const char* dlc_folder_short;
+  const char* dlc_drop_hint;
+  const char* dlc_not_for_game;
+  const char* dlc_hint_fold;
+  const char* dlc_hint_all_on;
+  const char* dlc_hint_all_off;
+  const char* dlc_hint_toggle;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

@@ -434,37 +434,35 @@ float App::KeyRows(ImVec2 origin, float width) {
   ImGuiContext& g = *GImGui;
   bool changed = false;
   float y = origin.y;
-  constexpr float kRow = 44.0f;
-  constexpr float kGap = 6.0f;
-  constexpr Type kGroup{Font::kBold, 12, 0.14f};
+  constexpr float kRow = kMappingRow;
+  // A group's title (launcher 3.18: a plain label, "the mockup's .msec"), 16 dp above it and 6 under.
+  constexpr Type kGroup{Font::kSemiBold, 14};
   auto group = [&](const char* title) {
-    y += Px(10.0f);
-    DrawLabel(kGroup, ImVec2(origin.x + Px(14.0f), y), col::kAccent, Upper(title));
-    y += LineHeight(kGroup) + Px(8.0f);
+    y += Px(16.0f);
+    DrawLabel(kGroup, ImVec2(origin.x + Px(16.0f), y), col::kTextMuted, title);
+    y += LineHeight(kGroup) + Px(6.0f);
   };
   // A switch: playing with the keyboard and the mouse at all, the game's own (game.h, kKeyboardTapTarget: the frets
   // strum as they are pressed), the mouse's camera.
   auto switch_row = [&](const char* id, const char* label, bool* value) {
     ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kRow)));
-    ImVec2 pos(r.Max.x - Px(6.0f) - Px(52.0f), r.GetCenter().y - Px(15.0f));
-    MappingRow(r, 0, label, pos.x - Px(14.0f), false);
-    if (Toggle(id, pos, value)) {
+    if (SwitchRow(id, r, label, value)) {
       changed = true;
     }
     if (!mapping_first_) {
       mapping_first_ = ImGui::GetItemID();
     }
     mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
-    y += Px(kRow) + Px(kGap);
+    y += Px(kRow);
   };
-  switch_row("mnk", t_.mnk, &o.mnk);
+  switch_row("##mnk", t_.mnk, &o.mnk);
   const game::GameTexts& own = game::GameTextsFor(language_);
   if (*game::kKeyboardTapTarget && own.keyboard_tap_title) {
-    switch_row("tap", own.keyboard_tap_title, &o.keyboard_tap);
+    switch_row("##tap", own.keyboard_tap_title, &o.keyboard_tap);
   }
   // What the keyboard's controller plays (page_microphone.cpp): the instrument or the vocals.
   if (game::kHasMicrophones) {
-    y += PartRow(ImVec2(origin.x, y), width, "keyboard") + Px(kGap);
+    y += PartRow(ImVec2(origin.x, y), width, "keyboard");
   }
 
   // The rows: the game's functions in its groups (game.h, GameControlsFor), then the controls no function is on; or
@@ -505,20 +503,25 @@ float App::KeyRows(ImVec2 origin, float width) {
     }
     if (!other.rows.empty()) groups.push_back(std::move(other));
   }
-  constexpr float kSlot = 150.0f;
+  constexpr float kSlot = 128.0f;
   for (const Group& group_rows : groups) {
     group(group_rows.title);
     for (const Row& row : group_rows.rows) {
       int b = row.bind;
       ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kRow)));
       ImRect slots[2];
-      slots[1] = ImRect(ImVec2(r.Max.x - Px(6.0f) - Px(kSlot), r.Min.y + Px(4.0f)),
-                        ImVec2(r.Max.x - Px(6.0f), r.Max.y - Px(4.0f)));
-      slots[0] = ImRect(ImVec2(slots[1].Min.x - Px(6.0f) - Px(kSlot), slots[1].Min.y),
-                        ImVec2(slots[1].Min.x - Px(6.0f), slots[1].Max.y));
+      slots[1] = MappingChipRect(r, kSlot);
+      slots[0] = MappingChipRect(r, kSlot, 16.0f + kSlot + 8.0f);
       ImU32 swatch = row.function ? (*row.function->chip ? 0 : Hex(row.function->chip_color)) : SwatchOf(Bind(b));
-      MappingRow(r, swatch, row.function ? row.function->name : t_.binds[b], slots[0].Min.x - Px(14.0f),
-                 listen_bind_ == b);
+      // The row shows the focus when either of its keys has it.
+      bool focused = false;
+      for (int slot = 0; slot < 2; ++slot) {
+        ImGui::PushID(b * 2 + slot);
+        focused = focused || RowFocused(ImGui::GetID("##slot"));
+        ImGui::PopID();
+      }
+      MappingRow(r, swatch, row.function ? row.function->name : t_.binds[b], slots[0].Min.x - Px(16.0f),
+                 listen_bind_ == b, focused);
       std::vector<std::string> alternatives = Alternatives(o.binds[size_t(b)]);
       std::array<ImGuiID, 2> keys{};
       for (int slot = 0; slot < 2; ++slot) {
@@ -559,17 +562,17 @@ float App::KeyRows(ImVec2 origin, float width) {
         }
       }
       mapping_rows_.push_back(keys);
-      y += Px(kRow) + Px(kGap);
+      y += Px(kRow);
     }
   }
 
   // The mouse: its camera, and how fast it turns (a chip stepped with left and right, or clicked on either half).
   group(t_.group_mouse);
-  switch_row("mouse", t_.mouse_camera, &o.mnk_mouse);
+  switch_row("##mouse", t_.mouse_camera, &o.mnk_mouse);
   {
     ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kRow)));
-    ImRect chip(ImVec2(r.Max.x - Px(6.0f) - Px(190.0f), r.Min.y + Px(4.0f)), ImVec2(r.Max.x - Px(6.0f), r.Max.y - Px(4.0f)));
-    MappingRow(r, 0, t_.mouse_sensitivity, chip.Min.x - Px(14.0f), false);
+    ImRect chip = MappingChipRect(r, 160.0f);
+    MappingRow(r, 0, t_.mouse_sensitivity, chip.Min.x - Px(16.0f), false, RowFocused(ImGui::GetID("##sensitivity")));
     char value[32];
     std::snprintf(value, sizeof(value), "%.1f×", double(o.mnk_sensitivity));
     ChipLook look;

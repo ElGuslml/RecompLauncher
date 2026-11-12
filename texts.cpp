@@ -576,6 +576,14 @@ const Texts kEnglish = {
     .more_info = "More info",
     .close = "Close",
     .strip_achievements = "%d / %d achievements",
+    .tips = "Tips",
+    .dlc_folder_short = "Choose the folder where you keep your Xbox 360 packages (LIVE, PIRS or CON). The launcher looks through it and its subfolders, and the game reads them there: nothing is copied.",
+    .dlc_drop_hint = "You can also drop the folder on this window.",
+    .dlc_not_for_game = "Not for this game",
+    .dlc_hint_fold = "Open or close",
+    .dlc_hint_all_on = "Turn all on",
+    .dlc_hint_all_off = "Turn all off",
+    .dlc_hint_toggle = "Turn on or off",
 };
 
 const Texts kGerman = {
@@ -1145,6 +1153,14 @@ const Texts kGerman = {
     .more_info = "Mehr Infos",
     .close = "Schließen",
     .strip_achievements = "%d / %d Erfolge",
+    .tips = "Tipps",
+    .dlc_folder_short = "Wähle den Ordner, in dem du deine Xbox-360-Pakete (LIVE, PIRS oder CON) aufbewahrst. Der Launcher durchsucht ihn samt Unterordnern, und das Spiel liest sie dort: Nichts wird kopiert.",
+    .dlc_drop_hint = "Du kannst den Ordner auch auf dieses Fenster ziehen.",
+    .dlc_not_for_game = "Nicht für dieses Spiel",
+    .dlc_hint_fold = "Öffnen oder schließen",
+    .dlc_hint_all_on = "Alle einschalten",
+    .dlc_hint_all_off = "Alle ausschalten",
+    .dlc_hint_toggle = "Ein- oder ausschalten",
 };
 
 const Texts kFrench = {
@@ -1714,6 +1730,14 @@ const Texts kFrench = {
     .more_info = "Plus d'infos",
     .close = "Fermer",
     .strip_achievements = "%d / %d succès",
+    .tips = "Astuces",
+    .dlc_folder_short = "Choisis le dossier où tu ranges tes paquets Xbox 360 (LIVE, PIRS ou CON). Le launcher le parcourt avec ses sous-dossiers et le jeu les lit sur place : rien n'est copié.",
+    .dlc_drop_hint = "Tu peux aussi déposer le dossier sur cette fenêtre.",
+    .dlc_not_for_game = "Pas pour ce jeu",
+    .dlc_hint_fold = "Ouvrir ou fermer",
+    .dlc_hint_all_on = "Tout activer",
+    .dlc_hint_all_off = "Tout désactiver",
+    .dlc_hint_toggle = "Activer ou désactiver",
 };
 
 const Texts kSpanish = {
@@ -2282,6 +2306,14 @@ const Texts kSpanish = {
     .more_info = "Más información",
     .close = "Cerrar",
     .strip_achievements = "%d / %d logros",
+    .tips = "Consejos",
+    .dlc_folder_short = "Elige la carpeta donde guardas tus paquetes de Xbox 360 (LIVE, PIRS o CON). El launcher la recorre con sus subcarpetas y el juego los lee desde ahí: no se copia nada.",
+    .dlc_drop_hint = "También puedes soltar la carpeta en esta ventana.",
+    .dlc_not_for_game = "No es de este juego",
+    .dlc_hint_fold = "Abrir o cerrar",
+    .dlc_hint_all_on = "Activar todo",
+    .dlc_hint_all_off = "Desactivar todo",
+    .dlc_hint_toggle = "Activar o desactivar",
 };
 
 const Texts kItalian = {
@@ -2850,6 +2882,14 @@ const Texts kItalian = {
     .more_info = "Altre info",
     .close = "Chiudi",
     .strip_achievements = "%d / %d obiettivi",
+    .tips = "Suggerimenti",
+    .dlc_folder_short = "Scegli la cartella in cui tieni i tuoi pacchetti Xbox 360 (LIVE, PIRS o CON). Il launcher la esplora con le sue sottocartelle e il gioco li legge da lì: non si copia nulla.",
+    .dlc_drop_hint = "Puoi anche trascinare la cartella su questa finestra.",
+    .dlc_not_for_game = "Non è di questo gioco",
+    .dlc_hint_fold = "Apri o chiudi",
+    .dlc_hint_all_on = "Attiva tutto",
+    .dlc_hint_all_off = "Disattiva tutto",
+    .dlc_hint_toggle = "Attiva o disattiva",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.
