@@ -645,6 +645,11 @@ struct Texts {
   const char* drum_kit_five;
   const char* drum_kit_four;
   const char* help_tip_drum_kit;
+  // Launcher 3.20: DLSS's model (Settings > Video, game::kHasDlssModel).
+  const char* dlss_model;
+  const char* dlss_model_help;
+  const char* dlss_model_transformer_sub;
+  const char* dlss_model_cnn_sub;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,
