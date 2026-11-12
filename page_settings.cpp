@@ -812,14 +812,18 @@ void App::SettingsPage(const ImRect& rect) {
   float y = origin.y;
   const float row_left = origin.x;
   const float row_right = origin.x + (rows_right - rows_left);
-  // The row the controller's focus is on is the big one from this frame: chosen while drawing, it grew a frame late
-  // and no row was outlined for that frame (a jump, moving up).
-  if (g.NavWindow == ImGui::GetCurrentWindow()) {
-    for (int i = 0; i < int(rows.size()); ++i) {
+  // The row the controller's focus is on, or is going to (ColumnNav's RequestFocus, given when that row is drawn), is
+  // the big one from the start of this frame: chosen while drawing, a row before it was already drawn small and the
+  // one after it too, a frame with no row outlined (a jump, moving up).
+  {
+    const ImGuiID target = PendingFocus() ? PendingFocus()
+                           : g.NavWindow == ImGui::GetCurrentWindow() ? g.NavId
+                                                                      : 0;
+    for (int i = 0; target && i < int(rows.size()); ++i) {
       ImGui::PushID(rows[size_t(i)].id.c_str());
       const ImGuiID id = ImGui::GetID("##row");
       ImGui::PopID();
-      if (id == g.NavId) {
+      if (id == target) {
         selected = i;
         break;
       }
@@ -848,10 +852,9 @@ void App::SettingsPage(const ImRect& rect) {
       // LB/RB onto this tab, or a category's right: the controller lands on the current row.
       page_focus_ = row_id;
     }
+    // (The big row follows the focus from the start of the frame, above: changed here, it fought a focus given in the
+    // middle of the frame.)
     const bool nav_here = g.NavId == row_id && g.NavWindow == ImGui::GetCurrentWindow();
-    if (nav_here && selected != i) {
-      selected = i;  // grows next frame
-    }
     int count = int(row.values.size());
     const bool changeable = !row.locked && count > 1;
     auto step = [&](int delta) {

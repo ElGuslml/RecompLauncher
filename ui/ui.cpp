@@ -786,6 +786,8 @@ void RequestFocus(ImGuiID id, bool show) {
 
 bool FocusRequested() { return g_focus_request != 0; }
 
+ImGuiID PendingFocus() { return g_focus_request; }
+
 bool PressedByNav() {
   return !ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseReleased(ImGuiMouseButton_Left);
 }

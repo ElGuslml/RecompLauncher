@@ -28,8 +28,11 @@ Drums on the keyboard and the controllers (Gustavo, 2026-11-11). Needs the SDK's
   accent meanwhile; the footer says "Change value" and "Done"). Otherwise left goes to the column at the left (the
   Settings categories, the Controls devices). A switch flips with A at once; the mouse steps a value with a click or
   the arrows. For Settings' rows, the microphone's and the Instrument and Drum kit selectors.
-- Settings: the row the focus moves to is the big one in that frame (it grew a frame late: one frame without an
-  outlined row, a jump when moving up).
+- Settings: the big row follows the focus from the start of a frame. Up and down through the rows go by
+  `ColumnNav`'s `RequestFocus`, given when the target row is drawn, in the middle of the frame; the big row changed
+  there, so the rows before it and after it were drawn small: one frame with no row outlined, a jump. Now chosen
+  before the rows from the focus or the focus waiting to be given (`ui::PendingFocus`); checked with bursts of
+  screenshots, ten moves up and down without that frame.
 - The keyboard back on drums takes its kit's default keys while they are the other kit's (`FitDrumKeys`, also when
   the options file is read).
 

@@ -190,6 +190,9 @@ ImGuiID CapturedFirstItem();
 void RequestFocus(ImGuiID id, bool show = true);
 // A focus asked for and not given yet: the next frame gives it.
 bool FocusRequested();
+// The item a RequestFocus is waiting for (0 for none): it takes the focus when it is drawn, in the middle of a frame,
+// so a page that lays out by the focus (Settings' big row) looks at it before drawing.
+ImGuiID PendingFocus();
 // An item pressed this frame was pressed with the keyboard or a controller (A, Enter), not the mouse.
 bool PressedByNav();
 
