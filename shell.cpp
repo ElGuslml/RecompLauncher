@@ -287,43 +287,51 @@ void App::Header(const ImRect& rect) {
 // The first run's four steps (the mockup's install bar): done (a check on accent), current (an accent ring on a tint),
 // to come (a grey ring); a line between each two, accent after a step done.
 void App::InstallSteps(const ImRect& rect, float left, float right) {
+  // Launcher 3.18 (the mockup's board 22): each step a numbered circle and its name in the tabs' type; the current one
+  // white with the accent under it as a tab's, one done a check on the chips' grey; hairlines between them.
   const char* names[] = {t_.step_welcome, t_.step_iso, t_.step_install, t_.step_done};
   int current = int(install_step_);
-  constexpr Type kName{Font::kDisplaySemiBold, 16, 0.04f};
-  constexpr Type kNumber{Font::kDisplayBold, 15};
+  constexpr Type kName{Font::kDisplayMedium, 17, 0.02f};
+  constexpr Type kNumber{Font::kSemiBold, 14};
+  constexpr float kCircle = 28.0f;
+  constexpr float kLine = 34.0f;
+  constexpr float kGap = 6.0f;
   float width = 0.0f;
   for (int i = 0; i < 4; ++i) {
-    width += Px(30.0f) + Px(10.0f) + MeasureText(kName, Upper(names[i])).x;
-    if (i < 3) width += Px(10.0f) + Px(4.0f) + Px(36.0f) + Px(4.0f) + Px(10.0f);
+    width += Px(6.0f) * 2.0f + Px(kCircle) + Px(10.0f) + MeasureText(kName, names[i]).x;
+    if (i < 3) width += Px(kGap) * 2.0f + Px(kLine);
   }
-  float x = Snap(std::max(left, (left + right - width) * 0.5f));
+  float x = Snap(std::max(left, rect.GetCenter().x - width * 0.5f));
   float cy = rect.GetCenter().y;
   ImDrawList* draw = ImGui::GetWindowDrawList();
   for (int i = 0; i < 4; ++i) {
     bool done = i < current;
     bool now = i == current;
-    ImVec2 center(x + Px(15.0f), cy);
+    float step_left = x;
+    x += Px(6.0f);
+    ImVec2 center(x + Px(kCircle) * 0.5f, cy);
     if (done) {
-      draw->AddCircleFilled(center, Px(15.0f), col::kAccent, 32);
-      DrawIcon(Icon::kCheck, ImVec2(center.x - Px(7.0f), cy - Px(7.0f)), 14.0f, col::kOnAccent, 3.0f);
+      draw->AddCircleFilled(center, Px(kCircle) * 0.5f, col::kChip, 32);
+      DrawIcon(Icon::kCheck, ImVec2(center.x - Px(8.0f), cy - Px(8.0f)), 16.0f, col::kSuccess, 2.4f);
     } else {
-      if (now) draw->AddCircleFilled(center, Px(15.0f), col::kAccentTint, 32);
-      draw->AddCircle(center, Px(14.0f), now ? col::kAccent : Hex(0xFFFFFF, 46), 32, Px(2.0f));
+      draw->AddCircle(center, Px(kCircle) * 0.5f - Px(0.75f), now ? col::kText : col::kOutline, 32, Px(1.5f));
       char number[4];
       std::snprintf(number, sizeof(number), "%d", i + 1);
-      DrawLabel(kNumber, ImVec2(center.x - MeasureText(kNumber, number).x * 0.5f, cy - Px(15.0f)),
-                now ? col::kAccentLight : col::kTextDim, number, Px(30.0f));
+      DrawLabel(kNumber, ImVec2(center.x - MeasureText(kNumber, number).x * 0.5f, cy - Px(kCircle) * 0.5f),
+                now ? col::kText : col::kTextDim, number, Px(kCircle));
     }
-    x += Px(30.0f) + Px(10.0f);
-    std::string name = Upper(names[i]);
-    DrawLabel(kName, ImVec2(x, rect.Min.y), now ? col::kTabActive : done ? col::kTextSoft : col::kTextDim, name,
+    x += Px(kCircle) + Px(10.0f);
+    DrawLabel(kName, ImVec2(x, rect.Min.y), now ? col::kText : done ? col::kTextMuted : col::kTextDim, names[i],
               rect.GetHeight());
-    x += MeasureText(kName, name).x;
+    x += MeasureText(kName, names[i]).x + Px(6.0f);
+    if (now) {
+      FillRect(ImRect(ImVec2(step_left, rect.Max.y - Px(3.0f)), ImVec2(x, rect.Max.y)), col::kAccent, 3.0f,
+               ImDrawFlags_RoundCornersTop);
+    }
     if (i < 3) {
-      x += Px(10.0f) + Px(4.0f);
-      FillRect(ImRect(ImVec2(x, cy - Px(1.0f)), ImVec2(x + Px(36.0f), cy + Px(1.0f))),
-               done ? col::kAccent : Hex(0xFFFFFF, 36));
-      x += Px(36.0f) + Px(4.0f) + Px(10.0f);
+      x += Px(kGap);
+      FillRect(ImRect(ImVec2(x, cy), ImVec2(x + Px(kLine), cy + Snap(Px(1.0f)))), col::kOutline);
+      x += Px(kLine) + Px(kGap);
     }
   }
 }
@@ -430,7 +438,15 @@ std::vector<App::Hint> App::PageHints() const {
       case InstallStep::kWelcome:
         return {{HintKey::kA, t_.continue_label}, {HintKey::kB, t_.quit}};
       case InstallStep::kChooseIso:
-        return {{HintKey::kA, t_.continue_label}, {HintKey::kX, t_.browse_file}, {HintKey::kB, t_.back}};
+        // A presses the step's main button: Browse until the file is valid, then Extract (X browses again); after a
+        // wrong file, "Choose another file".
+        if (iso_ && !iso_check_.valid() && iso_->result == IsoCheck::Result::kValid) {
+          return {{HintKey::kA, t_.extract}, {HintKey::kX, t_.browse_file}, {HintKey::kB, t_.back}};
+        }
+        if (iso_ && !iso_check_.valid()) {
+          return {{HintKey::kA, t_.choose_other}, {HintKey::kB, t_.back}};
+        }
+        return {{HintKey::kA, t_.browse_file}, {HintKey::kB, t_.back}};
       case InstallStep::kExtracting:
         if (extraction == Extraction::State::kRunning) {
           return {{HintKey::kB, t_.cancel_install}};
@@ -440,7 +456,7 @@ std::vector<App::Hint> App::PageHints() const {
         }
         return {{HintKey::kB, t_.back}};
       case InstallStep::kDone:
-        return {{HintKey::kA, t_.play}, {HintKey::kX, t_.review_settings}};
+        return {{HintKey::kA, t_.nav_play}, {HintKey::kX, t_.review_settings}};
     }
   }
   switch (page_) {
@@ -469,22 +485,28 @@ std::vector<App::Hint> App::PageHints() const {
       }
       return {{HintKey::kA, t_.hint_reassign}, {HintKey::kX, t_.hint_clear}, {HintKey::kY, t_.tips},
               {HintKey::kB, t_.hint_back}};
-    case Page::kDlc:
-      if constexpr (game::kDlcMode == game::DlcMode::kFolder) {
-        switch (dlc_focus_kind_) {
-          case 1:
-            return {{HintKey::kA, t_.dlc_hint_fold}, {HintKey::kX, dlc_focus_all_on_ ? t_.dlc_hint_all_off : t_.dlc_hint_all_on},
-                    {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
-          case 2:
-            return {{HintKey::kA, t_.dlc_hint_toggle}, {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
-          case 3:
-            return {{HintKey::kA, t_.dlc_hint_toggle}, {HintKey::kX, t_.dlc_remove}, {HintKey::kY, t_.more_info},
-                    {HintKey::kB, t_.hint_back}};
-          default:
-            return {{HintKey::kA, t_.hint_select}, {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
-        }
+    case Page::kDlc: {
+      // The folder mode's page has "More info" (Y); the extracting mode's, its installed rows only.
+      constexpr bool folder = game::kDlcMode == game::DlcMode::kFolder;
+      switch (dlc_focus_kind_) {
+        case 1:
+          return {{HintKey::kA, t_.dlc_hint_fold},
+                  {HintKey::kX, dlc_focus_all_on_ ? t_.dlc_hint_all_off : t_.dlc_hint_all_on},
+                  {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
+        case 2:
+          return {{HintKey::kA, t_.dlc_hint_toggle}, {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
+        case 3:
+          if (!folder) {
+            return {{HintKey::kA, t_.dlc_hint_toggle}, {HintKey::kX, t_.dlc_remove}, {HintKey::kB, t_.hint_back}};
+          }
+          return {{HintKey::kA, t_.dlc_hint_toggle}, {HintKey::kX, t_.dlc_remove}, {HintKey::kY, t_.more_info},
+                  {HintKey::kB, t_.hint_back}};
+        default:
+          // The left column: its button, or the link to the DLC folder.
+          if (!folder) return {{HintKey::kA, t_.hint_select}, {HintKey::kB, t_.hint_back}};
+          return {{HintKey::kA, t_.hint_select}, {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
       }
-      return {{HintKey::kA, t_.hint_choose_folder}, {HintKey::kB, t_.hint_back}};
+    }
     case Page::kUpdates: {
       // The main button's own words.
       const Release* newer = updates_ ? updates_->Newer(Version::Parse(kVersion)) : nullptr;

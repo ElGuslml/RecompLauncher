@@ -1249,7 +1249,10 @@ bool Link(const char* id, ImVec2 pos, std::string_view label, float size) {
   DrawIcon(Icon::kArrowRight, ImVec2(pos.x + text.x + Px(4.0f), pos.y + (text.y - Px(arrow)) * 0.5f + Px(0.5f)),
            arrow, color, 2.2f);
   if (state.focused) {
-    FocusRing(rect, 4.0f);
+    // A link has no box of its own: the ring a little away from its words.
+    ImRect ring = rect;
+    ring.Expand(ImVec2(Px(6.0f), Px(4.0f)));
+    FocusRing(ring, 8.0f);
   }
   return state.pressed;
 }

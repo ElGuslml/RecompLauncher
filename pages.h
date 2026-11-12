@@ -39,8 +39,9 @@ struct ChipLook {
   bool empty = false;      // nothing presses it: dashed
   bool enabled = true;     // false: what cannot be moved (the D-pad, a stick), not focusable
 };
-// 140 dp wide, 32 high, 16 dp from the row's right edge (the keyboard's two 128 wide, 8 apart).
-ImRect MappingChipRect(const ImRect& row, float width = 140.0f, float right_inset = 16.0f);
+// 156 dp wide (German's "Steuerkreuz hoch"), 32 high, 16 dp from the row's right edge (the keyboard's two 128 wide, 8
+// apart).
+ImRect MappingChipRect(const ImRect& row, float width = 156.0f, float right_inset = 16.0f);
 ui::ItemState MappingChip(const char* id, const ImRect& rect, const ChipLook& look);
 // A row that is a switch (launcher 3.18): the whole row is its item, A or a click toggles it. True when toggled.
 bool SwitchRow(const char* id, const ImRect& row, std::string_view label, bool* value, bool enabled = true);

@@ -1,7 +1,7 @@
-// The DLC tab in the extracting mode (game::kDlcMode kInstall; dlc.h; Gustavo's 2026-10-28 mockup), as before 3.16:
-// a card to install the packages of a folder the player chooses (or drops on the window), searched and installed at
-// once by the game (its --install_content tool mode), and the content installed, each with its switch and a button to
-// remove it. BrowseDlc and ListDlc, shared with the folder mode, are in page_dlc.cpp.
+// The DLC tab in the extracting mode (game::kDlcMode kInstall; dlc.h), as before 3.16, in launcher 3.18's style (the
+// folder mode's page, page_dlc.cpp): a column to install the packages of a folder the player chooses (or drops on the
+// window), searched and installed at once by the game (its --install_content tool mode), and the content installed as
+// rows, each with its switch and a button to remove it. BrowseDlc and ListDlc, shared with the folder mode, are in page_dlc.cpp.
 
 #include <windows.h>
 
@@ -126,48 +126,46 @@ void App::DlcInstallPage(const ImRect& rect) {
   if (!dlc_listed_) {
     ListDlc();
   }
-  ImRect main(ImVec2(rect.Min.x + Px(40.0f), rect.Min.y + Px(24.0f)), ImVec2(rect.Max.x - Px(40.0f), rect.Max.y - Px(20.0f)));
-  constexpr Type kTitle{Font::kDisplayBold, 40};
-  constexpr Type kSubtitle{Font::kRegular, 15};
-  DrawLabel(kTitle, main.Min, col::kText, Upper(t_.dlc_title), Px(40.0f));
-  DrawLabel(kSubtitle, ImVec2(main.Min.x, main.Min.y + Px(40.0f) + Px(8.0f)), col::kTextSoft, t_.dlc_subtitle);
-  float top = main.Min.y + Px(40.0f) + Px(8.0f) + LineHeight(kSubtitle) + Px(18.0f);
-  ImRect install(ImVec2(main.Min.x, top), ImVec2(main.Min.x + Px(520.0f), main.Max.y));
-  ImRect installed(ImVec2(install.Max.x + Px(20.0f), top), main.Max);
+  ImGuiContext& g = *GImGui;
+  dlc_focus_kind_ = 0;
+  // --- Launcher 3.18: as the folder mode's page (page_dlc.cpp): the title and its line, the installing column from 56,
+  // 340 wide, a hairline at 432, the installed list from 472 to 56 from the right edge. No cards. ---
+  const float page_left = rect.Min.x;
+  const float page_top = rect.Min.y;
+  constexpr Type kTitle{Font::kDisplaySemiBold, 44, 0.015f};
+  constexpr Type kIntro{Font::kRegular, 16};
+  constexpr Type kHeading{Font::kDisplayMedium, 26, 0.015f};
+  constexpr Type kSmall{Font::kRegular, 14};
+  DrawLabel(kTitle, ImVec2(page_left + Px(56.0f), page_top + Px(20.0f)), col::kText, Title(t_.nav_dlc), Px(44.0f * 1.1f));
+  DrawLabel(kIntro, ImVec2(page_left + Px(56.0f), page_top + Px(74.0f)), col::kTextMuted, t_.dlc_subtitle);
+  const float columns_top = page_top + Px(124.0f);
+  const float foot = rect.Max.y - Px(28.0f);
+  FillRect(ImRect(ImVec2(page_left + Px(432.0f), columns_top + Px(4.0f)),
+                  ImVec2(page_left + Px(432.0f) + Snap(Px(1.0f)), foot - Px(10.0f))),
+           col::kHairline);
   DlcInstall::Progress progress = dlc_install_.Get();
   bool running = progress.state == DlcInstall::State::kRunning;
   bool busy = running || dlc_search_.valid();
-  constexpr Type kHeading{Font::kDisplayBold, 24};
+  ImGuiID choose_id = 0;
 
   // Installing: the folder chosen (or dropped on the window) is searched, and what it holds installed.
   {
-    FillRect(install, col::kPanel, 14.0f);
-    StrokeRect(install, Hex(0xFFFFFF, 26), 14.0f);
-    float x = install.Min.x + Px(24.0f);
-    float width = install.GetWidth() - Px(48.0f);
-    float y = install.Min.y + Px(24.0f);
-    ImRect icon(ImVec2(x, y), ImVec2(x + Px(52.0f), y + Px(52.0f)));
-    FillRect(icon, col::kAccentTint, 12.0f);
-    DrawIcon(Icon::kPackage, ImVec2(icon.Min.x + Px(13.0f), icon.Min.y + Px(13.0f)), 26.0f, col::kAccent, 1.8f);
-    DrawLabel(kHeading, ImVec2(icon.Max.x + Px(14.0f), y), col::kText, Upper(t_.dlc_install_title), Px(52.0f));
-    y += Px(52.0f) + Px(16.0f);
+    const float x = page_left + Px(56.0f);
+    const float width = Px(340.0f);
+    float y = columns_top;
+    DrawLabel(kHeading, ImVec2(x, y), col::kText, t_.dlc_install_title);
+    y += LineHeight(kHeading) + Px(12.0f);
     constexpr Type kText{Font::kRegular, 15};
-    y += DrawParagraph(kText, ImVec2(x, y), width, 1.55f, col::kTextSoft, t_.dlc_install_text) + Px(16.0f);
+    y += DrawParagraph(kText, ImVec2(x, y), width, 1.5f, col::kTextMuted, t_.dlc_install_text) + Px(22.0f);
 
-    // The buttons at the foot, the drop zone between.
-    float buttons_y = install.Max.y - Px(24.0f) - Px(52.0f);
-    ImRect zone(ImVec2(x, y), ImVec2(x + width, buttons_y - Px(16.0f)));
+    // The state, in a dashed place: drop a folder; searching or installing (a turning arc, the bar); what was done.
     bool done = progress.state == DlcInstall::State::kDone || (dlc_found_ && !busy);
-    ImU32 border = Hex(0xFFFFFF, 51);
-    ImU32 fill = Hex(0xFFFFFF, 8);
     Icon zone_icon = Icon::kUpload;
-    ImU32 icon_color = col::kTabText;
+    ImU32 icon_color = col::kTextMuted;
     std::string title = t_.dlc_drop_here;
     std::string sub = t_.dlc_drop_or;
-    ImU32 sub_color = col::kTabText;
+    ImU32 sub_color = col::kTextDim;
     if (busy) {
-      border = Fade(col::kAccent, 0.6f);
-      fill = Fade(col::kAccent, 0.08f);
       zone_icon = Icon::kNone;
       if (running) {
         char text[512];
@@ -180,8 +178,6 @@ void App::DlcInstallPage(const ImRect& rect) {
       sub = dlc_searched_;
     } else if (done) {
       bool failed = progress.state == DlcInstall::State::kDone && !progress.failed.empty();
-      border = failed ? Fade(col::kError, 0.6f) : Fade(col::kSuccess, 0.6f);
-      fill = failed ? Fade(col::kError, 0.08f) : Fade(col::kSuccess, 0.08f);
       zone_icon = failed ? Icon::kAlert : Icon::kCheck;
       icon_color = failed ? col::kError : col::kSuccess;
       if (progress.state == DlcInstall::State::kDone && progress.installed > 0) {
@@ -199,15 +195,12 @@ void App::DlcInstallPage(const ImRect& rect) {
           char turned[256];
           std::snprintf(turned, sizeof(turned), off == 1 ? t_.dlc_turned_off_one : t_.dlc_turned_off_many, off);
           sub = turned;
-          sub_color = col::kError;
         }
       } else if (dlc_found_ && dlc_found_->empty()) {
         title = t_.dlc_none_found_short;
         sub = dlc_searched_;
         zone_icon = Icon::kAlert;
-        icon_color = col::kTabText;
-        border = Hex(0xFFFFFF, 51);
-        fill = Hex(0xFFFFFF, 8);
+        icon_color = col::kTextMuted;
       } else if (progress.state != DlcInstall::State::kDone) {
         title = t_.dlc_all_installed;
         sub = dlc_searched_;
@@ -223,209 +216,180 @@ void App::DlcInstallPage(const ImRect& rect) {
         sub_color = col::kError;
       }
     }
-    FillRect(zone, fill, 12.0f);
-    // "2px dashed".
-    DashedRect(zone, border, 12.0f, 6.0f, 4.0f);
-    DashedRect(ImRect(ImVec2(zone.Min.x + Px(1.0f), zone.Min.y + Px(1.0f)), ImVec2(zone.Max.x - Px(1.0f), zone.Max.y - Px(1.0f))),
-               border, 11.0f, 6.0f, 4.0f);
-    constexpr Type kZoneTitle{Font::kBold, 15};
-    constexpr Type kZoneSub{Font::kRegular, 13};
-    float block = Px(30.0f) + Px(10.0f) + LineHeight(kZoneTitle) + Px(10.0f) + LineHeight(kZoneSub);
+    float buttons_y = foot - Px(40.0f) - Px(48.0f);
+    ImRect zone(ImVec2(x, y), ImVec2(x + width, std::max(y + Px(120.0f), buttons_y - Px(24.0f))));
+    DashedRect(zone, col::kOutline, 14.0f, 6.0f, 4.0f);
+    constexpr Type kZoneTitle{Font::kSemiBold, 16};
+    float block = Px(26.0f) + Px(10.0f) + LineHeight(kZoneTitle) + Px(4.0f) + LineHeight(kSmall);
     float zy = zone.GetCenter().y - block * 0.5f;
     float cx = zone.GetCenter().x;
     if (busy) {
-      // A spinning arc.
       ImDrawList* draw = ImGui::GetWindowDrawList();
-      ImVec2 c(cx, zy + Px(15.0f));
+      ImVec2 c(cx, zy + Px(13.0f));
       float start = float(ImGui::GetTime()) * 5.0f;
-      draw->PathArcTo(c, Px(11.0f), start, start + 4.7f, 32);
+      draw->PathArcTo(c, Px(10.0f), start, start + 4.7f, 32);
       draw->PathStroke(col::kAccent, ImDrawFlags_None, Px(2.4f));
     } else {
-      DrawIcon(zone_icon, ImVec2(cx - Px(15.0f), zy), 30.0f, icon_color, zone_icon == Icon::kCheck ? 2.6f : 1.6f);
+      DrawIcon(zone_icon, ImVec2(cx - Px(13.0f), zy), 26.0f, icon_color, zone_icon == Icon::kCheck ? 2.2f : 1.75f);
     }
-    zy += Px(30.0f) + Px(10.0f);
+    zy += Px(26.0f) + Px(10.0f);
     std::string shown_title = Ellipsize(kZoneTitle, title, zone.GetWidth() - Px(32.0f));
     DrawLabel(kZoneTitle, ImVec2(cx - MeasureText(kZoneTitle, shown_title).x * 0.5f, zy), col::kText, shown_title);
-    zy += LineHeight(kZoneTitle) + Px(10.0f);
-    std::string shown_sub = Ellipsize(kZoneSub, sub, zone.GetWidth() - Px(32.0f));
-    DrawLabel(kZoneSub, ImVec2(cx - MeasureText(kZoneSub, shown_sub).x * 0.5f, zy), sub_color, shown_sub);
+    zy += LineHeight(kZoneTitle) + Px(4.0f);
+    std::string shown_sub = Ellipsize(kSmall, sub, zone.GetWidth() - Px(32.0f));
+    DrawLabel(kSmall, ImVec2(cx - MeasureText(kSmall, shown_sub).x * 0.5f, zy), sub_color, shown_sub);
     if (running && progress.total) {
-      float bar_y = zone.Max.y - Px(20.0f);
+      float bar_y = zone.Max.y - Px(22.0f);
       Progress(ImRect(ImVec2(zone.Min.x + Px(24.0f), bar_y), ImVec2(zone.Max.x - Px(24.0f), bar_y + Px(6.0f))),
-               float(double(progress.done) / double(progress.total)), col::kPanelTrack, col::kAccent);
+               float(double(progress.done) / double(progress.total)), col::kChip, col::kAccent);
     }
 
-    // Choose a folder… (A), and the DLC folder for copying by hand.
-    constexpr Type kChoose{Font::kDisplayBold, 18, 0.05f};
-    std::string choose_label = Upper(t_.dlc_choose_folder);
-    float glyph = GlyphWidth(PadButton::kA, 24.0f);
-    float choose_width = Px(22.0f) * 2.0f + glyph + Px(10.0f) + MeasureText(kChoose, choose_label).x;
-    ImRect choose(ImVec2(x, buttons_y), ImVec2(x + choose_width, buttons_y + Px(52.0f)));
-    ItemState state = Item("##dlc_choose", choose, !busy);
-    FillRect(choose, Fade(state.hovered ? Brighten(col::kAccent) : col::kAccent, busy ? 0.6f : 1.0f), 10.0f);
-    DrawGlyph(PadButton::kA, ImVec2(choose.Min.x + Px(22.0f), choose.GetCenter().y - Px(12.0f)), 24.0f, true);
-    DrawLabel(kChoose, ImVec2(choose.Min.x + Px(22.0f) + glyph + Px(10.0f), choose.Min.y), col::kOnAccent, choose_label,
-              choose.GetHeight());
-    if (state.focused) FocusRing(choose, 10.0f);
-    if (state.pressed) BrowseDlc();
-    page_focus_ = ImGui::GetItemID();
-    constexpr Type kOpen{Font::kBold, 15};
-    float open_width = Px(18.0f) * 2.0f + MeasureText(kOpen, t_.dlc_open_folder).x + Px(8.0f) + Px(16.0f);
-    ImRect open(ImVec2(choose.Max.x + Px(12.0f), buttons_y), ImVec2(choose.Max.x + Px(12.0f) + open_width, buttons_y + Px(52.0f)));
-    ItemState open_state = Item("##dlc_open", open);
-    FillRect(open, open_state.hovered ? Brighten(col::kGhostFill) : col::kGhostFill, 10.0f);
-    StrokeRect(open, col::kGhostBorder, 10.0f);
-    DrawLabel(kOpen, ImVec2(open.Min.x + Px(18.0f), open.Min.y), col::kText, t_.dlc_open_folder, open.GetHeight());
-    DrawIcon(Icon::kArrowRight, ImVec2(open.Max.x - Px(18.0f) - Px(16.0f), open.GetCenter().y - Px(8.0f)), 16.0f, col::kText,
-             2.2f);
-    if (open_state.focused) FocusRing(open, 10.0f);
-    if (open_state.pressed) {
+    // Choose a folder… (the main action), and the DLC folder for copying by hand.
+    ButtonSpec choose_spec{ButtonKind::kPrimary, Type{Font::kSemiBold, 16}, 48, 20, 12};
+    if (Button("##dlc_choose", ImVec2(x, buttons_y), choose_spec, t_.dlc_choose_folder, !busy)) {
+      BrowseDlc();
+    }
+    choose_id = ImGui::GetItemID();
+    page_focus_ = choose_id;
+    float link_x = x + ButtonWidth(choose_spec, t_.dlc_choose_folder) + Px(22.0f);
+    if (Link("##dlc_open", ImVec2(link_x, buttons_y + (Px(48.0f) - LineHeight(Type{Font::kSemiBold, 15})) * 0.5f),
+             t_.dlc_open_folder, 15.0f)) {
       std::filesystem::path folder = DlcFolder(exe_dir_);
       std::error_code ec;
       std::filesystem::create_directories(folder, ec);
       OpenFolder(folder);
     }
-    // A on the page chooses a folder (the footer's hint) wherever the focus is not on a button.
-    if (!busy && !state.focused && !open_state.focused && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId) &&
-        GImGui->NavId == 0 && ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown, false)) {
-      BrowseDlc();
+    // Right from the link enters the list (ImGui would not reach its rows, far above).
+    if (dlc_list_entry_ && g.NavMoveSubmitted && g.NavMoveDir == ImGuiDir_Right && g.NavId == ImGui::GetItemID()) {
+      RequestFocus(dlc_list_entry_);
+      ImGui::NavMoveRequestCancel();
     }
   }
 
-  // What is installed: the count, where the game shows it, and each package with Remove (pressed twice).
+  // What is installed: the count, where the game shows it, and each package as a row: A (or a click) turns it on or
+  // off, X removes it (pressed twice).
   {
-    FillRect(installed, col::kPanel, 14.0f);
-    StrokeRect(installed, col::kHairline, 14.0f);
-    float x = installed.Min.x + Px(24.0f);
-    float width = installed.GetWidth() - Px(48.0f);
-    float y = installed.Min.y + Px(24.0f);
+    const float x = page_left + Px(472.0f);
+    const float right = rect.Max.x - Px(56.0f);
+    const float width = right - x;
+    float y = columns_top;
     const std::vector<InstalledDlc> none;
     const std::vector<InstalledDlc>& list = dlc_installed_ ? *dlc_installed_ : none;
-    DrawLabel(kHeading, ImVec2(x, y), col::kText, Upper(t_.dlc_installed_title));
+    DrawLabel(kHeading, ImVec2(x, y), col::kText, t_.dlc_installed_title);
     char count[64];
     std::snprintf(count, sizeof(count), list.size() == 1 ? t_.dlc_count_one : t_.dlc_count, int(list.size()));
-    constexpr Type kCount{Font::kRegular, 14};
-    DrawLabel(kCount, ImVec2(x + width - MeasureText(kCount, count).x, y + Px(24.0f) * 1.193f - Px(14.0f) * 1.024f),
-              col::kTabText, count);
-    y += LineHeight(kHeading) + Px(14.0f);
+    DrawLabel(kSmall, ImVec2(right - MeasureText(kSmall, count).x, y + Px(26.0f) * 1.193f - Px(14.0f) * 1.024f), col::kTextDim,
+              count);
+    y += LineHeight(kHeading) + Px(2.0f);
     if (const char* where = game::GameTextsFor(language_).dlc_where) {
-      constexpr Type kWhere{Font::kRegular, 14};
-      float text_height = DrawParagraph(kWhere, ImVec2(0, 0), width - Px(28.0f) - Px(28.0f), 1.45f, 0, where, false);
-      ImRect note(ImVec2(x, y), ImVec2(x + width, y + text_height + Px(24.0f)));
-      FillRect(note, Fade(col::kGlyphX, 0.1f), 10.0f);
-      DrawIcon(Icon::kInfo, ImVec2(note.Min.x + Px(14.0f), note.Min.y + Px(13.0f)), 18.0f, col::kGlyphX, 2.0f);
-      DrawParagraph(kWhere, ImVec2(note.Min.x + Px(14.0f) + Px(28.0f), note.Min.y + Px(12.0f)), width - Px(28.0f) - Px(28.0f),
-                    1.45f, col::kTextSoft, where);
-      y = note.Max.y + Px(14.0f);
+      DrawLabel(kSmall, ImVec2(x, y), col::kTextDim, Ellipsize(kSmall, where, width));
+      y += LineHeight(kSmall);
     }
-    ImRect area(ImVec2(x, y), ImVec2(x + width, installed.Max.y - Px(24.0f)));
+    y += Px(18.0f);
+    FillRect(ImRect(ImVec2(x, y), ImVec2(right, y + Snap(Px(1.0f)))), col::kHairline);
+    ImRect area(ImVec2(x, y + Snap(Px(1.0f))), ImVec2(right + Px(16.0f), foot));
     if (list.empty()) {
-      constexpr Type kEmptyTitle{Font::kBold, 16};
-      constexpr Type kEmptyText{Font::kRegular, 14};
-      const char* title = dlc_listing_.valid() ? "…" : t_.dlc_empty_title;
-      float cy = area.GetCenter().y - (LineHeight(kEmptyTitle) + Px(6.0f) + LineHeight(kEmptyText)) * 0.5f;
-      DrawLabel(kEmptyTitle, ImVec2(area.GetCenter().x - MeasureText(kEmptyTitle, title).x * 0.5f, cy), col::kTextSoft, title);
+      constexpr Type kEmptyTitle{Font::kSemiBold, 17};
+      const char* title = dlc_listing_.valid() ? "\xE2\x80\xA6" : t_.dlc_empty_title;
+      ImRect space(area.Min, ImVec2(right, area.Max.y));
+      float cy = space.GetCenter().y - (LineHeight(kEmptyTitle) + Px(4.0f) + LineHeight(kSmall)) * 0.5f;
+      DrawLabel(kEmptyTitle, ImVec2(space.GetCenter().x - MeasureText(kEmptyTitle, title).x * 0.5f, cy), col::kTextSoft,
+                title);
       if (!dlc_listing_.valid()) {
-        DrawLabel(kEmptyText,
-                  ImVec2(area.GetCenter().x - MeasureText(kEmptyText, t_.dlc_empty_text).x * 0.5f,
-                         cy + LineHeight(kEmptyTitle) + Px(6.0f)),
-                  col::kTabText, t_.dlc_empty_text);
+        DrawLabel(kSmall, ImVec2(space.GetCenter().x - MeasureText(kSmall, t_.dlc_empty_text).x * 0.5f,
+                                 cy + LineHeight(kEmptyTitle) + Px(4.0f)),
+                  col::kTextDim, t_.dlc_empty_text);
       }
+      dlc_list_entry_ = 0;
     } else {
       BeginScroll("##dlc_installed", area);
       ImVec2 origin = ImGui::GetCursorScreenPos();
-      float row_width = area.GetWidth() - (ImGui::GetCurrentWindow()->ScrollbarY ? Px(12.0f) : 0.0f);
       float row_y = origin.y;
-      constexpr Type kName{Font::kBold, 16};
-      constexpr Type kMeta{Font::kRegular, 13};
-      constexpr Type kNote{Font::kRegular, 13};
+      constexpr Type kName{Font::kSemiBold, 16};
       std::string removed;
       std::string switched;  // a package turned on or off this frame
       bool switched_on = false;
+      std::vector<std::array<ImGuiID, 2>> row_ids;
       for (size_t i = 0; i < list.size(); ++i) {
         const InstalledDlc& dlc = list[i];
         bool is_new = dlc_new_.count(dlc.folder) != 0;
-        // A package the game does not read: what the game does with it on (game::kDlcRule), below its name.
-        const char* note = nullptr;
-        if (!dlc.fits) {
-          switch (game::kDlcRule.foreign) {
-            case game::DlcForeign::kUnused: note = t_.dlc_foreign_unused; break;
-            case game::DlcForeign::kDamaged: note = t_.dlc_foreign_damaged; break;
-            case game::DlcForeign::kDisablesAll: note = t_.dlc_foreign_all; break;
-          }
-        }
-        float top_height = Px(12.0f) * 2.0f + Px(44.0f);
-        float text_left = Px(14.0f) + Px(44.0f) + Px(14.0f);
-        float note_width = row_width - text_left - Px(14.0f);
-        float note_height = note ? DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, note, false) + Px(12.0f) : 0.0f;
-        float height = top_height + note_height;
-        ImRect row(ImVec2(origin.x, row_y), ImVec2(origin.x + row_width, row_y + height));
-        float center_y = row.Min.y + top_height * 0.5f;
-        FillRect(row, is_new ? Fade(col::kAccent, 0.08f) : Hex(0xFFFFFF, 10), 10.0f);
-        StrokeRect(row, col::kHairline, 10.0f);
-        ImRect tile(ImVec2(row.Min.x + Px(14.0f), row.Min.y + Px(12.0f)),
-                    ImVec2(row.Min.x + Px(58.0f), row.Min.y + top_height - Px(12.0f)));
-        FillRect(tile, dlc.on ? col::kAccentTint : Hex(0xFFFFFF, 10), 8.0f);
-        // A music note.
-        DrawIconSvg("note", "<path d='M9 18V5l11-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='17' cy='16' r='3'/>",
-                    ImVec2(tile.Min.x + Px(11.0f), tile.Min.y + Px(11.0f)), 22.0f, dlc.on ? col::kAccent : col::kTabText,
-                    1.8f);
-        bool confirming = dlc_confirm_ == dlc.folder;
-        constexpr Type kRemove{Font::kBold, 14};
-        const char* label = confirming ? t_.dlc_remove_confirm : t_.dlc_remove;
-        float remove_width = Px(14.0f) * 2.0f + Px(16.0f) + Px(8.0f) + MeasureText(kRemove, label).x;
-        ImRect remove(ImVec2(row.Max.x - Px(12.0f) - remove_width, center_y - Px(20.0f)),
-                      ImVec2(row.Max.x - Px(12.0f), center_y + Px(20.0f)));
+        ImRect row(ImVec2(origin.x, row_y), ImVec2(origin.x + width, row_y + Px(64.0f)));
         ImGui::PushID(int(i));
-        ItemState state = Item("##remove", remove, !running);
-        // On: in the game's content folder; off: moved beside it, out of the game's sight.
-        bool on = dlc.on;
-        ImVec2 toggle_pos(remove.Min.x - Px(14.0f) - Px(52.0f), center_y - Px(15.0f));
-        if (Toggle("##on", toggle_pos, &on, !running)) {
-          switched = dlc.folder;
-          switched_on = on;
+        ImGui::SetNextItemAllowOverlap();
+        ItemState state = Item("##package", row, !running);
+        if (!running) row_ids.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
+        if (state.focused) {
+          FocusRow(row, 12.0f);
+          dlc_focus_kind_ = 3;
+        } else {
+          if (state.hovered) FillRect(row, Fade(col::kFocus, 0.03f), 12.0f);
+          FillRect(ImRect(ImVec2(row.Min.x, row.Max.y - Snap(Px(1.0f))), row.Max), col::kHairline);
         }
-        ImGui::PopID();
-        ImU32 background = confirming ? col::kAccent : col::kGhostFill;
-        if (state.hovered) background = Brighten(background);
-        FillRect(remove, background, 8.0f);
-        StrokeRect(remove, confirming ? col::kAccent : Hex(0xFFFFFF, 41), 8.0f);
-        ImU32 ink = confirming ? col::kOnAccent : col::kText;
-        DrawIcon(Icon::kTrash, ImVec2(remove.Min.x + Px(14.0f), remove.GetCenter().y - Px(8.0f)), 16.0f, ink, 2.0f);
-        DrawLabel(kRemove, ImVec2(remove.Min.x + Px(14.0f) + Px(24.0f), remove.Min.y), ink, label, remove.GetHeight());
-        if (state.focused) FocusRing(remove, 8.0f);
+        float center_y = row.GetCenter().y;
+        // On: in the game's content folder; off: moved beside it, out of the game's sight.
+        float toggle_x = row.Max.x - Px(16.0f) - Px(52.0f);
+        DrawToggle(ImVec2(toggle_x, center_y - Px(15.0f)), dlc.on, !running, false, state.hovered);
         if (state.pressed) {
+          switched = dlc.folder;
+          switched_on = !dlc.on;
+        }
+        float text_right = toggle_x - Px(14.0f);
+        // Remove, pressed twice (X on the row, or a click).
+        bool confirming = dlc_confirm_ == dlc.folder;
+        const char* label = confirming ? t_.dlc_remove_confirm : t_.dlc_remove;
+        ButtonSpec spec{ButtonKind::kDanger, Type{Font::kSemiBold, 14}, 34, 14, 10, Icon::kTrash, 16, 2.0f};
+        float remove_width = ButtonWidth(spec, label);
+        ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+        bool pressed = Button("##remove", ImVec2(text_right - remove_width, center_y - Px(17.0f)), spec, label, !running);
+        ImGui::PopItemFlag();
+        if (pressed || (state.focused && ButtonPressed(PadButton::kX))) {
           if (confirming) {
             removed = dlc.folder;
           } else {
             dlc_confirm_ = dlc.folder;
           }
         }
-        float right = toggle_pos.x - Px(14.0f);
-        if (is_new) {
-          constexpr Type kNew{Font::kBold, 11, 0.06f};
-          std::string tag = Upper(t_.dlc_new_tag);
-          float tag_width = MeasureText(kNew, tag).x + Px(16.0f);
-          ImRect badge(ImVec2(right - tag_width, center_y - Px(10.0f)), ImVec2(right, center_y + Px(10.0f)));
-          FillRect(badge, col::kAccent, 4.0f);
-          DrawLabel(kNew, ImVec2(badge.Min.x + Px(8.0f), badge.Min.y), col::kOnAccent, tag, badge.GetHeight());
-          right = badge.Min.x - Px(14.0f);
+        text_right -= remove_width + Px(14.0f);
+        if (!dlc.fits) {
+          float note_width = MeasureText(kSmall, t_.dlc_not_for_game).x;
+          float note_x = text_right - note_width;
+          DrawLabel(kSmall, ImVec2(note_x, center_y - LineHeight(kSmall) * 0.5f), col::kTextDim, t_.dlc_not_for_game);
+          DrawIcon(Icon::kInfo, ImVec2(note_x - Px(6.0f) - Px(16.0f), center_y - Px(8.0f)), 16.0f, col::kTextDim, 1.8f);
+          text_right = note_x - Px(6.0f) - Px(16.0f) - Px(14.0f);
         }
-        float text_x = tile.Max.x + Px(14.0f);
-        float text_width = right - text_x;
-        float text_y = center_y - (LineHeight(kName) + Px(2.0f) + LineHeight(kMeta)) * 0.5f;
+        if (is_new) {
+          float chip_width = ChipWidth(t_.dlc_new_tag);
+          DrawChip(ImVec2(text_right - chip_width, center_y), t_.dlc_new_tag);
+          text_right -= chip_width + Px(14.0f);
+        }
+        float icon_x = row.Min.x + Px(16.0f);
+        DrawIconSvg("note", "<path d='M9 18V5l11-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='17' cy='16' r='3'/>",
+                    ImVec2(icon_x, center_y - Px(11.0f)), 22.0f, dlc.on ? col::kTextMuted : col::kTextDim, 1.75f);
+        float text_x = icon_x + Px(22.0f) + Px(14.0f);
+        float text_width = std::max(Px(40.0f), text_right - text_x);
+        float text_y = center_y - (LineHeight(kName) + LineHeight(kSmall)) * 0.5f;
         DrawLabel(kName, ImVec2(text_x, text_y), dlc.on ? col::kText : col::kTextSoft,
                   Ellipsize(kName, dlc.display_name, text_width));
-        DrawLabel(kMeta, ImVec2(text_x, text_y + LineHeight(kName) + Px(2.0f)), col::kTabText,
-                  SizeText(dlc.bytes, t_.decimal_separator));
-        if (note) {
-          DrawParagraph(kNote, ImVec2(row.Min.x + text_left, row.Min.y + top_height - Px(4.0f)), note_width, 1.4f,
-                        col::kError, note);
-        }
-        row_y += height + Px(8.0f);
+        DrawLabel(kSmall, ImVec2(text_x, text_y + LineHeight(kName)), col::kTextDim, SizeText(dlc.bytes, t_.decimal_separator));
+        ImGui::PopID();
+        row_y = row.Max.y;
       }
       ImGui::SetCursorScreenPos(origin);
-      ImGui::Dummy(ImVec2(row_width, row_y - origin.y));
+      ImGui::Dummy(ImVec2(width, row_y - origin.y));
+      ColumnNav(row_ids);
+      bool entry_shown = std::any_of(row_ids.begin(), row_ids.end(),
+                                     [&](const std::array<ImGuiID, 2>& row) { return row[0] == dlc_list_entry_; });
+      if (!entry_shown) dlc_list_entry_ = row_ids.empty() ? 0 : row_ids.front()[0];
+      if (g.NavWindow == ImGui::GetCurrentWindow()) {
+        if (std::any_of(row_ids.begin(), row_ids.end(), [&](const std::array<ImGuiID, 2>& row) { return row[0] == g.NavId; })) {
+          dlc_list_entry_ = g.NavId;
+        }
+        back_focus_ = choose_id;
+        if (g.NavMoveSubmitted && g.NavMoveDir == ImGuiDir_Left) {
+          RequestFocus(choose_id);
+          ImGui::NavMoveRequestCancel();
+        }
+      }
       EndScroll();
       if (!switched.empty()) {
         // A rename, at once; the list read again shows where it is (a failed move, the game running, leaves it).

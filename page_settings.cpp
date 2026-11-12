@@ -616,9 +616,9 @@ void App::SettingsPage(const ImRect& rect) {
   {
     Type title{Font::kDisplaySemiBold, 44, 0.015f};
     std::string label = Title(t_.nav_settings);
-    // No wider than the column (German's EINSTELLUNGEN).
+    // No wider than the column, clear of the intro at 300 (German's EINSTELLUNGEN).
     float width = MeasureText(title, label).x;
-    if (width > Px(232.0f)) title.size *= Px(232.0f) / width;
+    if (width > Px(216.0f)) title.size *= Px(216.0f) / width;
     DrawLabel(title, ImVec2(page_left + Px(56.0f), page_top + Px(20.0f)), col::kText, label, Px(44.0f * 1.1f));
     constexpr Type kCategory{Font::kDisplayMedium, 22, 0.015f};
     const std::pair<Page, const char*> categories[] = {

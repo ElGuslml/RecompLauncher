@@ -63,9 +63,23 @@ launcher, the accent kept for the main action, one focus style, flat rows instea
   badge, `ColorPicker` with a check, `FieldLabel`); the last profile's Delete disabled with its reason shown (not on
   hover only). The first profile's dialog over a flat veil with its own footer; text fields show the focus's outline.
   LB and RB on the profile's page move the focus into the new section.
-- Texts: `more_info`, `close`, `strip_achievements`, `strip_completed`, `strip_streak`, `tips`, `dlc_folder_short`, `dlc_drop_hint`, `dlc_not_for_game`,
-  `dlc_hint_fold`, `dlc_hint_all_on`, `dlc_hint_all_off`, `dlc_hint_toggle`; `recommended`, `format_your_screen` and
-  `screen_effects` in sentence case.
+- The first run (phase 5): each step a column over the art without a card, the steps in the header (circles 28 dp,
+  the current one white with the accent under it, a finished one with a check). Welcome: the title, what it needs as
+  rows, Start and Quit. The ISO: a dashed zone to drop it on with Browse (the accent until the file is valid, then an
+  outline on X), the file's line (checking, then valid with its size), a wrong file's block (the file and the game
+  found, "Choose another file" the accent), Extract and install. Extracting: the percentage, the time left, the bar,
+  the file being written and the check; Cancel in the error's color. Ready: a check, the title, deleting the ISO as a
+  note, Play and Review settings (X). The footer's A says what the step's main button does. "Compiling shaders" the
+  same column, Skip (B) an outline.
+- The extracting DLC page (`kInstall`, phase 5) in the folder page's style: the column with the dashed zone, Choose
+  folder and the Open link; the installed packages as rows with their switch and Remove (X); "Not for this game" a
+  quiet note. Removing a DLC and a profile's conflict over the flat veil, each with its own footer.
+- Checked in German (phase 5): the mapping chips 156 dp wide ("Steuerkreuz hoch"), the photo's caption on two lines
+  where it needs them, the Settings title kept clear of its intro. A link shows the focus a little away from its words.
+- Texts: `more_info`, `close`, `strip_achievements`, `strip_completed`, `strip_streak`, `tips`, `dlc_folder_short`,
+  `dlc_drop_hint`, `dlc_not_for_game`, `dlc_hint_fold`, `dlc_hint_all_on`, `dlc_hint_all_off`, `dlc_hint_toggle`;
+  `recommended`, `format_your_screen` and `screen_effects` in sentence case; `hint_choose_folder` gone (the column's A
+  says Select).
 
 ## 3.17.0
 

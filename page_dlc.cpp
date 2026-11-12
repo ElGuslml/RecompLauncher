@@ -685,10 +685,12 @@ void App::DlcFreeDialog() {
   if (ImGui::BeginPopupModal(kPopup, nullptr,
                              ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                                  ImGuiWindowFlags_NoBackground)) {
-    ImGui::GetWindowDrawList()->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y),
-                                              Fade(col::kBackground, 0.82f));
+    // Launcher 3.18: a flat veil over the header and the page; the footer stays, with the dialog's hints.
+    const float footer_height = Snap(Px(52.0f));
+    ImGui::GetWindowDrawList()->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y - footer_height),
+                                              Hex(0x000000, 158));
     // The card: the question, what is deleted and where, what stays; Cancel (focused first, or B) and Delete.
-    constexpr Type kTitle{Font::kDisplayBold, 28};
+    constexpr Type kTitle{Font::kDisplayMedium, 28, 0.015f};
     constexpr Type kText{Font::kRegular, 15};
     constexpr float kWidth = 600.0f;
     constexpr float kPadding = 28.0f;
@@ -698,22 +700,18 @@ void App::DlcFreeDialog() {
     std::string where = Utf8(DlcFolder(exe_dir_).parent_path().wstring());
     char text[1024];
     std::snprintf(text, sizeof(text), t_.dlc_free_text, int(count), size_text.c_str(), where.c_str());
-    std::string title = Title(t_.dlc_free_title);
+    std::string title = t_.dlc_free_title;
     const float title_height = DrawParagraph(kTitle, ImVec2(0, 0), inner_width, 1.15f, 0, title, false);
     const float text_height = DrawParagraph(kText, ImVec2(0, 0), inner_width, 1.5f, 0, text, false);
-    KeyButtonSpec cancel_spec;
-    cancel_spec.look = KeyLook::kGhost;
-    cancel_spec.key = 'B';
-    cancel_spec.height = 50;
-    KeyButtonSpec delete_spec;
-    delete_spec.look = KeyLook::kDanger;
-    delete_spec.height = 50;
-    float height = Px(kPadding) + title_height + Px(12.0f) + text_height + Px(28.0f) + Px(50.0f) + Px(kPadding);
+    KeyButtonSpec cancel_spec{KeyLook::kGhost, 'B', Type{Font::kSemiBold, 16}, 48, 22, 12, 22, 10};
+    KeyButtonSpec delete_spec{KeyLook::kDanger, 0, Type{Font::kSemiBold, 16}, 48, 22, 12, 22, 10};
+    float height = Px(kPadding) + title_height + Px(12.0f) + text_height + Px(28.0f) + Px(48.0f) + Px(kPadding);
     float width = Px(kWidth);
-    ImRect card(Snap(ImVec2(origin.x + (size.x - width) * 0.5f, origin.y + (size.y - height) * 0.5f)),
-                Snap(ImVec2(origin.x + (size.x + width) * 0.5f, origin.y + (size.y + height) * 0.5f)));
-    FillRect(card, col::kCard, 16.0f);
-    StrokeRect(card, col::kOutline, 16.0f);
+    float space = size.y - footer_height;
+    ImRect card(Snap(ImVec2(origin.x + (size.x - width) * 0.5f, origin.y + (space - height) * 0.5f)),
+                Snap(ImVec2(origin.x + (size.x + width) * 0.5f, origin.y + (space + height) * 0.5f)));
+    FillRect(card, col::kCard, 18.0f);
+    StrokeRect(card, col::kHairline, 18.0f);
     float x = card.Min.x + Px(kPadding);
     float y = card.Min.y + Px(kPadding);
     DrawParagraph(kTitle, ImVec2(x, y), inner_width, 1.15f, col::kText, title);
@@ -734,6 +732,10 @@ void App::DlcFreeDialog() {
       cancel = true;
     }
     dlc_free_opened_ = true;
+    {
+      std::vector<Hint> hints = {{HintKey::kB, t_.cancel}};
+      Footer(ImRect(ImVec2(origin.x, origin.y + size.y - footer_height), ImVec2(origin.x + size.x, origin.y + size.y)), hints);
+    }
     if (confirm && dlc_library_ && !dlc_freeing_.valid()) {
       Log("DLC: deleting %d extracted copies (%s), confirmed", int(count), size_text.c_str());
       dlc_freed_text_.clear();

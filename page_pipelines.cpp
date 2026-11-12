@@ -14,8 +14,6 @@ using namespace ui;
 
 namespace {
 
-constexpr Type kKicker{Font::kBold, 13, 0.22f};
-constexpr Type kLead{Font::kRegular, 16};
 constexpr Type kCount{Font::kSemiBold, 15};
 constexpr Type kHint{Font::kRegular, 14};
 
@@ -56,57 +54,54 @@ void App::PreparingScreen(ImVec2 size) {
   }
   PipelinePreparation::Progress progress = preparation_.Get();
   ImVec2 origin = ImGui::GetMainViewport()->Pos;
-  Background(size, 0.55f);
+  // Launcher 3.18: as the first run's steps, a column over the art at its left (no card), centred in the window's
+  // height (the screen has no header nor footer).
+  Background(size, 0.0f);
+  constexpr Type kTitle{Font::kDisplaySemiBold, 60, 0.015f};
+  constexpr Type kLead{Font::kRegular, 17};
+  const float x = origin.x + Px(56.0f);
+  const float width = std::min(Px(500.0f), size.x - Px(112.0f));
+  const std::string title = Title(t_.compiling_title);
+  const float title_height = DrawParagraph(kTitle, ImVec2(0, 0), std::max(width, Px(520.0f)), 1.05f, 0, title, false);
+  const float lead_height = DrawParagraph(kLead, ImVec2(0, 0), width, 1.55f, 0, t_.compiling_text, false);
+  const float block = title_height + Px(16.0f) + lead_height + Px(30.0f) + Px(8.0f) + Px(10.0f) + LineHeight(kCount) +
+                      Px(40.0f) + Px(48.0f);
+  float y = Snap(origin.y + std::max(Px(40.0f), (size.y - block) * 0.5f));
 
-  // A card in the middle of the window, 640 dp wide, padded 32 36.
-  float card_width = std::min(Px(640.0f), size.x - Px(112.0f));
-  float card_height = std::min(Px(330.0f), size.y - Px(64.0f));
-  ImRect card(ImVec2(Snap(origin.x + (size.x - card_width) * 0.5f), Snap(origin.y + (size.y - card_height) * 0.5f)),
-              ImVec2(Snap(origin.x + (size.x + card_width) * 0.5f), Snap(origin.y + (size.y + card_height) * 0.5f)));
-  FillRect(card, col::kPanel, 16.0f);
-  StrokeRect(card, Hex(0xFFFFFF, 26), 16.0f);
-  float x = card.Min.x + Px(36.0f);
-  float width = card.GetWidth() - Px(72.0f);
-  float y = card.Min.y + Px(32.0f);
+  y += DrawParagraph(kTitle, ImVec2(x, y), std::max(width, Px(520.0f)), 1.05f, col::kText, title) + Px(16.0f);
+  y += DrawParagraph(kLead, ImVec2(x, y), width, 1.55f, col::kTextSoft, t_.compiling_text) + Px(30.0f);
 
-  DrawLabel(kKicker, ImVec2(x, y), col::kAccent, Upper(game::kName));
-  y += LineHeight(kKicker) + Px(8.0f);
-  y += DrawParagraph(Type{Font::kDisplayBold, 40.0f}, ImVec2(x, y), width, 1.0f, col::kText, Upper(t_.compiling_title));
-  y += Px(14.0f);
-  y += DrawParagraph(kLead, ImVec2(x, y), width, 1.55f, col::kTextSoft, t_.compiling_text);
-  y += Px(22.0f);
-
-  // The bar, and the count under it; a turning arc until the game's tool has counted its work.
+  // The bar (live progress: the accent) and the count under it; a turning arc until the game's tool has counted its
+  // work.
   if (progress.total) {
     Progress(ImRect(ImVec2(x, y), ImVec2(x + width, y + Px(8.0f))),
-             float(double(progress.done) / double(progress.total)), col::kPanelTrack, col::kAccent);
-    y += Px(8.0f) + Px(10.0f);
+             float(double(progress.done) / double(progress.total)), col::kChip, col::kAccent);
     char text[96];
     std::snprintf(text, sizeof(text), t_.compiling_count, int(progress.done), int(progress.total));
-    DrawLabel(kCount, ImVec2(x, y), col::kTextSoft, text);
+    DrawLabel(kCount, ImVec2(x, y + Px(8.0f) + Px(10.0f)), col::kTextSoft, text);
   } else {
     ImDrawList* draw = ImGui::GetWindowDrawList();
     float radius = Px(10.0f);
     ImVec2 center(x + radius, y + radius);
     float start = float(ImGui::GetTime()) * 5.0f;
     draw->PathArcTo(center, radius, 0.0f, 6.2831853f, 32);
-    draw->PathStroke(col::kTrack, ImDrawFlags_None, Px(2.5f));
+    draw->PathStroke(col::kChip, ImDrawFlags_None, Px(2.5f));
     draw->PathArcTo(center, radius, start, start + 1.9f, 16);
     draw->PathStroke(col::kAccent, ImDrawFlags_None, Px(2.5f));
   }
+  y += Px(8.0f) + Px(10.0f) + LineHeight(kCount) + Px(40.0f);
 
   // Skip (B, Escape or a click): the game starts now and compiles as it draws.
-  KeyButtonSpec skip{KeyLook::kGhost, 'B', Type{Font::kSemiBold, 16}, 52, 24};
-  float buttons_y = card.Max.y - Px(32.0f) - Px(52.0f);
+  KeyButtonSpec skip{KeyLook::kGhost, 'B', Type{Font::kSemiBold, 16}, 48, 22, 12, 22, 10};
   std::string skip_label = t_.compiling_skip;
-  bool pressed = KeyButton("##skip_compiling", ImVec2(x, buttons_y), skip, skip_label).pressed;
+  bool pressed = KeyButton("##skip_compiling", ImVec2(x + Px(2.0f), y), skip, skip_label).pressed;
   ImGui::SetItemDefaultFocus();
   if (pressed || ButtonPressed(PadButton::kB) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
     preparation_.Skip();
   }
-  float hint_x = x + KeyButtonWidth(skip, skip_label) + Px(16.0f);
-  DrawParagraph(kHint, ImVec2(hint_x, buttons_y + Px(8.0f)), card.Max.x - Px(36.0f) - hint_x, 1.4f, col::kTabText,
-                t_.compiling_skip_hint);
+  float hint_x = x + Px(2.0f) + KeyButtonWidth(skip, skip_label) + Px(16.0f);
+  DrawParagraph(kHint, ImVec2(hint_x, y + Px(4.0f)), std::max(Px(200.0f), x + width + Px(120.0f) - hint_x), 1.4f,
+                col::kTextDim, t_.compiling_skip_hint);
 }
 
 }  // namespace launcher

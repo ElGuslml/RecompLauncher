@@ -438,7 +438,6 @@ struct Texts {
   const char* dlc_count;  // %d: packages
   const char* dlc_empty_title;
   const char* dlc_empty_text;
-  const char* hint_choose_folder;
   // Launcher 3.15: a package the game does not read (game::kDlcRule), turned off; the note by game::DlcForeign.
   const char* dlc_foreign_unused;
   const char* dlc_foreign_damaged;

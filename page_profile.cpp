@@ -110,15 +110,26 @@ int AvatarPicker(const char* id, ImVec2 pos, float size, float gap, int selected
     } else if (photo != ImTextureID_Invalid) {
       DrawTexture(photo, r, true);
     } else {
-      // The photo's place: a dashed circle, a camera and its word.
+      // The photo's place: a dashed circle, a camera and its words (on two lines where they need it: German's
+      // "Foto hochladen").
       DashedRect(r, state.hovered ? col::kTextDim : col::kOutline, size * 0.5f / col::kRoundness);
-      constexpr Type kSmall{Font::kSemiBold, 12};
-      std::string caption = Ellipsize(kSmall, photo_label, side - Px(10.0f));
-      float block = Px(20.0f) + Px(2.0f) + LineHeight(kSmall);
+      Type caption_type{Font::kSemiBold, size >= 70.0f ? 12.0f : 11.0f};
+      float text_width = side - Px(14.0f);
+      float text_height = DrawParagraph(caption_type, ImVec2(0, 0), text_width, 1.15f, 0, photo_label, false);
+      bool two_lines = text_height > Px(caption_type.size) * 1.15f * 1.5f;
+      if (text_height > Px(caption_type.size) * 1.15f * 2.5f) text_height = Px(caption_type.size) * 1.15f * 2.0f;
+      float block = Px(18.0f) + Px(2.0f) + text_height;
       float top = center.y - block * 0.5f;
-      DrawIcon(Icon::kCamera, ImVec2(center.x - Px(10.0f), top), 20.0f, col::kTextMuted, 1.8f);
-      DrawLabel(kSmall, ImVec2(center.x - MeasureText(kSmall, caption).x * 0.5f, top + Px(22.0f)), col::kTextMuted,
-                caption);
+      DrawIcon(Icon::kCamera, ImVec2(center.x - Px(9.0f), top), 18.0f, col::kTextMuted, 1.8f);
+      if (two_lines) {
+        ImGui::PushClipRect(ImVec2(r.Min.x, top + Px(20.0f)), ImVec2(r.Max.x, top + Px(20.0f) + text_height), true);
+        DrawParagraph(caption_type, ImVec2(center.x - text_width * 0.5f, top + Px(20.0f)), text_width, 1.15f,
+                      col::kTextMuted, photo_label, true, 0.5f);
+        ImGui::PopClipRect();
+      } else {
+        float x = center.x - MeasureText(caption_type, photo_label).x * 0.5f;
+        DrawLabel(caption_type, ImVec2(x, top + Px(20.0f)), col::kTextMuted, photo_label);
+      }
     }
     if (state.hovered && !on && !state.focused) {
       draw->AddCircle(center, side * 0.5f + Px(3.0f), Fade(col::kText, 0.25f), 48, Px(2.0f));
@@ -495,14 +506,14 @@ void App::CreateProfileCard(ImVec2 size) {
 }
 
 void App::ConflictCard(ImVec2 size) {
-  constexpr Type kTitle{Font::kDisplayBold, 28};
+  constexpr Type kTitle{Font::kDisplayMedium, 28, 0.015f};
   constexpr Type kText{Font::kRegular, 15};
   constexpr float kWidth = 560.0f;
   constexpr float kPadding = 28.0f;
   const float inner_width = Px(kWidth - kPadding * 2.0f);
   char title[256];
   std::snprintf(title, sizeof(title), t_.migrate_conflict_title, game::kName);
-  std::string shown = Title(title);
+  std::string shown = title;
   const float title_height = DrawParagraph(kTitle, ImVec2(0, 0), inner_width, 1.15f, 0, shown, false);
   const float text_height = DrawParagraph(kText, ImVec2(0, 0), inner_width, 1.5f, 0, t_.migrate_conflict_text, false);
   float height = Px(kPadding) + title_height + Px(12.0f) + text_height + Px(28.0f) + Px(46.0f) + Px(kPadding);
