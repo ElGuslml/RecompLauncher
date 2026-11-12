@@ -756,8 +756,9 @@ void App::SettingsPage(const ImRect& rect) {
       ImU32 color = on ? col::kText : state.hovered ? col::kTextSoft : col::kTextMuted;
       DrawLabel(kCategory, ImVec2(item.Min.x + Px(18.0f), item.Min.y), color, category_name, item.GetHeight());
       if (on) {
+        // Left of the item, clear of the focus's outline (drawn 4 dp outside the ring's box, which starts 10 dp in).
         float dot = Px(8.0f);
-        ImVec2 c(item.Min.x + dot * 0.5f, item.GetCenter().y);
+        ImVec2 c(item.Min.x - Px(4.0f), item.GetCenter().y);
         ImGui::GetWindowDrawList()->AddCircleFilled(c, dot * 0.5f, col::kAccent, 16);
       }
       if (state.focused) {
