@@ -137,6 +137,9 @@ inline constexpr bool kOffersTemporalUpscalers = true;
 // quarter.
 inline constexpr ArtPart kArtCorner{640.0f, 380.0f, 1280.0f, 760.0f};
 inline constexpr float kArtCornerRise = 145.0f;
+// The Video page's DLSS model row (launcher 3.20), with NVIDIA DLSS: Transformer or CNN (NativeXRenderer's
+// native_x_renderer_dlss_model). False: no row, and the options file gains no key.
+inline constexpr bool kHasDlssModel = false;
 }  // namespace defaults
 using namespace defaults;
 

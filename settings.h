@@ -47,6 +47,12 @@ enum Upscaler : int { kUpscaleOff, kUpscaleFsr1, kUpscaleNis, kUpscaleFsr3, kUps
 // native_x_renderer_frame_generation is then kept as it is, for tests by hand.
 inline constexpr bool kFrameGenerationRow = false;
 
+// DLSS's model (Settings > Video > DLSS model, launcher 3.20, game::kHasDlssModel; NativeXRenderer's
+// native_x_renderer_dlss_model): Transformer, NVIDIA's own choice for each mode (render preset 0), or CNN, the earlier
+// model (preset F, which DLSS 310.9 takes; NativeXRenderer's D143).
+enum DlssModel : int { kDlssTransformer, kDlssCnn, kDlssModelCount };
+inline constexpr const char* kDlssModelNames[] = {"transformer", "cnn"};
+
 inline constexpr bool IsTemporal(int upscaler) { return upscaler == kUpscaleFsr3 || upscaler == kUpscaleDlss; }
 inline constexpr bool IsSpatial(int upscaler) { return upscaler == kUpscaleFsr1 || upscaler == kUpscaleNis; }
 
@@ -138,6 +144,7 @@ struct Options {
   int upscaler = kUpscaleOff;              // an Upscaler
   int upscale_quality = kQualityQuality;   // an UpscaleQuality (launcher_upscaling_quality)
   int sharpness = kSharpnessOff;           // a Sharpness
+  int dlss_model = kDlssTransformer;       // a DlssModel (game::kHasDlssModel)
   // native_x_renderer_frame_generation (NativeXRenderer D123): AMD FSR 3.1's, a frame between each two of the game's,
   // with FSR 3.1 or DLSS where the game marks its views (game::kHasDlaa). The choice; Settings::FrameGenerationOn says
   // whether it applies.

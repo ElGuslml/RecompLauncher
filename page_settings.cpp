@@ -468,6 +468,21 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o, qualities](int index) { o.upscale_quality = qualities[size_t(index)]; };
       rows.push_back(std::move(row));
     }
+    // DLSS's model (launcher 3.20, game::kHasDlssModel; NativeXRenderer's native_x_renderer_dlss_model): Transformer,
+    // NVIDIA's own for each mode (recommended), or CNN, the earlier one.
+    if (game::kHasDlssModel && o.native && o.upscaler == kUpscaleDlss) {
+      OptionRow row;
+      row.id = "dlss_model";
+      row.title = t_.dlss_model;
+      row.help = t_.dlss_model_help;
+      row.values = {"Transformer", "CNN"};
+      row.subs = {t_.dlss_model_transformer_sub, t_.dlss_model_cnn_sub};
+      row.tags = {t_.recommended, ""};
+      row.tag_accent = {true, false};
+      row.index = std::clamp(o.dlss_model, 0, kDlssModelCount - 1);
+      row.apply = [&o](int index) { o.dlss_model = index; };
+      rows.push_back(std::move(row));
+    }
     // Frame generation (NativeXRenderer D123): AMD FSR 3.1's, with FSR 3.1 or DLSS (their 3D view and motion vectors),
     // where the game marks its views. With a frame rate row the rate chosen there is the one shown and the game runs at
     // half (the game's src/options.cpp): 120 FPS or more.

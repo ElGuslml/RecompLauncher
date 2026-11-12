@@ -2,6 +2,19 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.20.0
+
+DLSS's model. Needs NativeXRenderer's D143 (`native_x_renderer_dlss_model`): with an older NativeXRenderer the game
+ignores the key.
+
+- Settings > Video > **DLSS model**, right after Quality while NVIDIA DLSS is the upscaler: Transformer (recommended:
+  NVIDIA's own model for each mode, render preset 0) or CNN (the earlier one, preset F, which DLSS 310.9 takes),
+  written as `native_x_renderer_dlss_model = "transformer"` or `"cnn"` whatever the upscaler (NativeXRenderer
+  reads it with DLSS only). Video's Reset sets Transformer.
+- Per game: `kHasDlssModel` in a game's `game.h`. Optional, as `kArtTitleSize`: false by default
+  (`game_types.h`), so a game without it shows no row and its options file gains no key.
+- Texts: `dlss_model`, `dlss_model_help`, `dlss_model_transformer_sub`, `dlss_model_cnn_sub` (five languages).
+
 ## 3.19.1
 
 A patch of 3.19 (Gustavo: these changes as 3.19.1; the commits before this one called it 3.20.0): drums on the

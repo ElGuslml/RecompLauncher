@@ -60,6 +60,7 @@ void ResetVideo(Options& o) {
   o.upscaler = defaults.upscaler;
   o.upscale_quality = defaults.upscale_quality;
   o.sharpness = defaults.sharpness;
+  o.dlss_model = defaults.dlss_model;
   o.frame_generation = defaults.frame_generation;
   o.scale = defaults.scale;
 }
@@ -515,6 +516,9 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
       if (IsSpatial(o.upscaler)) o.native_height = 0;
     }
     o.sharpness = SharpnessFromValue(o.upscaler, GetDouble(c, "native_x_renderer_sharpness", -1.0));
+    // DLSS's model (game::kHasDlssModel): CNN, or Transformer for anything else ("transformer", none).
+    o.dlss_model = game::kHasDlssModel && GetString(c, "native_x_renderer_dlss_model") == "cnn" ? kDlssCnn
+                                                                                               : kDlssTransformer;
     o.frame_generation = game::kHasDlaa && GetBool(c, "native_x_renderer_frame_generation", false);
   }
   // Without the key, the game's default (src/startup.cpp adds it to its base settings at the next start): 16x.
@@ -1089,6 +1093,13 @@ bool SaveOptions(const Settings& s) {
                       : prefix + std::string(kUpscaleQualityNames[std::clamp(quality, 0, kUpscaleQualityCount - 1)]);
     }
     f << "native_x_renderer_antialiasing = \"" << native_aa << "\"\n";
+    // DLSS's model (launcher 3.20), kept whatever the upscaler: NativeXRenderer reads it with DLSS only.
+    if (game::kHasDlssModel) {
+      f << "# native_x_renderer_dlss_model: with DLSS, transformer (NVIDIA's own model for each mode) or cnn (the\n"
+           "# earlier one).\n";
+      f << "native_x_renderer_dlss_model = \"" << kDlssModelNames[std::clamp(o.dlss_model, 0, kDlssModelCount - 1)]
+        << "\"\n";
+    }
     // Frame generation (D123), where FSR 3.1 and DLSS are offered: written as it applies (with FSR 3.1 or DLSS, and
     // the frame rate it needs).
     if (game::kHasDlaa) {
