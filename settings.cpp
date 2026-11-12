@@ -11,6 +11,7 @@
 #include <shellscalingapi.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -192,6 +193,100 @@ const char* DefaultKeys(int bind) {
     if (std::string_view(d.cvar) == kBinds[bind].cvar) return d.keys;
   }
   return kBinds[bind].sdk_default;
+}
+
+// A drum key by default: the kit's (game::kDrumKeyboardDefaults), else the guitar's (DefaultKeys).
+const char* DefaultDrumKeys(int bind, bool four_lanes) {
+  if constexpr (game::kHasDrums) {
+    const auto& defaults = four_lanes ? game::kDrumKeyboardDefaultsFourLanes : game::kDrumKeyboardDefaults;
+    for (const game::KeyDefault& d : defaults) {
+      if (std::string_view(d.cvar) == kBinds[bind].cvar) return d.keys;
+    }
+  }
+  return DefaultKeys(bind);
+}
+
+void ResetDrumKeys(Options& o, bool four_lanes) {
+  for (int i = 0; i < int(Bind::kCount); ++i) {
+    o.drum_binds[size_t(i)] = DefaultDrumKeys(i, four_lanes);
+  }
+}
+
+bool DrumKeysAreDefault(const Options& o, bool four_lanes) {
+  for (int i = 0; i < int(Bind::kCount); ++i) {
+    if (o.drum_binds[size_t(i)] != DefaultDrumKeys(i, four_lanes)) return false;
+  }
+  return true;
+}
+
+namespace {
+
+std::string_view TrimView(std::string_view s) {
+  while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) s.remove_prefix(1);
+  while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) s.remove_suffix(1);
+  return s;
+}
+
+bool EqualsNoCase(std::string_view a, std::string_view b) {
+  return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
+           return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+         });
+}
+
+// gamepad_device_subtypes' value for `key` ("8", "8:1"), empty when the list does not name it.
+std::string_view KindValue(std::string_view list, std::string_view key) {
+  std::string_view found;
+  while (!list.empty()) {
+    size_t comma = list.find(',');
+    std::string_view entry = list.substr(0, comma);
+    list = comma == std::string_view::npos ? std::string_view() : list.substr(comma + 1);
+    size_t equals = entry.find('=');
+    if (equals != std::string_view::npos && EqualsNoCase(TrimView(entry.substr(0, equals)), key)) {
+      found = TrimView(entry.substr(equals + 1));
+    }
+  }
+  return found;
+}
+
+}  // namespace
+
+Part PartOf(std::string_view list, std::string_view key) {
+  std::string_view value = KindValue(list, key);
+  int subtype = value.empty() ? -1 : std::atoi(std::string(value.substr(0, value.find(':'))).c_str());
+  return subtype == 8 ? kPartDrums : subtype == 1 ? kPartVocals : kPartInstrument;
+}
+
+bool FourLanes(std::string_view list, std::string_view key) {
+  std::string_view value = KindValue(list, key);
+  size_t colon = value.find(':');
+  return colon != std::string_view::npos && (std::strtol(std::string(value.substr(colon + 1)).c_str(), nullptr, 0) & 1);
+}
+
+std::string WithPart(std::string_view list, std::string_view key, Part part, bool four_lanes) {
+  std::string out;
+  while (!list.empty()) {
+    size_t comma = list.find(',');
+    std::string_view entry = list.substr(0, comma);
+    list = comma == std::string_view::npos ? std::string_view() : list.substr(comma + 1);
+    size_t equals = entry.find('=');
+    if (equals == std::string_view::npos || EqualsNoCase(TrimView(entry.substr(0, equals)), key)) continue;
+    if (!out.empty()) out += ',';
+    out.append(TrimView(entry));
+  }
+  const char* value = part == kPartDrums ? (four_lanes ? "8:1" : "8") : part == kPartVocals ? "1" : nullptr;
+  if (value) {
+    if (!out.empty()) out += ',';
+    out.append(key).append("=").append(value);
+  }
+  return out;
+}
+
+bool KeyboardDrums(const Options& o) {
+  return game::kHasDrums && PartOf(o.device_subtypes, kKeyboardKey) == kPartDrums;
+}
+
+bool KeyboardFourLanes(const Options& o) {
+  return KeyboardDrums(o) && FourLanes(o.device_subtypes, kKeyboardKey);
 }
 
 void ResetKeyboard(Options& o) {
@@ -435,9 +530,11 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   o.mnk = GetBool(c, "mnk_mode", false);
   o.mnk_mouse = GetBool(c, "mnk_mouse", false);
   o.mnk_sensitivity = float(std::clamp(GetDouble(c, "mnk_sensitivity", 1.0), 0.01, 10.0));
+  // The guitar's keys: keybind_*, or launcher_guitar_keybind_* while the keyboard played drums; the drum keys apart.
   for (int i = 0; i < int(Bind::kCount); ++i) {
+    auto guitar = c.find(std::string("launcher_guitar_") + kBinds[i].cvar);
     auto it = c.find(kBinds[i].cvar);
-    o.binds[i] = it != c.end() ? it->second : DefaultKeys(i);
+    o.binds[i] = guitar != c.end() ? guitar->second : it != c.end() ? it->second : DefaultKeys(i);
   }
   o.keyboard_tap = *game::kKeyboardTapTarget && !GetString(c, "mnk_tap_target").empty();
   o.gamepad_tap = *game::kKeyboardTapTarget && !GetString(c, "gamepad_tap_target").empty();
@@ -456,7 +553,16 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
       o.microphone_gains[size_t(i)] = int(std::lround(
           std::clamp(GetDouble(c, "usb_microphone_" + n + "_gain", game::kMicrophoneGainDefault), -40.0, 20.0)));
     }
+  }
+  if (game::kHasMicrophones || game::kHasDrums) {
     o.device_subtypes = GetString(c, "gamepad_device_subtypes");
+  }
+  {
+    const bool four = FourLanes(o.device_subtypes, kKeyboardKey);
+    for (int i = 0; i < int(Bind::kCount); ++i) {
+      auto it = c.find(std::string("launcher_drums_") + kBinds[i].cvar);
+      o.drum_binds[size_t(i)] = it != c.end() ? it->second : DefaultDrumKeys(i, four);
+    }
   }
 
   o.any_frame_rate = GetBool(c, "launcher_any_frame_rate", false);
@@ -997,8 +1103,10 @@ bool SaveOptions(const Settings& s) {
        "# mouse, mnk_sensitivity its speed; keybind_*: each control's keys, comma-separated alternatives.\n";
   f << "mnk_mode = " << boolean(o.mnk) << "\n";
   f << "mnk_mouse = " << boolean(o.mnk_mouse) << "\n";
+  const bool keyboard_drums = KeyboardDrums(o);
   if (*game::kKeyboardTapTarget) {
-    f << "mnk_tap_target = \"" << (o.keyboard_tap ? game::kKeyboardTapTarget : "") << "\"\n";
+    // Off while the keyboard plays drums: its pads are not frets.
+    f << "mnk_tap_target = \"" << (o.keyboard_tap && !keyboard_drums ? game::kKeyboardTapTarget : "") << "\"\n";
     f << "gamepad_tap_target = \"" << (o.gamepad_tap ? game::kKeyboardTapTarget : "") << "\"\n";
   }
   {
@@ -1006,8 +1114,15 @@ bool SaveOptions(const Settings& s) {
     std::snprintf(text, sizeof(text), "%.2f", double(o.mnk_sensitivity));
     f << "mnk_sensitivity = " << text << "\n";
   }
+  // The keys of what the keyboard plays; while it plays drums the guitar's are kept for later.
   for (int i = 0; i < int(Bind::kCount); ++i) {
-    f << kBinds[i].cvar << " = \"" << o.binds[i] << "\"\n";
+    f << kBinds[i].cvar << " = \"" << (keyboard_drums ? o.drum_binds[size_t(i)] : o.binds[i]) << "\"\n";
+  }
+  if (game::kHasDrums) {
+    for (int i = 0; i < int(Bind::kCount); ++i) {
+      f << "launcher_drums_" << kBinds[i].cvar << " = \"" << o.drum_binds[size_t(i)] << "\"\n";
+      if (keyboard_drums) f << "launcher_guitar_" << kBinds[i].cvar << " = \"" << o.binds[i] << "\"\n";
+    }
   }
   // The controllers' layouts: per SDL gamepad type, which button presses each Xbox 360 control
   // ("ps5:a=east,b=south"), then per controller (its serial number or GUID: "<GUID>:x=north,y=west"); empty: the
@@ -1024,13 +1139,16 @@ bool SaveOptions(const Settings& s) {
     f << "# Singing: usb_microphone_1/2 are the recording devices of the game's two microphones (\"default\" = the\n"
          "# system's, empty = none); usb_microphone_*_channel the channel each takes (0 = all mixed), *_gain its\n"
          "# gain in dB;\n"
-         "# gamepad_device_subtypes each controller's part (its serial number or GUID = 1 for the singer).\n";
+         "# gamepad_device_subtypes (below) each controller's part.\n";
     for (int i = 0; i < 2; ++i) {
       std::string n = std::to_string(i + 1);
       f << "usb_microphone_" << n << " = \"" << Escaped(o.microphones[size_t(i)]) << "\"\n";
       f << "usb_microphone_" << n << "_channel = " << o.microphone_channels[size_t(i)] << "\n";
       f << "usb_microphone_" << n << "_gain = " << o.microphone_gains[size_t(i)] << "\n";
     }
+  }
+  if (game::kHasMicrophones || game::kHasDrums) {
+    // Each controller's part: its serial number or GUID = 1 for the singer, 8 for drums (8:1 four lanes).
     f << "gamepad_device_subtypes = \"" << o.device_subtypes << "\"\n";
   }
   f << "launcher_language = " << o.launcher_language << "\n";

@@ -2,6 +2,27 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.20.0
+
+Drums on the keyboard and the controllers (Gustavo, 2026-11-11). Needs the SDK's change 87 for four lanes.
+
+- The Instrument row has three parts: the game's instrument (the guitar), Drums (`game::kHasDrums`) and Vocals. A
+  controller or the keyboard playing drums is XInput's drum kit in `gamepad_device_subtypes` (`8`).
+- A Drum kit row under it, and on a real drum kit: 5 lanes (Guitar Hero) or 4 lanes (Rock Band, `8:1`: the kit's
+  capability flag that Guitar Hero: World Tour's engine takes as a Rock Band kit, playing its own four-lane highway;
+  the SDK's change 87). A real kit is named in the list only for four lanes.
+- Its rows show the drums' functions (`game::GameDrumControlsFor`, five or four lanes): the pads, the kick pedal,
+  Star Power and the menus' controls; no strum switch, whammy bar or tilt.
+- The keyboard's drum keys are kept apart from the guitar's (`Options::drum_binds`, `launcher_drums_keybind_*`): while
+  it plays drums they are written as `keybind_*` and the guitar's as `launcher_guitar_keybind_*`, and its frets'
+  strum is off (`mnk_tap_target`). Their defaults are the game's (`game::kDrumKeyboardDefaults` and
+  `...FourLanes`); changing the kit while they are the defaults takes the other kit's. The keyboard's Reset resets the
+  keys of what it plays.
+- `gamepad_device_subtypes` is written when the game has drums or microphones; the parsing moved to settings.cpp
+  (`PartOf`, `FourLanes`, `WithPart`). A selector row (`App::SelectorRow`, 224 dp chip) serves the part and the kit.
+- Texts: `part_drums`, `drum_kit`, `drum_kit_five`, `drum_kit_four`, `help_tip_drum_kit`; `help_tip_part` names the
+  drums (five languages).
+
 ## 3.19.0
 
 Settings > Audio and the GPU (Gustavo, 2026-11-11). Needs the SDK's changes 85 and 86 (on `ghmetal`): with an older

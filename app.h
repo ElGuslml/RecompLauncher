@@ -185,9 +185,16 @@ class App {
   // mapping's hint), and the level meter's recording, read while the rows are drawn.
   float MicRows(ImVec2 origin, float width);
   float PartRow(ImVec2 origin, float width, const std::string& key);
+  // A selector row (the part, the drum kit): -1, 0 or 1, the step asked.
+  int SelectorRow(const char* id, ImVec2 origin, float width, const char* label, const std::string& value);
+  // A drum kit's lanes (launcher 3.20): five (Guitar Hero) or four (Rock Band). `real_kit`: a drum kit of its own.
+  float KitRow(ImVec2 origin, float width, const std::string& key, bool real_kit);
+  // The keyboard's keys of what it plays: the drum keys while it plays drums, else the guitar's.
+  std::array<std::string, int(Bind::kCount)>& KeyBinds();
   std::string MicStatus(ImU32* dot);
   std::string SingersText();
   bool Sings(const std::string& key) const;
+  bool PlaysDrums(const std::string& key) const;
   // A controller's identity in gamepad_device_subtypes and gamepad_device_remap, as the SDK's: its serial number, else
   // its GUID.
   const std::string& PadKey(SDL_JoystickID id);

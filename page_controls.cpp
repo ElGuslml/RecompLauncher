@@ -679,10 +679,14 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
   const std::string key = PadKey(id);
   const std::string& remap = settings_.o.gamepad_remap;
   Sources sources = DeviceSources(remap, settings_.o.device_remap, type_key, key);
-  // The game's functions (game.h) on any controller but a drum kit, whose pads are other functions; else the Xbox 360
-  // controller's buttons.
-  const std::vector<game::GameControlGroup>& functions = game::GameControlsFor(language_);
-  bool with_functions = !functions.empty() && kind != SDL_JOYSTICK_TYPE_DRUM_KIT;
+  // The game's functions (game.h): the instrument's, or the drums' on a drum kit and a controller playing drums
+  // (game::kHasDrums, five or four lanes); a drum kit without them shows the Xbox 360 controller's buttons.
+  const bool real_kit = kind == SDL_JOYSTICK_TYPE_DRUM_KIT;
+  const bool drums = real_kit || PlaysDrums(key);
+  const bool four = FourLanes(settings_.o.device_subtypes, key);
+  const std::vector<game::GameControlGroup>& functions =
+      drums && game::kHasDrums ? game::GameDrumControlsFor(language_, four) : game::GameControlsFor(language_);
+  bool with_functions = !functions.empty() && (!real_kit || game::kHasDrums);
   struct Row {
     int control;                         // -1: one the controllers cannot move
     const game::GameControl* function;   // null: the Xbox 360 control of kRowControl[xbox_row]
@@ -706,11 +710,14 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
       return y - origin.y;
     }
   }
+  // A drum kit's lanes, a real one's too (launcher 3.20).
+  if (game::kHasDrums && drums) {
+    y += KitRow(ImVec2(origin.x, y), width, key, real_kit);
+  }
   // Its frets strum as they are pressed (game.h's kKeyboardTapTarget, the SDK's gamepad_tap_target): one switch for
   // every controller playing guitar, as the keyboard's on its page.
   const game::GameTexts& own = game::GameTextsFor(language_);
-  if (*game::kKeyboardTapTarget && own.keyboard_tap_title && kind != SDL_JOYSTICK_TYPE_GUITAR &&
-      kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
+  if (*game::kKeyboardTapTarget && own.keyboard_tap_title && kind != SDL_JOYSTICK_TYPE_GUITAR && !drums) {
     ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kMappingRow)));
     if (SwitchRow("##gamepad_tap", r, own.keyboard_tap_title, &settings_.o.gamepad_tap)) {
       Changed();
@@ -720,7 +727,7 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
     y += Px(kMappingRow);
   }
   // The whammy bar and the tilt: a guitar's, or those of a controller playing guitar (a drum kit has neither).
-  if (game::kHasWhammy && kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
+  if (game::kHasWhammy && !drums) {
     y += AxisRow(ImVec2(origin.x, y), width, id, kind, false);
     y += AxisRow(ImVec2(origin.x, y), width, id, kind, true);
   }
@@ -1058,11 +1065,15 @@ void App::ControlsPage(const ImRect& rect) {
         const char* type_name = TypeName(p->type, t_);
         if (type_name != t_.controller) status += std::string(" \xC2\xB7 ") + type_name;
       }
-      // The singer's controller says so (its part: page_microphone.cpp).
-      if (game::kHasMicrophones && !mic && (keyboard ? settings_.o.mnk && Sings("keyboard")
+      // The singer's controller says so, and a controller playing drums (its part: page_microphone.cpp).
+      if (game::kHasMicrophones && !mic && (keyboard ? settings_.o.mnk && Sings(kKeyboardKey)
                                                      : p->kind == SDL_JOYSTICK_TYPE_GAMEPAD && Sings(PadKey(p->id)))) {
         const game::GameTexts& own = game::GameTextsFor(language_);
         status += std::string(" \xC2\xB7 ") + (own.part_vocals ? own.part_vocals : t_.part_vocals);
+      } else if (game::kHasDrums && !mic &&
+                 (keyboard ? settings_.o.mnk && PlaysDrums(kKeyboardKey)
+                           : p->kind == SDL_JOYSTICK_TYPE_GAMEPAD && PlaysDrums(PadKey(p->id)))) {
+        status += std::string(" \xC2\xB7 ") + t_.part_drums;
       }
       float block = LineHeight(kName) + Px(1.0f) + LineHeight(kStatus);
       float top = r.GetCenter().y - block * 0.5f;
@@ -1184,7 +1195,7 @@ void App::ControlsPage(const ImRect& rect) {
   if (!popup && !Listening() && ButtonPressed(PadButton::kY)) {
     SDL_JoystickType kind = pad ? pad->kind : SDL_JOYSTICK_TYPE_GAMEPAD;
     bool guitar = kind == SDL_JOYSTICK_TYPE_GUITAR;
-    bool drums = kind == SDL_JOYSTICK_TYPE_DRUM_KIT;
+    bool drums = kind == SDL_JOYSTICK_TYPE_DRUM_KIT || (pad && PlaysDrums(PadKey(pad->id)));
     bool singer = game::kHasMicrophones && pad && !guitar && !drums && Sings(PadKey(pad->id));
     const char* kicker = microphone ? t_.help_mic_kicker : !pad ? t_.help_keyboard_kicker
                          : guitar ? t_.help_guitar_kicker : drums ? t_.help_drums_kicker : t_.help_pad_kicker;
@@ -1200,7 +1211,10 @@ void App::ControlsPage(const ImRect& rect) {
     } else if (singer) {
       tips = {t_.help_tip_part};
     } else if (pad) {
-      if (game::kHasMicrophones && !guitar && !drums) tips.push_back(t_.help_tip_part);
+      if ((game::kHasMicrophones || game::kHasDrums) && !guitar && kind != SDL_JOYSTICK_TYPE_DRUM_KIT) {
+        tips.push_back(t_.help_tip_part);
+      }
+      if (game::kHasDrums && drums) tips.push_back(t_.help_tip_drum_kit);
       if (*game::kKeyboardTapTarget && !guitar && !drums) tips.push_back(t_.help_tip_gamepad_tap);
       if (game::kHasWhammy && !drums) {
         tips.push_back(t_.help_tip_whammy);
@@ -1209,7 +1223,8 @@ void App::ControlsPage(const ImRect& rect) {
       tips.push_back(t_.help_tip_this_controller);
       tips.push_back(t_.help_tip_fixed);
     } else {
-      if (game::kHasMicrophones) tips.push_back(t_.help_tip_part);
+      if (game::kHasMicrophones || game::kHasDrums) tips.push_back(t_.help_tip_part);
+      if (KeyboardDrums(settings_.o)) tips.push_back(t_.help_tip_drum_kit);
       tips.push_back(t_.mnk_hint);
       // The game's own switch (game.h, kKeyboardTapTarget): what it does.
       const game::GameTexts& own = game::GameTextsFor(language_);
@@ -1245,6 +1260,8 @@ void App::ControlsPage(const ImRect& rect) {
       settings_.o.device_remap =
           WithDeviceLayout(settings_.o.device_remap, PadKey(pad->id), SourcesFor(settings_.o.gamepad_remap, type_key, false),
                            SourcesFor(settings_.o.gamepad_remap, type_key, true));
+    } else if (KeyboardDrums(settings_.o)) {
+      ResetDrumKeys(settings_.o, KeyboardFourLanes(settings_.o));
     } else {
       ResetKeyboard(settings_.o);
     }

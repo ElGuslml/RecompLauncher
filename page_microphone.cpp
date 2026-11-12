@@ -27,61 +27,6 @@ using namespace ui;
 
 namespace {
 
-// The part a controller sings with: XINPUT_DEVSUBTYPE_GAMEPAD, which the game gives the vocals. A controller that is
-// not in gamepad_device_subtypes plays the game's instrument (its gamepad_subtype, src/startup.cpp).
-constexpr int kSingerSubtype = 1;
-// The keyboard's emulated controller in gamepad_device_subtypes.
-constexpr const char* kKeyboardKey = "keyboard";
-
-std::string_view Trim(std::string_view s) {
-  while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) s.remove_prefix(1);
-  while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) s.remove_suffix(1);
-  return s;
-}
-
-bool EqualsCI(std::string_view a, std::string_view b) {
-  return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
-           return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
-         });
-}
-
-// gamepad_device_subtypes' entries ("key=subtype", comma-separated), as the SDK reads them.
-template <typename F>
-void ForEachEntry(std::string_view list, F f) {
-  while (!list.empty()) {
-    size_t comma = list.find(',');
-    std::string_view entry = list.substr(0, comma);
-    list = comma == std::string_view::npos ? std::string_view() : list.substr(comma + 1);
-    size_t equals = entry.find('=');
-    if (equals != std::string_view::npos) {
-      f(Trim(entry.substr(0, equals)), Trim(entry.substr(equals + 1)));
-    }
-  }
-}
-
-int SubtypeOf(std::string_view list, std::string_view key) {
-  int subtype = -1;
-  ForEachEntry(list, [&](std::string_view k, std::string_view v) {
-    if (EqualsCI(k, key)) subtype = std::atoi(std::string(v).c_str());
-  });
-  return subtype;
-}
-
-// The list with `key` given `subtype`, or without it (-1).
-std::string WithSubtype(std::string_view list, std::string_view key, int subtype) {
-  std::string out;
-  ForEachEntry(list, [&](std::string_view k, std::string_view v) {
-    if (EqualsCI(k, key)) return;
-    if (!out.empty()) out += ',';
-    out.append(k).append("=").append(v);
-  });
-  if (subtype >= 0) {
-    if (!out.empty()) out += ',';
-    out.append(key).append("=").append(std::to_string(subtype));
-  }
-  return out;
-}
-
 // The recording devices SDL sees, with their channels.
 struct Recorder {
   std::string name;
@@ -150,7 +95,11 @@ const std::string& App::PadKey(SDL_JoystickID id) {
 }
 
 bool App::Sings(const std::string& key) const {
-  return SubtypeOf(settings_.o.device_subtypes, key) == kSingerSubtype;
+  return PartOf(settings_.o.device_subtypes, key) == kPartVocals;
+}
+
+bool App::PlaysDrums(const std::string& key) const {
+  return game::kHasDrums && PartOf(settings_.o.device_subtypes, key) == kPartDrums;
 }
 
 std::string App::SingersText() {
@@ -194,48 +143,78 @@ std::string App::MicStatus(ImU32* dot) {
   return text;
 }
 
-float App::PartRow(ImVec2 origin, float width, const std::string& key) {
-  // A selector (launcher 3.18): the row is its item; A, a click, left or right switch the part. Its value a chip with a
-  // chevron.
+int App::SelectorRow(const char* id, ImVec2 origin, float width, const char* label, const std::string& value) {
+  // A selector (launcher 3.18): the row is its item; A, a click or right step it forward, left back. Its value a chip
+  // with a chevron.
   ImGuiContext& g = *GImGui;
-  const game::GameTexts& own = game::GameTextsFor(language_);
   ImRect r(origin, ImVec2(origin.x + width, origin.y + Px(kMappingRow)));
-  ImRect chip = MappingChipRect(r);
-  ImGui::PushID("part");
+  // Wider than a control's chip: "4 carriles · Rock Band".
+  ImRect chip = MappingChipRect(r, 224.0f);
+  ImGui::PushID(id);
   ItemState state = Item("##row", r);
-  ImGuiID id = ImGui::GetItemID();
+  ImGuiID item = ImGui::GetItemID();
   ImGui::PopID();
-  if (!mapping_first_) mapping_first_ = id;
-  mapping_rows_.push_back({id, id});
-  bool vocals = Sings(key);
-  bool step = state.pressed;
-  if (g.NavId == id && g.NavMoveSubmitted && (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right)) {
-    step = true;
+  if (!mapping_first_) mapping_first_ = item;
+  mapping_rows_.push_back({item, item});
+  int step = state.pressed ? 1 : 0;
+  if (g.NavId == item && g.NavMoveSubmitted && (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right)) {
+    step = g.NavMoveDir == ImGuiDir_Left ? -1 : 1;
     ImGui::NavMoveRequestCancel();
   }
-  MappingRow(r, 0, t_.part, chip.Min.x - Px(16.0f), false, state.focused);
+  MappingRow(r, 0, label, chip.Min.x - Px(16.0f), false, state.focused);
   if (state.hovered && !state.focused) FillRect(r, Fade(col::kFocus, 0.03f), 12.0f);
-  ChipLook look;
-  look.text = vocals ? (own.part_vocals ? own.part_vocals : t_.part_vocals)
-                     : (own.part_instrument ? own.part_instrument : t_.part_instrument);
-  look.icon = Icon::kChevronDown;
-  look.icon_color = col::kTextSoft;
   // Drawn only: the row is the item.
   FillRect(chip, state.hovered ? Brighten(col::kField) : col::kField, 8.0f);
   StrokeRect(chip, col::kFieldBorder, 8.0f);
   constexpr Type kChip{Font::kSemiBold, 15};
-  std::string shown = Ellipsize(kChip, look.text, chip.GetWidth() - Px(28.0f) - Px(22.0f));
+  std::string shown = Ellipsize(kChip, value, chip.GetWidth() - Px(28.0f) - Px(22.0f));
   float text_width = MeasureText(kChip, shown).x;
   float x = chip.GetCenter().x - (text_width + Px(6.0f) + Px(16.0f)) * 0.5f;
   DrawLabel(kChip, ImVec2(x, chip.Min.y), col::kText, shown, chip.GetHeight());
   DrawIcon(Icon::kChevronDown, ImVec2(x + text_width + Px(6.0f), chip.GetCenter().y - Px(8.0f)), 16.0f, col::kTextSoft,
            2.0f);
-  if (step) {
-    StopListening();
-    settings_.o.device_subtypes = WithSubtype(settings_.o.device_subtypes, key, vocals ? -1 : kSingerSubtype);
+  if (step) StopListening();
+  return step;
+}
+
+float App::PartRow(ImVec2 origin, float width, const std::string& key) {
+  // What it plays: the game's instrument (game.cpp's word, the guitar), drums (game::kHasDrums), the vocals
+  // (game::kHasMicrophones), in that order.
+  const game::GameTexts& own = game::GameTextsFor(language_);
+  std::vector<Part> parts = {kPartInstrument};
+  if (game::kHasDrums) parts.push_back(kPartDrums);
+  if (game::kHasMicrophones) parts.push_back(kPartVocals);
+  const Part part = PartOf(settings_.o.device_subtypes, key);
+  const char* text = part == kPartVocals ? (own.part_vocals ? own.part_vocals : t_.part_vocals)
+                     : part == kPartDrums ? t_.part_drums
+                                          : (own.part_instrument ? own.part_instrument : t_.part_instrument);
+  if (int step = SelectorRow("part", origin, width, t_.part, text)) {
+    int index = int(std::find(parts.begin(), parts.end(), part) - parts.begin());
+    index = (index + step + int(parts.size())) % int(parts.size());
+    const bool four = FourLanes(settings_.o.device_subtypes, key);
+    settings_.o.device_subtypes = WithPart(settings_.o.device_subtypes, key, parts[size_t(index)], four);
     Changed();
   }
   return Px(kMappingRow);
+}
+
+float App::KitRow(ImVec2 origin, float width, const std::string& key, bool real_kit) {
+  // Five lanes (a Guitar Hero kit) or four (a Rock Band kit, the game's four-lane highway: the SDK's change 87).
+  const bool four = FourLanes(settings_.o.device_subtypes, key);
+  if (SelectorRow("kit", origin, width, t_.drum_kit, four ? t_.drum_kit_four : t_.drum_kit_five)) {
+    Options& o = settings_.o;
+    // A real kit is a drum kit already: only four lanes needs naming it.
+    o.device_subtypes = real_kit && four ? WithPart(o.device_subtypes, key, kPartInstrument, false)
+                                         : WithPart(o.device_subtypes, key, kPartDrums, !four);
+    // The keyboard's drum keys follow its kit while they are the defaults (green on L, or on K with four lanes).
+    if (key == kKeyboardKey && DrumKeysAreDefault(o, four)) ResetDrumKeys(o, !four);
+    Changed();
+  }
+  return Px(kMappingRow);
+}
+
+std::array<std::string, int(Bind::kCount)>& App::KeyBinds() {
+  return KeyboardDrums(settings_.o) ? settings_.o.drum_binds : settings_.o.binds;
 }
 
 void App::UpdateMicMeter() {

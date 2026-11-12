@@ -300,7 +300,7 @@ void App::StopListening() {
 }
 
 void App::Assign(std::string token) {
-  std::string& list = settings_.o.binds[size_t(listen_bind_)];
+  std::string& list = KeyBinds()[size_t(listen_bind_)];
   std::vector<std::string> alternatives = Alternatives(list);
   while (int(alternatives.size()) <= listen_slot_) {
     alternatives.emplace_back();
@@ -316,7 +316,7 @@ void App::Assign(std::string token) {
   if (const ModifierKey* modifier = FindModifierKey(key)) {
     // A modifier alone: the binds that need it held now work with the other side's key only.
     bool prefix_used = false;
-    for (const std::string& keys : settings_.o.binds) {
+    for (const std::string& keys : KeyBinds()) {
       for (const std::string& other : Alternatives(keys)) {
         uint8_t prefixes = 0;
         BareKey(other, &prefixes);
@@ -339,7 +339,10 @@ void App::Assign(std::string token) {
 }
 
 const char* App::BindName(int bind) {
-  for (const game::GameControlGroup& group : game::GameControlsFor(language_)) {
+  const std::vector<game::GameControlGroup>& groups =
+      KeyboardDrums(settings_.o) ? game::GameDrumControlsFor(language_, KeyboardFourLanes(settings_.o))
+                                 : game::GameControlsFor(language_);
+  for (const game::GameControlGroup& group : groups) {
     for (const game::GameControl& control : group.controls) {
       if (control.bind == bind) return control.name;
     }
@@ -352,7 +355,7 @@ std::string App::DebugKeysOnControls() {
   // Without the keyboard's controller the keys are the overlays'.
   if (!settings_.o.mnk) return out;
   for (int b = 0; b < int(Bind::kCount); ++b) {
-    for (const std::string& token : Alternatives(settings_.o.binds[size_t(b)])) {
+    for (const std::string& token : Alternatives(KeyBinds()[size_t(b)])) {
       std::string_view key = BareKey(token);
       if (key == "F3" || key == "F4" || key == "Backtick") {
         if (!out.empty()) out += ", ";
@@ -457,13 +460,19 @@ float App::KeyRows(ImVec2 origin, float width) {
   };
   switch_row("##mnk", t_.mnk, &o.mnk);
   const game::GameTexts& own = game::GameTextsFor(language_);
-  if (*game::kKeyboardTapTarget && own.keyboard_tap_title) {
+  const bool drums = KeyboardDrums(o);
+  // The frets' strum: not for drums.
+  if (*game::kKeyboardTapTarget && own.keyboard_tap_title && !drums) {
     switch_row("##tap", own.keyboard_tap_title, &o.keyboard_tap);
   }
-  // What the keyboard's controller plays (page_microphone.cpp): the instrument or the vocals.
-  if (game::kHasMicrophones) {
-    y += PartRow(ImVec2(origin.x, y), width, "keyboard");
+  // What the keyboard's controller plays (page_microphone.cpp): the instrument, drums or the vocals; drums' kit.
+  if (game::kHasMicrophones || game::kHasDrums) {
+    y += PartRow(ImVec2(origin.x, y), width, kKeyboardKey);
   }
+  if (drums) {
+    y += KitRow(ImVec2(origin.x, y), width, kKeyboardKey, false);
+  }
+  std::array<std::string, int(Bind::kCount)>& binds = KeyBinds();
 
   // The rows: the game's functions in its groups (game.h, GameControlsFor), then the controls no function is on; or
   // the Xbox 360 controls in theirs. Each has a primary and a secondary key.
@@ -476,7 +485,8 @@ float App::KeyRows(ImVec2 origin, float width) {
     std::vector<Row> rows;
   };
   std::vector<Group> groups;
-  const std::vector<game::GameControlGroup>& functions = game::GameControlsFor(language_);
+  const std::vector<game::GameControlGroup>& functions =
+      drums ? game::GameDrumControlsFor(language_, KeyboardFourLanes(o)) : game::GameControlsFor(language_);
   if (functions.empty()) {
     auto range = [](const char* title, Bind first, Bind last) {
       Group group{title, {}};
@@ -522,7 +532,7 @@ float App::KeyRows(ImVec2 origin, float width) {
       }
       MappingRow(r, swatch, row.function ? row.function->name : t_.binds[b], slots[0].Min.x - Px(16.0f),
                  listen_bind_ == b, focused);
-      std::vector<std::string> alternatives = Alternatives(o.binds[size_t(b)]);
+      std::vector<std::string> alternatives = Alternatives(binds[size_t(b)]);
       std::array<ImGuiID, 2> keys{};
       for (int slot = 0; slot < 2; ++slot) {
         std::string token = slot < int(alternatives.size()) ? alternatives[size_t(slot)] : std::string();
@@ -557,7 +567,7 @@ float App::KeyRows(ImVec2 origin, float width) {
         } else if (!listening && !token.empty() && ClearPressed(state)) {
           alternatives.resize(std::max<size_t>(alternatives.size(), 2));
           alternatives[size_t(slot)].clear();
-          o.binds[size_t(b)] = Join(alternatives);
+          binds[size_t(b)] = Join(alternatives);
           changed = true;
         }
       }

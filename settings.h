@@ -174,6 +174,10 @@ struct Options {
   bool gamepad_tap = false;
   float mnk_sensitivity = 1.0f;
   std::array<std::string, int(Bind::kCount)> binds;
+  // The keyboard's keys while it plays drums (game::kHasDrums, launcher 3.20), the same controls kept apart so that the
+  // guitar's stay as they were: launcher_drums_keybind_* in the options file. While the keyboard is a drum kit
+  // (gamepad_device_subtypes' keyboard=8) they are written as keybind_*, the guitar's as launcher_guitar_keybind_*.
+  std::array<std::string, int(Bind::kCount)> drum_binds;
 
   // The controllers' buttons moved to other Xbox 360 controls: the SDK's gamepad_remap (recomp change 36: one layout
   // per type of controller, as launchers before 3.4 wrote them) and gamepad_device_remap (change 59: one per
@@ -215,12 +219,29 @@ inline constexpr const char* kSystemMicrophone = "default";
 // audio_channels' values (Options::audio_channels), in the row's order.
 enum AudioChannels { kAudioAuto, kAudioStereo, kAudioMono, kAudioChannelsCount };
 
+// What a controller (its serial number or GUID, as the SDK's) or the keyboard ("keyboard") plays, in the SDK's
+// gamepad_device_subtypes (changes 56 and 87): the game's instrument when the list does not name it (gamepad_subtype,
+// the guitar), drums as XInput's drum kit (8, four lanes with the Rock Band kit's flag: "8:1"), the vocals as a plain
+// gamepad (1).
+enum Part { kPartInstrument, kPartDrums, kPartVocals };
+inline constexpr const char* kKeyboardKey = "keyboard";
+Part PartOf(std::string_view list, std::string_view key);
+bool FourLanes(std::string_view list, std::string_view key);
+// The list with `key` playing `part` (kPartInstrument removes it).
+std::string WithPart(std::string_view list, std::string_view key, Part part, bool four_lanes);
+// The keyboard plays drums (and on four lanes).
+bool KeyboardDrums(const Options& o);
+bool KeyboardFourLanes(const Options& o);
+
 // The defaults of each page's "Reset" (the game's own, src/startup.cpp; the SDK's for the keyboard).
 void ResetVideo(Options& o);
 void ResetGraphics(Options& o);
 void ResetGame(Options& o);
 void ResetAudio(Options& o);
 void ResetKeyboard(Options& o);
+// The keyboard's drum keys by default (game::kDrumKeyboardDefaults, or ...FourLanes); whether they are those.
+void ResetDrumKeys(Options& o, bool four_lanes);
+bool DrumKeysAreDefault(const Options& o, bool four_lanes);
 
 // --- The game's base settings and the options file ---
 

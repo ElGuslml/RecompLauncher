@@ -567,7 +567,7 @@ const Texts kEnglish = {
     .help_mic_tip_level = "Sing as loud as in a song: the bar should reach the yellow and stay out of the red. Gain moves it.",
     .help_mic_tip_channel = "An audio interface with the microphone on one input: choose that input's channel.",
     .help_mic_tip_privacy = "While the game runs, Windows shows that it is using the microphone.",
-    .help_tip_part = "Instrument: with Vocals this controller is the singer's, who needs a microphone (Microphone, under the keyboard).",
+    .help_tip_part = "Instrument: Guitar, Drums or Vocals. With Drums it plays the drum kit (its kit: 5 or 4 lanes); with Vocals it is the singer's, who needs a microphone (Microphone, under the keyboard).",
     .microphone_gain = "Gain",
     .help_vocals_title = "The singer's controller",
     .help_vocals_text = "This controller sings: it moves through the menus and the pauses, and the microphone does the rest. Change its instrument to play with it again.",
@@ -610,6 +610,11 @@ const Texts kEnglish = {
     .gpu_hint = "The GPU the game draws with.",
     .gpu_help = "On a PC with two graphics cards (a laptop's integrated one and its dedicated one), the one the game draws with, for both renderers. Automatic leaves the choice to the renderer: NativeXRenderer takes the dedicated card, Xenos the first one Windows lists.",
     .gpu_automatic = "Automatic",
+    .part_drums = "Drums",
+    .drum_kit = "Drum kit",
+    .drum_kit_five = "5 lanes · Guitar Hero",
+    .drum_kit_four = "4 lanes · Rock Band",
+    .help_tip_drum_kit = "Drum kit: 5 lanes plays Guitar Hero's highway (two cymbals, yellow and orange); 4 lanes plays the game's own Rock Band highway (red, yellow, blue, green), as a Rock Band kit did on the console.",
 };
 
 const Texts kGerman = {
@@ -1170,7 +1175,7 @@ const Texts kGerman = {
     .help_mic_tip_level = "Sing so laut wie in einem Song: Der Balken sollte Gelb erreichen und aus dem Rot bleiben. Die Verstärkung verschiebt ihn.",
     .help_mic_tip_channel = "Ein Audio-Interface mit dem Mikrofon an einem Eingang: Wähle den Kanal dieses Eingangs.",
     .help_mic_tip_privacy = "Solange das Spiel läuft, zeigt Windows an, dass es das Mikrofon verwendet.",
-    .help_tip_part = "Instrument: Mit Gesang ist dieser Controller der des Sängers, der ein Mikrofon braucht (Mikrofon, unter der Tastatur).",
+    .help_tip_part = "Instrument: Gitarre, Schlagzeug oder Gesang. Mit Schlagzeug spielt er das Schlagzeug (sein Set: 5 oder 4 Spuren); mit Gesang ist er der des Sängers, der ein Mikrofon braucht (Mikrofon, unter der Tastatur).",
     .microphone_gain = "Verstärkung",
     .help_vocals_title = "Der Controller des Sängers",
     .help_vocals_text = "Dieser Controller singt: Mit ihm bewegst du dich durch die Menüs und Pausen, das Mikrofon macht den Rest. Ändere sein Instrument, um wieder mit ihm zu spielen.",
@@ -1213,6 +1218,11 @@ const Texts kGerman = {
     .gpu_hint = "Die GPU, mit der das Spiel zeichnet.",
     .gpu_help = "Auf einem PC mit zwei Grafikkarten (die integrierte und die dedizierte eines Laptops) die, mit der das Spiel zeichnet, für beide Renderer. Automatisch überlässt die Wahl dem Renderer: NativeXRenderer nimmt die dedizierte Karte, Xenos die erste, die Windows auflistet.",
     .gpu_automatic = "Automatisch",
+    .part_drums = "Schlagzeug",
+    .drum_kit = "Schlagzeug-Set",
+    .drum_kit_five = "5 Spuren · Guitar Hero",
+    .drum_kit_four = "4 Spuren · Rock Band",
+    .help_tip_drum_kit = "Schlagzeug-Set: 5 Spuren spielt die Guitar-Hero-Notenbahn (zwei Becken, gelb und orange); 4 Spuren spielt die eigene Rock-Band-Notenbahn des Spiels (rot, gelb, blau, grün), wie ein Rock-Band-Set auf der Konsole.",
 };
 
 const Texts kFrench = {
@@ -1773,7 +1783,7 @@ const Texts kFrench = {
     .help_mic_tip_level = "Chante aussi fort que dans une chanson : la barre doit atteindre le jaune sans toucher le rouge. Le gain la déplace.",
     .help_mic_tip_channel = "Une interface audio avec le micro sur une entrée : choisis le canal de cette entrée.",
     .help_mic_tip_privacy = "Tant que le jeu est ouvert, Windows indique qu'il utilise le micro.",
-    .help_tip_part = "Instrument : avec Chant, cette manette est celle du chanteur, qui a besoin d'un micro (Micro, sous le clavier).",
+    .help_tip_part = "Instrument : Guitare, Batterie ou Chant. Avec Batterie, elle joue la batterie (son kit : 5 ou 4 pistes) ; avec Chant, elle est celle du chanteur, qui a besoin d'un micro (Micro, sous le clavier).",
     .microphone_gain = "Gain",
     .help_vocals_title = "La manette du chanteur",
     .help_vocals_text = "Cette manette chante : elle sert aux menus et aux pauses, et le micro fait le reste. Change son instrument pour rejouer avec elle.",
@@ -1816,6 +1826,11 @@ const Texts kFrench = {
     .gpu_hint = "Le GPU avec lequel le jeu dessine.",
     .gpu_help = "Sur un PC avec deux cartes graphiques (l'intégrée et la dédiée d'un portable), celle avec laquelle le jeu dessine, pour les deux moteurs de rendu. Automatique laisse le choix au moteur : NativeXRenderer prend la carte dédiée, Xenos la première que Windows liste.",
     .gpu_automatic = "Automatique",
+    .part_drums = "Batterie",
+    .drum_kit = "Kit de batterie",
+    .drum_kit_five = "5 pistes · Guitar Hero",
+    .drum_kit_four = "4 pistes · Rock Band",
+    .help_tip_drum_kit = "Kit de batterie : 5 pistes joue la piste de Guitar Hero (deux cymbales, jaune et orange) ; 4 pistes joue la piste Rock Band du jeu (rouge, jaune, bleu, vert), comme un kit Rock Band sur la console.",
 };
 
 const Texts kSpanish = {
@@ -2375,7 +2390,7 @@ const Texts kSpanish = {
     .help_mic_tip_level = "Canta como en una canción: la barra debe llegar al amarillo sin tocar el rojo. Ganancia la sube o la baja.",
     .help_mic_tip_channel = "Con una interfaz de audio y el micrófono en una entrada, elige el canal de esa entrada.",
     .help_mic_tip_privacy = "Mientras el juego está abierto, Windows muestra que está usando el micrófono.",
-    .help_tip_part = "Instrumento: con Voz este control es el del cantante, que necesita un micrófono (Micrófono, debajo del teclado).",
+    .help_tip_part = "Instrumento: Guitarra, Batería o Voz. Con Batería toca la batería (su kit: 5 o 4 carriles); con Voz es el del cantante, que necesita un micrófono (Micrófono, debajo del teclado).",
     .microphone_gain = "Ganancia",
     .help_vocals_title = "El control del cantante",
     .help_vocals_text = "Este control canta: con él te mueves por los menús y las pausas, y el micrófono hace el resto. Cambia su instrumento para volver a tocar con él.",
@@ -2418,6 +2433,11 @@ const Texts kSpanish = {
     .gpu_hint = "La GPU con la que dibuja el juego.",
     .gpu_help = "En un PC con dos tarjetas gráficas (la integrada y la dedicada de un portátil), con cuál dibuja el juego, para los dos renderizadores. Automática deja la elección al renderizador: NativeXRenderer usa la dedicada, Xenos la primera que lista Windows.",
     .gpu_automatic = "Automática",
+    .part_drums = "Batería",
+    .drum_kit = "Kit de batería",
+    .drum_kit_five = "5 carriles · Guitar Hero",
+    .drum_kit_four = "4 carriles · Rock Band",
+    .help_tip_drum_kit = "Kit de batería: 5 carriles toca la pista de Guitar Hero (dos platillos, amarillo y naranja); 4 carriles toca la pista de Rock Band del propio juego (rojo, amarillo, azul, verde), como una batería de Rock Band en la consola.",
 };
 
 const Texts kItalian = {
@@ -2977,7 +2997,7 @@ const Texts kItalian = {
     .help_mic_tip_level = "Canta forte come in una canzone: la barra deve arrivare al giallo senza toccare il rosso. Il guadagno la sposta.",
     .help_mic_tip_channel = "Con un'interfaccia audio e il microfono su un ingresso, scegli il canale di quell'ingresso.",
     .help_mic_tip_privacy = "Mentre il gioco è aperto, Windows indica che sta usando il microfono.",
-    .help_tip_part = "Strumento: con Voce questo controller è quello di chi canta, che ha bisogno di un microfono (Microfono, sotto la tastiera).",
+    .help_tip_part = "Strumento: Chitarra, Batteria o Voce. Con Batteria suona la batteria (il suo kit: 5 o 4 corsie); con Voce è quello di chi canta, che ha bisogno di un microfono (Microfono, sotto la tastiera).",
     .microphone_gain = "Guadagno",
     .help_vocals_title = "Il controller di chi canta",
     .help_vocals_text = "Questo controller canta: con esso ti muovi nei menu e nelle pause, e il microfono fa il resto. Cambia il suo strumento per tornare a suonare con esso.",
@@ -3020,6 +3040,11 @@ const Texts kItalian = {
     .gpu_hint = "La GPU con cui il gioco disegna.",
     .gpu_help = "Su un PC con due schede grafiche (l'integrata e la dedicata di un portatile), quella con cui il gioco disegna, per entrambi i renderer. Automatica lascia la scelta al renderer: NativeXRenderer usa la scheda dedicata, Xenos la prima che Windows elenca.",
     .gpu_automatic = "Automatica",
+    .part_drums = "Batteria",
+    .drum_kit = "Kit batteria",
+    .drum_kit_five = "5 corsie · Guitar Hero",
+    .drum_kit_four = "4 corsie · Rock Band",
+    .help_tip_drum_kit = "Kit batteria: 5 corsie suona la pista di Guitar Hero (due piatti, giallo e arancione); 4 corsie suona la pista Rock Band del gioco stesso (rosso, giallo, blu, verde), come un kit Rock Band sulla console.",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.
