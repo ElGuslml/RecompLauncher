@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <future>
 #include <map>
 #include <memory>
@@ -49,10 +50,10 @@ void OpenFolder(const std::filesystem::path& folder);
 
 
 // kDlc only when the game takes downloadable content (game::kHasDlcPage). kGame always: the launcher's language is
-// there, with the game's language and switches.
+// there, with the game's language and switches. kOnline only when the game plays online (game::kHasOnline).
 // kProfiles .. kProfileEdit are not tabs: the header's avatar opens kProfiles, the others follow from it.
 enum class Page : int {
-  kPlay, kDlc, kAchievements, kControls, kVideo, kGraphics, kGame, kAudio, kUpdates,
+  kPlay, kDlc, kAchievements, kControls, kVideo, kGraphics, kGame, kAudio, kOnline, kUpdates,
   kProfiles, kProfile, kProfileGame, kProfileEdit, kCount
 };
 // A page's name, for the log.
@@ -140,6 +141,27 @@ class App {
   void OpenInfo(std::string kicker, std::string title, std::string text, std::vector<std::string> bullets = {});
   void InfoPanelWindow(ImVec2 size);
   InfoPanel info_;
+  // Launcher 3.20: a value typed (Settings > Online's friend's address and port), in a sheet at the right as the info
+  // panel's: its title, what to type, the field, Save (A, Enter) and Cancel (B, Escape). `accept` takes the text and
+  // returns "" when it saved it, else what is wrong with it, shown under the field.
+  struct TextSheet {
+    bool open = false;
+    bool opened = false;
+    std::string kicker;
+    std::string title;
+    std::string text;
+    std::string hint;
+    std::string value;
+    std::string error;
+    bool refocus = false;  // the field typed in again (after an error)
+    size_t max_chars = 64;
+    std::function<std::string(const std::string&)> accept;
+  };
+  void OpenTextSheet(std::string kicker, std::string title, std::string text, std::string value, std::string hint,
+                     size_t max_chars, std::function<std::string(const std::string&)> accept);
+  void TextSheetWindow(ImVec2 size);
+  TextSheet text_sheet_;
+  uint64_t online_copied_at_ = 0;  // Settings > Online: when "Your address" was copied (its line says so for 2 s)
   ImRect page_rect_;        // the page's area this frame (between the header and the footer)
   int fade_key_ = -1;       // the page last drawn, as the fade-in counts pages (the settings' categories are one)
   void Header(const ImRect& rect);
@@ -200,7 +222,8 @@ class App {
   const std::string& PadKey(SDL_JoystickID id);
   void UpdateMicMeter();
   void CloseMicMeter();
-  // The Settings tab's categories: Game (page kGame), Video (kVideo), Graphics (kGraphics), Audio (kAudio).
+  // The Settings tab's categories: Game (page kGame), Video (kVideo), Graphics (kGraphics), Audio (kAudio), Online
+  // (kOnline, game::kHasOnline).
   void SettingsPage(const ImRect& rect);
   void UpdatesPage(const ImRect& rect);
   // The release notes (Markdown) at `pos`, `width` wide. Returns the height; draws only when `draw`.
@@ -250,7 +273,7 @@ class App {
   ImGuiID header_focus_ = 0;   // the header's control up from the page reaches: the current tab, or the avatar
   std::vector<ImGuiID> header_items_;  // the header's controls (tabs, Donate, avatar), this frame
   ImGuiID category_focus_ = 0; // the Settings tab's current category button
-  int settings_row_[4] = {};   // the row in focus in each Settings category (its help shows)
+  int settings_row_[5] = {};   // the row in focus in each Settings category (its help shows)
   ImGuiID settings_row_focus_ = 0;  // the Settings row in focus last (right from a category returns to it)
   bool controls_focus_mapping_ = false;  // a device chosen with A: the focus goes to its mapping
   ImGuiID mapping_first_ = 0;  // the Controls tab's first row control (the mapping's)

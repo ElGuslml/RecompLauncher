@@ -137,6 +137,9 @@ inline constexpr bool kOffersTemporalUpscalers = true;
 // quarter.
 inline constexpr ArtPart kArtCorner{640.0f, 380.0f, 1280.0f, 760.0f};
 inline constexpr float kArtCornerRise = 145.0f;
+// Settings > Online (launcher 3.20): online play between friends, the SDK's online_play (its changes 89-97 on the
+// online branch): the category and the options file's online_* keys. False: neither.
+inline constexpr bool kHasOnline = false;
 }  // namespace defaults
 using namespace defaults;
 

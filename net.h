@@ -1,5 +1,5 @@
 // HTTP requests for the launcher's updates, with WinHTTP (part of Windows, and of Wine and Proton). HTTPS for
-// GitHub; plain HTTP works too, for tests against a local server (--launcher_update_url).
+// GitHub; plain HTTP works too, for tests against a local server (--launcher_update_url). And this PC's addresses.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace launcher::net {
 
@@ -26,5 +27,14 @@ Response Get(const std::string& url, const char* accept = nullptr);
 bool Download(const std::string& url, const std::filesystem::path& file,
               const std::function<void(uint64_t done, uint64_t total)>& progress, const std::atomic<bool>& cancel,
               std::string* error);
+
+// This PC's IPv4 addresses on its networks (Settings > Online's "Your address"), each with its adapter's name:
+// adapters with a default gateway first (the home network's), then the others (a virtual network program's), without
+// the loopback and the link-local ones (169.254.x.x, no DHCP answer).
+struct LocalAddress {
+  std::string address;  // "192.168.1.20"
+  std::string adapter;  // "Ethernet", "Wi-Fi", "ZeroTier One [...]"
+};
+std::vector<LocalAddress> LocalAddresses();
 
 }  // namespace launcher::net

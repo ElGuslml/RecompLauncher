@@ -78,7 +78,7 @@ function(recomp_launcher_add target)
       "${ARG_SDK_DIR}/thirdparty/imgui/backends" "${ARG_SDK_DIR}/thirdparty/tomlplusplus"
       "${ARG_SDK_DIR}/thirdparty/inja/third_party/include" "${ARG_SDK_DIR}/thirdparty/stb")
   target_link_libraries(${target} PRIVATE imgui SDL3::SDL3 d3d11 dxgi d3dcompiler shcore windowscodecs ole32 winhttp
-      bcrypt shell32 secur32)
+      bcrypt shell32 secur32 iphlpapi)
 
   # The resource compiler gets the same include directories, where it also looks for the files a resource names: the
   # script finds "fonts/..." here and "art/..." in the game's folder. A change to any of them rebuilds the resources.

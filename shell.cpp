@@ -35,6 +35,7 @@ Page TabOf(Page page) {
     case Page::kVideo:
     case Page::kGraphics:
     case Page::kAudio:
+    case Page::kOnline:
       return Page::kGame;
     case Page::kProfiles:
     case Page::kProfile:
@@ -423,6 +424,9 @@ std::vector<App::Hint> App::PageHints() const {
   if (info_.open) {
     return {{HintKey::kB, t_.close}};
   }
+  if (text_sheet_.open) {
+    return {{HintKey::kA, t_.save}, {HintKey::kB, t_.cancel}};
+  }
   // A dialog's own (it keeps the footer under its veil).
   if (profile_dialog_ == ProfileDialog::kCreate) {
     if (profile_first_) {
@@ -467,6 +471,7 @@ std::vector<App::Hint> App::PageHints() const {
     case Page::kGraphics:
     case Page::kGame:
     case Page::kAudio:
+    case Page::kOnline:
       // A row being changed: left and right step it, A (or B) ends it.
       if (AnyRowEditing()) return {{HintKey::kArrows, t_.hint_change}, {HintKey::kA, t_.hint_done}};
       return {{HintKey::kA, t_.hint_edit}, {HintKey::kX, t_.hint_reset}, {HintKey::kY, t_.more_info},
@@ -618,6 +623,122 @@ void App::InfoPanelWindow(ImVec2 size) {
     Footer(ImRect(ImVec2(origin.x, above.Max.y), ImVec2(origin.x + size.x, origin.y + size.y)), hints);
     if (close) {
       info_ = InfoPanel{};
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
+  ImGui::PopStyleColor();
+  ImGui::PopStyleVar(3);
+}
+
+void App::OpenTextSheet(std::string kicker, std::string title, std::string text, std::string value, std::string hint,
+                        size_t max_chars, std::function<std::string(const std::string&)> accept) {
+  text_sheet_ = TextSheet{};
+  text_sheet_.open = true;
+  text_sheet_.kicker = std::move(kicker);
+  text_sheet_.title = std::move(title);
+  text_sheet_.text = std::move(text);
+  text_sheet_.value = std::move(value);
+  text_sheet_.hint = std::move(hint);
+  text_sheet_.max_chars = max_chars;
+  text_sheet_.accept = std::move(accept);
+}
+
+void App::TextSheetWindow(ImVec2 size) {
+  if (!text_sheet_.open) {
+    return;
+  }
+  constexpr const char* kPopup = "##text_sheet";
+  if (!text_sheet_.opened) {
+    ImGui::OpenPopup(kPopup);
+  }
+  ImVec2 origin = ImGui::GetMainViewport()->Pos;
+  ImGui::SetNextWindowPos(origin);
+  ImGui::SetNextWindowSize(size);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleColor(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 0));
+  bool close = false;
+  if (ImGui::BeginPopupModal(kPopup, nullptr,
+                             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+                                 ImGuiWindowFlags_NoBackground)) {
+    const bool first = !text_sheet_.opened;
+    text_sheet_.opened = true;
+    float footer_height = Snap(Px(52.0f));
+    // The veil and the sheet as the info panel's: 400 dp wide at the right.
+    ImRect above(origin, ImVec2(origin.x + size.x, origin.y + size.y - footer_height));
+    FillRect(above, Hex(0x000000, 158));
+    ImRect sheet(ImVec2(above.Max.x - Px(56.0f) - Px(400.0f), origin.y + Px(84.0f)),
+                 ImVec2(above.Max.x - Px(56.0f), above.Max.y - Px(12.0f)));
+    FillRect(sheet, col::kCardRaised, 18.0f);
+    StrokeRect(sheet, col::kHairline, 18.0f);
+    constexpr Type kKicker{Font::kSemiBold, 14};
+    constexpr Type kTitle{Font::kDisplayMedium, 28, 0.015f};
+    constexpr Type kText{Font::kRegular, 16};
+    constexpr Type kError{Font::kMedium, 14};
+    float left = sheet.Min.x + Px(28.0f);
+    float width = sheet.GetWidth() - Px(56.0f);
+    float y = sheet.Min.y + Px(28.0f);
+    DrawLabel(kKicker, ImVec2(left, y), col::kTextMuted, text_sheet_.kicker);
+    y += LineHeight(kKicker) + Px(6.0f);
+    y += DrawParagraph(kTitle, ImVec2(left, y), width, 1.15f, col::kText, text_sheet_.title) + Px(14.0f);
+    if (!text_sheet_.text.empty()) {
+      y += DrawParagraph(kText, ImVec2(left, y), width, 1.5f, col::kTextSoft, text_sheet_.text) + Px(20.0f);
+    }
+    // The field, being typed in from the start (the keyboard's; a controller's A saves, B cancels).
+    if (first || text_sheet_.refocus) {
+      ImGui::SetKeyboardFocusHere();
+      text_sheet_.refocus = false;
+    }
+    if (TextField("##text_sheet_field", ImRect(ImVec2(left, y), ImVec2(left + width, y + Px(48.0f))), &text_sheet_.value,
+                  text_sheet_.max_chars, text_sheet_.hint)) {
+      text_sheet_.error.clear();
+    }
+    y += Px(48.0f) + Px(10.0f);
+    if (!text_sheet_.error.empty()) {
+      y += DrawParagraph(kError, ImVec2(left, y), width, 1.4f, col::kError, text_sheet_.error) + Px(6.0f);
+    }
+    y += Px(14.0f);
+    // Save and Cancel, the mouse's (the controller's A and B, the keyboard's Enter and Escape).
+    bool save = false;
+    {
+      ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+      KeyButtonSpec spec{KeyLook::kPrimary, 'A', Type{Font::kSemiBold, 16}, 44, 18, 12, 22, 10};
+      float save_width = KeyButtonWidth(spec, t_.save);
+      if (KeyButton("##text_sheet_save", ImVec2(left + width - save_width, y), spec, t_.save).pressed) save = true;
+      ButtonSpec cancel{ButtonKind::kGhost, Type{Font::kSemiBold, 16}, 44, 20, 12};
+      float cancel_width = ButtonWidth(cancel, t_.cancel);
+      if (Button("##text_sheet_cancel", ImVec2(left + width - save_width - Px(12.0f) - cancel_width, y), cancel,
+                 t_.cancel)) {
+        close = true;
+      }
+      ImGui::PopItemFlag();
+    }
+    if (!first) {
+      // Enter ends the typing and saves (ButtonPressed does not see the keyboard while it types).
+      if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false) ||
+          ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown, false)) {
+        save = true;
+      }
+      if (ButtonPressed(PadButton::kB) || (ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+                                           !sheet.Contains(ImGui::GetMousePos()) && above.Contains(ImGui::GetMousePos()))) {
+        close = true;
+      }
+    }
+    if (save && !close) {
+      std::string error = text_sheet_.accept ? text_sheet_.accept(text_sheet_.value) : std::string();
+      if (error.empty()) {
+        close = true;
+      } else {
+        text_sheet_.error = std::move(error);
+        text_sheet_.refocus = true;  // typing again, to correct it
+      }
+    }
+    std::vector<Hint> hints = PageHints();
+    Footer(ImRect(ImVec2(origin.x, above.Max.y), ImVec2(origin.x + size.x, origin.y + size.y)), hints);
+    if (close) {
+      text_sheet_ = TextSheet{};
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();

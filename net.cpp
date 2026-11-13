@@ -5,6 +5,9 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
 #include <windows.h>
 #include <winhttp.h>
 
@@ -220,6 +223,54 @@ bool Download(const std::string& url, const std::filesystem::path& file,
     std::filesystem::remove(file, ec);
   }
   return ok;
+}
+
+std::vector<LocalAddress> LocalAddresses() {
+  std::vector<uint8_t> buffer;
+  ULONG size = 16 * 1024;
+  ULONG result = ERROR_BUFFER_OVERFLOW;
+  constexpr ULONG kFlags = GAA_FLAG_INCLUDE_GATEWAYS | GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
+                           GAA_FLAG_SKIP_DNS_SERVER;
+  for (int attempt = 0; attempt < 3 && result == ERROR_BUFFER_OVERFLOW; ++attempt) {
+    buffer.resize(size);
+    result = GetAdaptersAddresses(AF_INET, kFlags, nullptr, reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buffer.data()),
+                                  &size);
+  }
+  if (result != NO_ERROR) {
+    return {};
+  }
+  std::vector<LocalAddress> routed;
+  std::vector<LocalAddress> others;
+  for (auto* adapter = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buffer.data()); adapter; adapter = adapter->Next) {
+    if (adapter->OperStatus != IfOperStatusUp || adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK) {
+      continue;
+    }
+    std::string name;
+    if (adapter->FriendlyName) {
+      int length = WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, -1, nullptr, 0, nullptr, nullptr);
+      if (length > 1) {
+        name.resize(size_t(length - 1));
+        WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, -1, name.data(), length, nullptr, nullptr);
+      }
+    }
+    for (auto* unicast = adapter->FirstUnicastAddress; unicast; unicast = unicast->Next) {
+      const sockaddr* address = unicast->Address.lpSockaddr;
+      if (!address || address->sa_family != AF_INET) {
+        continue;
+      }
+      const auto* bytes = reinterpret_cast<const uint8_t*>(&reinterpret_cast<const sockaddr_in*>(address)->sin_addr);
+      if (bytes[0] == 127 || (bytes[0] == 169 && bytes[1] == 254)) {
+        continue;
+      }
+      LocalAddress local;
+      local.address = std::to_string(bytes[0]) + "." + std::to_string(bytes[1]) + "." + std::to_string(bytes[2]) +
+                      "." + std::to_string(bytes[3]);
+      local.adapter = name;
+      (adapter->FirstGatewayAddress ? routed : others).push_back(std::move(local));
+    }
+  }
+  routed.insert(routed.end(), others.begin(), others.end());
+  return routed;
 }
 
 }  // namespace launcher::net

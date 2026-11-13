@@ -112,6 +112,9 @@ struct BindInfo {
 };
 extern const BindInfo kBinds[int(Bind::kCount)];
 
+// Online play's UDP port by default (the SDK's online_port: Xbox Live's).
+inline constexpr int kOnlinePort = 3074;
+
 struct Options {
   int monitor = 1;  // cvar monitor: 1 = primary, in SDL order
   int display = kBorderless;
@@ -164,6 +167,15 @@ struct Options {
   // The SDK's developer keys (debug_hotkeys: F3 the debug overlay, F4 its settings window, ` the console); off, those
   // keys do nothing in the game. A key bound to a control plays it either way.
   bool debug_hotkeys = false;
+  // Settings > Online (launcher 3.20, game::kHasOnline): online play between friends, the SDK's online_play. This PC's
+  // game hosts (online_host "") or joins the friend at `online_address` ("a.b.c.d:port": online_host), through its
+  // UDP port (online_port); Steam adds the Steam friends, invites and relays (online_steam: rexsteam.exe, experimental).
+  // The friend's address is kept while hosting (launcher_online_address).
+  bool online = false;
+  bool online_join = false;
+  std::string online_address;
+  int online_port = kOnlinePort;
+  bool online_steam = false;
 
   // Keyboard and mouse: the SDK's controller emulation (mnk_mode, mnk_mouse, mnk_sensitivity, keybind_*).
   bool mnk = false;
@@ -216,6 +228,13 @@ struct Options {
 // usb_microphone_1's value for the system's default recording device.
 inline constexpr const char* kSystemMicrophone = "default";
 
+// A friend's address as typed ("a.b.c.d" or "a.b.c.d:port", spaces around it ignored) as the SDK's online_host takes
+// it, "a.b.c.d:port" (`default_port` when it names none); "" when it is neither. Only IPv4 numbers: the SDK resolves no
+// names.
+std::string OnlineEndpoint(std::string_view text, int default_port);
+// A port as typed: 1024-65535, else 0.
+int OnlinePortOf(std::string_view text);
+
 // audio_channels' values (Options::audio_channels), in the row's order.
 enum AudioChannels { kAudioAuto, kAudioStereo, kAudioMono, kAudioChannelsCount };
 
@@ -238,6 +257,7 @@ void ResetVideo(Options& o);
 void ResetGraphics(Options& o);
 void ResetGame(Options& o);
 void ResetAudio(Options& o);
+void ResetOnline(Options& o);
 void ResetKeyboard(Options& o);
 // The keyboard's drum keys by default (game::kDrumKeyboardDefaults, or ...FourLanes); whether they are those.
 void ResetDrumKeys(Options& o, bool four_lanes);

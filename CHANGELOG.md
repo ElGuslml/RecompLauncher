@@ -2,6 +2,27 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.20.0
+
+Settings > Online (2026-11-13, on the `online` branch with the SDK's online play, changes 89-97): online play between
+friends, experimental, for a game that sets `game::kHasOnline` (Guitar Hero: Metallica). Nothing changes for the
+others.
+
+- A fifth Settings category, Online (`Page::kOnline`, under the Settings tab), after Audio. Its rows: Online play
+  (`online_play`, a switch marked experimental); Connection, Host or Join a friend; the friend's address while joining
+  (`online_host`), or Your address while hosting (this PC's IPv4 address with the port; chosen, it goes to the
+  clipboard, and its help lists every address with its adapter's name: `net::LocalAddresses`, iphlpapi); Port
+  (`online_port`, 1024-65535, 3074 by default); Through Steam (`online_steam`, experimental; locked off where
+  `rexsteam.exe` or Valve's `steam_api64.dll` is not next to the game). While online play is off the other rows are
+  locked with their values. Reset sets them back but keeps the friend's address.
+- The address and the port are typed in a sheet at the right (`App::OpenTextSheet`, `TextSheetWindow`: the field typed
+  in from the start, Save with A or Enter, Cancel with B or Escape, what is wrong under the field). The address takes
+  "a.b.c.d" or "a.b.c.d:port" (3074 when it names none), written as the SDK's `online_host` takes it
+  (`OnlineEndpoint`); while hosting it is kept in `launcher_online_address`.
+- A Settings row can do something when chosen instead of stepping a value (`OptionRow::activate`, with an icon before
+  its value), and give the help panel a list (`OptionRow::bullets`); a switch shows its chip (EXPERIMENTAL) before it.
+- Texts: `nav_online`, `settings_intro_online` and the `online_*` rows' (five languages).
+
 ## 3.19.1
 
 A patch of 3.19 (Gustavo: these changes as 3.19.1; the commits before this one called it 3.20.0): drums on the

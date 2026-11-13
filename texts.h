@@ -645,6 +645,39 @@ struct Texts {
   const char* drum_kit_five;
   const char* drum_kit_four;
   const char* help_tip_drum_kit;
+  // Launcher 3.20: Settings > Online (game::kHasOnline).
+  const char* nav_online;
+  const char* settings_intro_online;
+  const char* online_play;
+  const char* online_play_hint;
+  const char* online_play_help;
+  const char* online_needs_on;
+  const char* online_mode;
+  const char* online_mode_host;
+  const char* online_mode_join;
+  const char* online_mode_host_sub;
+  const char* online_mode_join_sub;
+  const char* online_mode_help;
+  const char* online_address;
+  const char* online_address_hint;
+  const char* online_address_none;
+  const char* online_address_help;
+  const char* online_address_sheet;
+  const char* online_address_invalid;
+  const char* online_your_address;
+  const char* online_your_address_hint;
+  const char* online_your_address_copied;
+  const char* online_your_address_none;
+  const char* online_your_address_help;
+  const char* online_port;
+  const char* online_port_hint;
+  const char* online_port_help;
+  const char* online_port_sheet;
+  const char* online_port_invalid;
+  const char* online_steam;
+  const char* online_steam_hint;
+  const char* online_steam_help;
+  const char* online_steam_missing;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

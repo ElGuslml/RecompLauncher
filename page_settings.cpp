@@ -1,11 +1,12 @@
 // The Settings tab (launcher 3.18, Gustavo's 2026-11-11 mockup "Camerino"): the title and its categories on the left
-// (Game, Video, Graphics, Audio since 3.19: a dot marks the current one), the category's options as flat rows on the
-// right, each its value written as text (a switch for what is on or off); the row in focus grows to show its line of
+// (Game, Video, Graphics, Audio since 3.19, Online since 3.20 where the game plays online: a dot marks the current
+// one), the category's options as flat rows on the right, each its value written as text (a switch for what is on or off); the row in focus grows to show its line of
 // help, the arrows and its place among the values ("‹ value ›", the controller's left and right, A the next). Y opens
 // the row's whole help, X resets the category. Every change is saved at once.
 
 #include <algorithm>
 #include <cstdio>
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <vector>
@@ -13,6 +14,7 @@
 #include <SDL3/SDL.h>
 
 #include "app.h"
+#include "net.h"
 #include "pages.h"
 
 namespace launcher {
@@ -39,6 +41,11 @@ struct OptionRow {
   std::string group;              // a group's title above the row (the screen effects)
   bool is_switch = false;         // on (index 0) or off (index 1): drawn as a switch
   std::function<void(int)> apply;
+  // A row that does something when chosen (A, a click) instead of stepping its value (launcher 3.20: a sheet to type the
+  // value in, a copy to the clipboard); its icon before the value.
+  std::function<void()> activate;
+  Icon icon = Icon::kNone;
+  std::vector<std::string> bullets;  // the help panel's list under its text
 
   std::string Value() const {
     if (locked) return locked_value;
@@ -101,24 +108,41 @@ const std::vector<std::string>& AudioOutputs() {
   return names;
 }
 
+// This PC's addresses, asked again every two seconds while the page is shown (a network connected).
+const std::vector<net::LocalAddress>& LocalAddresses() {
+  static std::vector<net::LocalAddress> addresses;
+  static uint64_t asked = 0;
+  const uint64_t now = SDL_GetTicks();
+  if (asked && now - asked < 2000) return addresses;
+  asked = now;
+  addresses = net::LocalAddresses();
+  return addresses;
+}
+
 }  // namespace
 
 void App::SettingsPage(const ImRect& rect) {
   Options& o = settings_.o;
   const game::GameTexts& own = game::GameTextsFor(language_);
   bool changed = false;
-  int category = page_ == Page::kGame ? 0 : page_ == Page::kVideo ? 1 : page_ == Page::kGraphics ? 2 : 3;
+  int category = page_ == Page::kGame       ? 0
+                 : page_ == Page::kVideo    ? 1
+                 : page_ == Page::kGraphics ? 2
+                 : page_ == Page::kAudio    ? 3
+                                            : 4;
 
   // --- The rows of the category ---
   std::vector<OptionRow> rows;
   const char* category_label = category == 0   ? t_.nav_game
                                : category == 1 ? t_.nav_video
                                : category == 2 ? t_.nav_graphics
-                                               : t_.nav_audio;
+                               : category == 3 ? t_.nav_audio
+                                               : t_.nav_online;
   const char* intro = category == 0   ? t_.settings_intro_game
                       : category == 1 ? t_.settings_intro_video
                       : category == 2 ? t_.settings_intro_graphics
-                                      : t_.settings_intro_audio;
+                      : category == 3 ? t_.settings_intro_audio
+                                      : t_.settings_intro_online;
   auto toggle_rows = [&](game::ToggleGroup group, const char* group_title) {
     bool first = true;
     for (size_t i = 0; i < game::kToggles.size(); ++i) {
@@ -214,6 +238,144 @@ void App::SettingsPage(const ImRect& rect) {
       rows.push_back(std::move(row));
     }
     toggle_rows(game::ToggleGroup::kGame, nullptr);
+  } else if (category == 4) {
+    // Launcher 3.20: online play between friends (the SDK's online_play, experimental). While it is off, the other rows
+    // are locked with their values.
+    auto lock_while_off = [&](OptionRow& row) {
+      if (o.online) return;
+      std::string value = row.Value();
+      row.locked = true;
+      row.locked_value = value;
+      row.sub = t_.online_needs_on;
+      row.activate = nullptr;
+      row.icon = Icon::kNone;
+    };
+    {
+      OptionRow row;
+      row.id = "online_play";
+      row.title = t_.online_play;
+      row.sub = t_.online_play_hint;
+      row.help = t_.online_play_help;
+      row.values = {t_.on, t_.off};
+      row.tags = {t_.experimental, t_.experimental};
+      row.tag_accent = {false, false};
+      row.is_switch = true;
+      row.index = o.online ? 0 : 1;
+      row.apply = [&o](int index) { o.online = index == 0; };
+      rows.push_back(std::move(row));
+    }
+    // Hosting, or joining a friend's game at its address.
+    {
+      OptionRow row;
+      row.id = "online_mode";
+      row.title = t_.online_mode;
+      row.help = t_.online_mode_help;
+      row.values = {t_.online_mode_host, t_.online_mode_join};
+      row.subs = {t_.online_mode_host_sub, t_.online_mode_join_sub};
+      row.index = o.online_join ? 1 : 0;
+      row.apply = [&o](int index) { o.online_join = index == 1; };
+      lock_while_off(row);
+      rows.push_back(std::move(row));
+    }
+    if (o.online_join) {
+      // The friend's address, typed in a sheet: "a.b.c.d" or "a.b.c.d:port" (3074 when it names none).
+      OptionRow row;
+      row.id = "online_address";
+      row.title = t_.online_address;
+      row.sub = t_.online_address_hint;
+      row.help = t_.online_address_help;
+      row.values = {o.online_address.empty() ? std::string(t_.online_address_none) : o.online_address};
+      row.icon = Icon::kPencil;
+      row.activate = [this] {
+        OpenTextSheet(t_.nav_online, t_.online_address, t_.online_address_sheet, settings_.o.online_address,
+                      "203.0.113.7:3074", 21, [this](const std::string& text) -> std::string {
+                        std::string endpoint = OnlineEndpoint(text, kOnlinePort);
+                        if (endpoint.empty() && text.find_first_not_of(' ') != std::string::npos) {
+                          return t_.online_address_invalid;
+                        }
+                        settings_.o.online_address = endpoint;
+                        Changed();
+                        return {};
+                      });
+      };
+      lock_while_off(row);
+      rows.push_back(std::move(row));
+    } else {
+      // This PC's address on its network, with the port: chosen, it goes to the clipboard. The help lists them all.
+      const std::vector<net::LocalAddress>& addresses = LocalAddresses();
+      const std::string port = std::to_string(o.online_port);
+      OptionRow row;
+      row.id = "online_your_address";
+      row.title = t_.online_your_address;
+      const bool copied = online_copied_at_ && SDL_GetTicks() - online_copied_at_ < 2000;
+      row.sub = copied ? t_.online_your_address_copied : t_.online_your_address_hint;
+      char help[1024];
+      std::snprintf(help, sizeof(help), t_.online_your_address_help, o.online_port);
+      row.help = help;
+      for (const net::LocalAddress& a : addresses) {
+        row.bullets.push_back(a.address + ":" + port + (a.adapter.empty() ? std::string() : " · " + a.adapter));
+      }
+      if (addresses.empty()) {
+        row.values = {t_.online_your_address_none};
+      } else {
+        std::string address = addresses.front().address + ":" + port;
+        row.values = {address};
+        row.icon = copied ? Icon::kCheck : Icon::kNone;
+        row.activate = [this, address] {
+          SDL_SetClipboardText(address.c_str());
+          online_copied_at_ = SDL_GetTicks();
+        };
+      }
+      lock_while_off(row);
+      rows.push_back(std::move(row));
+    }
+    // The UDP port, typed in a sheet.
+    {
+      OptionRow row;
+      row.id = "online_port";
+      row.title = t_.online_port;
+      row.sub = t_.online_port_hint;
+      row.help = t_.online_port_help;
+      row.values = {std::to_string(o.online_port)};
+      row.icon = Icon::kPencil;
+      row.activate = [this] {
+        OpenTextSheet(t_.nav_online, t_.online_port, t_.online_port_sheet, std::to_string(settings_.o.online_port),
+                      std::to_string(kOnlinePort), 5, [this](const std::string& text) -> std::string {
+                        int port = OnlinePortOf(text);
+                        if (!port) return t_.online_port_invalid;
+                        settings_.o.online_port = port;
+                        Changed();
+                        return {};
+                      });
+      };
+      lock_while_off(row);
+      rows.push_back(std::move(row));
+    }
+    // Steam (the SDK's rexsteam.exe, with Valve's steam_api64.dll next to it; experimental): locked off in a build
+    // without them.
+    {
+      OptionRow row;
+      row.id = "online_steam";
+      row.title = t_.online_steam;
+      row.sub = t_.online_steam_hint;
+      row.help = t_.online_steam_help;
+      row.values = {t_.on, t_.off};
+      row.tags = {t_.experimental, t_.experimental};
+      row.tag_accent = {false, false};
+      row.is_switch = true;
+      row.index = o.online_steam ? 0 : 1;
+      row.apply = [&o](int index) { o.online_steam = index == 0; };
+      std::error_code error;
+      const bool has_steam = std::filesystem::exists(exe_dir_ / L"rexsteam.exe", error) &&
+                             std::filesystem::exists(exe_dir_ / L"steam_api64.dll", error);
+      if (o.online && !has_steam) {
+        row.locked = true;
+        row.locked_value = t_.off;
+        row.sub = t_.online_steam_missing;
+      }
+      lock_while_off(row);
+      rows.push_back(std::move(row));
+    }
   } else if (category == 3) {
     // Launcher 3.19, the SDK's change 85. The output device: Windows' default (followed when it changes), or one by
     // its name; a chosen one not connected now stays chosen, marked.
@@ -738,11 +900,12 @@ void App::SettingsPage(const ImRect& rect) {
     if (width > Px(216.0f)) title.size *= Px(216.0f) / width;
     DrawLabel(title, ImVec2(page_left + Px(56.0f), page_top + Px(20.0f)), col::kText, label, Px(44.0f * 1.1f));
     constexpr Type kCategory{Font::kDisplayMedium, 22, 0.015f};
-    const std::pair<Page, const char*> categories[] = {
+    std::vector<std::pair<Page, const char*>> categories = {
         {Page::kGame, t_.nav_game},
         {Page::kVideo, t_.nav_video},
         {Page::kGraphics, t_.nav_graphics},
         {Page::kAudio, t_.nav_audio}};
+    if (game::kHasOnline) categories.push_back({Page::kOnline, t_.nav_online});
     std::vector<std::array<ImGuiID, 2>> category_ids;
     float y = page_top + Px(110.0f);
     for (const auto& [category_page, category_name] : categories) {
@@ -877,7 +1040,9 @@ void App::SettingsPage(const ImRect& rect) {
       ImGui::NavMoveRequestCancel();
     }
     if (state.pressed) {
-      if (PressedByNav() && !row.is_switch) {
+      if (row.activate) {
+        row.activate();
+      } else if (PressedByNav() && !row.is_switch) {
         if (changeable) SetRowEditing(editing ? 0 : row_id);
       } else {
         step(1);
@@ -912,6 +1077,10 @@ void App::SettingsPage(const ImRect& rect) {
         DrawIcon(Icon::kLock, ImVec2(value_left - Px(10.0f) - Px(18.0f), r.GetCenter().y - Px(9.0f)), 18.0f,
                  col::kTextDim, 1.8f);
         value_left -= Px(28.0f);
+      }
+      if (!tag.empty()) {
+        value_left -= Px(12.0f) + ChipWidth(tag);
+        DrawChip(ImVec2(value_left, r.GetCenter().y), tag, tag_warning);
       }
     } else if (big && changeable) {
       const Type& type = kRowValueFocused;
@@ -963,6 +1132,11 @@ void App::SettingsPage(const ImRect& rect) {
       if (row.locked) {
         x -= Px(8.0f) + Px(18.0f);
         DrawIcon(Icon::kLock, ImVec2(x, r.GetCenter().y - Px(9.0f)), 18.0f, col::kTextDim, 1.8f);
+      } else if (row.icon != Icon::kNone) {
+        x -= Px(10.0f) + Px(18.0f);
+        DrawIcon(row.icon, ImVec2(x, r.GetCenter().y - Px(9.0f)), 18.0f,
+                 row.icon == Icon::kCheck ? col::kAccent : state.hovered || big ? col::kTextSoft : col::kTextMuted,
+                 1.8f);
       }
       value_left = x;
     }
@@ -1026,8 +1200,10 @@ void App::SettingsPage(const ImRect& rect) {
       } else if (category == 2) {
         ResetGraphics(o);
         o.native = o.native && settings_.has_vulkan && game::kHasNativeXRenderer;
-      } else {
+      } else if (category == 3) {
         ResetAudio(o);
+      } else {
+        ResetOnline(o);
       }
       changed = true;
     }
@@ -1036,7 +1212,7 @@ void App::SettingsPage(const ImRect& rect) {
   // Y: the current row's whole help.
   if (!popup && !rows.empty() && ButtonPressed(PadButton::kY)) {
     const OptionRow& row = rows[size_t(selected)];
-    OpenInfo(t_.more_info, row.title, row.help.empty() ? row.Sub() : row.help);
+    OpenInfo(t_.more_info, row.title, row.help.empty() ? row.Sub() : row.help, row.bullets);
   }
 
   if (changed) {

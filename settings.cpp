@@ -104,6 +104,67 @@ void ResetAudio(Options& o) {
   o.audio_exclusive = defaults.audio_exclusive;
 }
 
+// The friend's address is kept: typed once, it is there when online play is turned on again.
+void ResetOnline(Options& o) {
+  Options defaults;
+  o.online = defaults.online;
+  o.online_join = defaults.online_join;
+  o.online_port = defaults.online_port;
+  o.online_steam = defaults.online_steam;
+}
+
+int OnlinePortOf(std::string_view text) {
+  while (!text.empty() && text.front() == ' ') text.remove_prefix(1);
+  while (!text.empty() && text.back() == ' ') text.remove_suffix(1);
+  if (text.empty() || text.size() > 5) return 0;
+  int port = 0;
+  for (char c : text) {
+    if (c < '0' || c > '9') return 0;
+    port = port * 10 + (c - '0');
+  }
+  return port >= 1024 && port <= 65535 ? port : 0;
+}
+
+std::string OnlineEndpoint(std::string_view text, int default_port) {
+  while (!text.empty() && text.front() == ' ') text.remove_prefix(1);
+  while (!text.empty() && text.back() == ' ') text.remove_suffix(1);
+  // a.b.c.d, then :port or nothing: the SDK's Endpoint::Parse.
+  int parts[4] = {};
+  size_t part = 0;
+  bool digit = false;
+  size_t i = 0;
+  for (; i < text.size(); ++i) {
+    char c = text[i];
+    if (c >= '0' && c <= '9') {
+      parts[part] = parts[part] * 10 + (c - '0');
+      if (parts[part] > 255) return {};
+      digit = true;
+    } else if (c == '.' && digit && part < 3) {
+      ++part;
+      digit = false;
+    } else if (c == ':' && digit && part == 3) {
+      break;
+    } else {
+      return {};
+    }
+  }
+  if (part != 3 || !digit) return {};
+  int port = default_port;
+  if (i < text.size()) {
+    // A port of its own: any the SDK takes (1-65535); the friend's may be under 1024.
+    std::string_view rest = text.substr(i + 1);
+    if (rest.empty() || rest.size() > 5) return {};
+    port = 0;
+    for (char c : rest) {
+      if (c < '0' || c > '9') return {};
+      port = port * 10 + (c - '0');
+    }
+    if (port < 1 || port > 65535) return {};
+  }
+  return std::to_string(parts[0]) + "." + std::to_string(parts[1]) + "." + std::to_string(parts[2]) + "." +
+         std::to_string(parts[3]) + ":" + std::to_string(port);
+}
+
 std::vector<GpuAdapter> EnumerateGpus() {
   std::vector<GpuAdapter> gpus;
   IDXGIFactory1* factory = nullptr;
@@ -475,6 +536,16 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   }
   o.audio_volume = std::clamp(GetInt(c, "audio_volume", 100), 0, 100);
   o.audio_mute_unfocused = GetBool(c, "audio_mute_unfocused", false);
+  if (game::kHasOnline) {
+    // Joining when online_host names a friend; hosting otherwise, the friend's address kept in launcher_online_address.
+    o.online = GetBool(c, "online_play", false);
+    o.online_port = std::clamp(GetInt(c, "online_port", kOnlinePort), 1, 65535);
+    o.online_steam = GetBool(c, "online_steam", false);
+    o.online_address = GetEscapedString(c, "launcher_online_address");
+    std::string host = GetEscapedString(c, "online_host");
+    o.online_join = !host.empty();
+    if (o.online_join) o.online_address = host;
+  }
   o.gpu_adapter = GetString(c, "gpu_adapter");
   o.native = game::kHasNativeXRenderer && GetBool(c, "native_x_renderer", game::kNativeXRendererDefault);
   if (game::kShadowQuality) {
@@ -1020,6 +1091,15 @@ bool SaveOptions(const Settings& s) {
     << "\"\n";
   f << "audio_volume = " << std::clamp(o.audio_volume, 0, 100) << "\n";
   f << "audio_mute_unfocused = " << boolean(o.audio_mute_unfocused) << "\n";
+  if (game::kHasOnline) {
+    // Settings > Online (the SDK's online_play, experimental): hosting (online_host "") or joining the friend's game at
+    // its address; the UDP port; Steam's friends, invites and relays (rexsteam.exe). The friend's address is kept.
+    f << "online_play = " << boolean(o.online) << "\n";
+    f << "online_host = \"" << Escaped(o.online_join ? o.online_address : std::string()) << "\"\n";
+    f << "online_port = " << std::clamp(o.online_port, 1, 65535) << "\n";
+    f << "online_steam = " << boolean(o.online_steam) << "\n";
+    f << "launcher_online_address = \"" << Escaped(o.online_address) << "\"\n";
+  }
   // The GPU to draw with (the SDK's change 86: its PCI vendor and device IDs; "" = each renderer's own choice).
   f << "gpu_adapter = \"" << o.gpu_adapter << "\"\n";
   // The SDK's developer keys (F3, F4, `): off, they do nothing in the game (a key on a control plays it either way).
