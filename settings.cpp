@@ -1094,10 +1094,14 @@ bool SaveOptions(const Settings& s) {
   if (game::kHasOnline) {
     // Settings > Online (the SDK's online_play, experimental): hosting (online_host "") or joining the friend's game at
     // its address; the UDP port; Steam's friends, invites and relays (rexsteam.exe). The friend's address is kept.
+    // Through Steam only (game::kOnlineByAddress false): Steam with online play, no friend's address, and no port asked
+    // of the router (the SDK's online_upnp).
+    const bool by_address = game::kOnlineByAddress;
     f << "online_play = " << boolean(o.online) << "\n";
-    f << "online_host = \"" << Escaped(o.online_join ? o.online_address : std::string()) << "\"\n";
+    f << "online_host = \"" << Escaped(by_address && o.online_join ? o.online_address : std::string()) << "\"\n";
     f << "online_port = " << std::clamp(o.online_port, 1, 65535) << "\n";
-    f << "online_steam = " << boolean(o.online_steam) << "\n";
+    f << "online_steam = " << boolean(by_address ? o.online_steam : o.online) << "\n";
+    f << "online_upnp = " << boolean(by_address) << "\n";
     f << "launcher_online_address = \"" << Escaped(o.online_address) << "\"\n";
   }
   // The GPU to draw with (the SDK's change 86: its PCI vendor and device IDs; "" = each renderer's own choice).

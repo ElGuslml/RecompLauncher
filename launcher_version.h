@@ -3,5 +3,5 @@
 // game's res/version.h. CHANGELOG.md says what each version brought. Update both lines together.
 #pragma once
 
-#define RECOMP_LAUNCHER_VERSION 3, 20, 0, 0
-#define RECOMP_LAUNCHER_VERSION_STR "3.20.0"
+#define RECOMP_LAUNCHER_VERSION 3, 21, 0, 0
+#define RECOMP_LAUNCHER_VERSION_STR "3.21.0"

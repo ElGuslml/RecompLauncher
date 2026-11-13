@@ -171,11 +171,12 @@ void App::SettingsPage(const ImRect& rect) {
                                : category == 2 ? t_.nav_graphics
                                : category == 3 ? t_.nav_audio
                                                : t_.nav_online;
+  const char* online_intro = game::kOnlineByAddress ? t_.settings_intro_online : t_.settings_intro_online_steam;
   const char* intro = category == 0   ? t_.settings_intro_game
                       : category == 1 ? t_.settings_intro_video
                       : category == 2 ? t_.settings_intro_graphics
                       : category == 3 ? t_.settings_intro_audio
-                                      : t_.settings_intro_online;
+                                      : online_intro;
   auto toggle_rows = [&](game::ToggleGroup group, const char* group_title) {
     bool first = true;
     for (size_t i = 0; i < game::kToggles.size(); ++i) {
@@ -287,8 +288,8 @@ void App::SettingsPage(const ImRect& rect) {
       OptionRow row;
       row.id = "online_play";
       row.title = t_.online_play;
-      row.sub = t_.online_play_hint;
-      row.help = t_.online_play_help;
+      row.sub = game::kOnlineByAddress ? t_.online_play_hint : t_.online_play_hint_steam;
+      row.help = game::kOnlineByAddress ? t_.online_play_help : t_.online_play_help_steam;
       row.values = {t_.on, t_.off};
       row.tags = {t_.experimental, t_.experimental};
       row.tag_accent = {false, false};
@@ -297,124 +298,126 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.online = index == 0; };
       rows.push_back(std::move(row));
     }
-    // Hosting, or joining a friend's game at its address.
-    {
-      OptionRow row;
-      row.id = "online_mode";
-      row.title = t_.online_mode;
-      row.help = t_.online_mode_help;
-      row.values = {t_.online_mode_host, t_.online_mode_join};
-      row.subs = {t_.online_mode_host_sub, t_.online_mode_join_sub};
-      row.index = o.online_join ? 1 : 0;
-      row.apply = [&o](int index) { o.online_join = index == 1; };
-      lock_while_off(row);
-      rows.push_back(std::move(row));
-    }
-    if (o.online_join) {
-      // The friend's address, typed in a sheet: "a.b.c.d" or "a.b.c.d:port" (3074 when it names none).
-      OptionRow row;
-      row.id = "online_address";
-      row.title = t_.online_address;
-      row.sub = t_.online_address_hint;
-      row.help = t_.online_address_help;
-      row.values = {o.online_address.empty() ? std::string(t_.online_address_none) : o.online_address};
-      row.icon = Icon::kPencil;
-      row.activate = [this] {
-        OpenTextSheet(t_.nav_online, t_.online_address, t_.online_address_sheet, settings_.o.online_address,
-                      "203.0.113.7:3074", 21, [this](const std::string& text) -> std::string {
-                        std::string endpoint = OnlineEndpoint(text, kOnlinePort);
-                        if (endpoint.empty() && text.find_first_not_of(' ') != std::string::npos) {
-                          return t_.online_address_invalid;
-                        }
-                        settings_.o.online_address = endpoint;
-                        Changed();
-                        return {};
-                      });
-      };
-      lock_while_off(row);
-      rows.push_back(std::move(row));
-    } else {
-      // This PC's address on its network, with the port: chosen, it goes to the clipboard. The help lists them all.
-      const std::vector<net::LocalAddress>& addresses = LocalAddresses();
-      const std::string port = std::to_string(o.online_port);
-      OptionRow row;
-      row.id = "online_your_address";
-      row.title = t_.online_your_address;
-      const bool copied = online_copied_at_ && SDL_GetTicks() - online_copied_at_ < 2000;
-      row.sub = copied ? t_.online_your_address_copied : t_.online_your_address_hint;
-      char help[1024];
-      std::snprintf(help, sizeof(help), t_.online_your_address_help, o.online_port);
-      row.help = help;
-      for (const net::LocalAddress& a : addresses) {
-        row.bullets.push_back(a.address + ":" + port + (a.adapter.empty() ? std::string() : " · " + a.adapter));
+    // Playing by address (game::kOnlineByAddress): hosting, or joining a friend's game at its address.
+    if (game::kOnlineByAddress) {
+      {
+        OptionRow row;
+        row.id = "online_mode";
+        row.title = t_.online_mode;
+        row.help = t_.online_mode_help;
+        row.values = {t_.online_mode_host, t_.online_mode_join};
+        row.subs = {t_.online_mode_host_sub, t_.online_mode_join_sub};
+        row.index = o.online_join ? 1 : 0;
+        row.apply = [&o](int index) { o.online_join = index == 1; };
+        lock_while_off(row);
+        rows.push_back(std::move(row));
       }
-      if (addresses.empty()) {
-        row.values = {t_.online_your_address_none};
-      } else {
-        std::string address = addresses.front().address + ":" + port;
-        row.values = {address};
-        row.icon = copied ? Icon::kCheck : Icon::kNone;
-        row.activate = [this, address] {
-          SDL_SetClipboardText(address.c_str());
-          online_copied_at_ = SDL_GetTicks();
+      if (o.online_join) {
+        // The friend's address, typed in a sheet: "a.b.c.d" or "a.b.c.d:port" (3074 when it names none).
+        OptionRow row;
+        row.id = "online_address";
+        row.title = t_.online_address;
+        row.sub = t_.online_address_hint;
+        row.help = t_.online_address_help;
+        row.values = {o.online_address.empty() ? std::string(t_.online_address_none) : o.online_address};
+        row.icon = Icon::kPencil;
+        row.activate = [this] {
+          OpenTextSheet(t_.nav_online, t_.online_address, t_.online_address_sheet, settings_.o.online_address,
+                        "203.0.113.7:3074", 21, [this](const std::string& text) -> std::string {
+                          std::string endpoint = OnlineEndpoint(text, kOnlinePort);
+                          if (endpoint.empty() && text.find_first_not_of(' ') != std::string::npos) {
+                            return t_.online_address_invalid;
+                          }
+                          settings_.o.online_address = endpoint;
+                          Changed();
+                          return {};
+                        });
         };
-      }
-      lock_while_off(row);
-      rows.push_back(std::move(row));
+        lock_while_off(row);
+        rows.push_back(std::move(row));
+      } else {
+        // This PC's address on its network, with the port: chosen, it goes to the clipboard. The help lists them all.
+        const std::vector<net::LocalAddress>& addresses = LocalAddresses();
+        const std::string port = std::to_string(o.online_port);
+        OptionRow row;
+        row.id = "online_your_address";
+        row.title = t_.online_your_address;
+        const bool copied = online_copied_at_ && SDL_GetTicks() - online_copied_at_ < 2000;
+        row.sub = copied ? t_.online_your_address_copied : t_.online_your_address_hint;
+        char help[1024];
+        std::snprintf(help, sizeof(help), t_.online_your_address_help, o.online_port);
+        row.help = help;
+        for (const net::LocalAddress& a : addresses) {
+          row.bullets.push_back(a.address + ":" + port + (a.adapter.empty() ? std::string() : " · " + a.adapter));
+        }
+        if (addresses.empty()) {
+          row.values = {t_.online_your_address_none};
+        } else {
+          std::string address = addresses.front().address + ":" + port;
+          row.values = {address};
+          row.icon = copied ? Icon::kCheck : Icon::kNone;
+          row.activate = [this, address] {
+            SDL_SetClipboardText(address.c_str());
+            online_copied_at_ = SDL_GetTicks();
+          };
+        }
+        lock_while_off(row);
+        rows.push_back(std::move(row));
 
-      // The router's internet address (UPnP): what friends type over the internet, or why there is none.
-      OptionRow internet;
-      internet.id = "online_internet";
-      internet.title = t_.online_internet;
-      std::snprintf(help, sizeof(help), t_.online_internet_help, o.online_port);
-      internet.help = help;
-      const net::RouterAddress* router = o.online ? RouterAnswer() : nullptr;
-      if (!router) {
-        internet.values = {t_.online_internet_asking};
-        internet.sub = t_.online_internet_asking_hint;
-      } else if (router->kind == net::RouterAddress::Kind::kPublic) {
-        const bool internet_copied = online_internet_copied_at_ && SDL_GetTicks() - online_internet_copied_at_ < 2000;
-        std::string address = router->address + ":" + port;
-        internet.values = {address};
-        internet.sub = internet_copied ? t_.online_your_address_copied : t_.online_internet_public_hint;
-        internet.icon = internet_copied ? Icon::kCheck : Icon::kNone;
-        internet.activate = [this, address] {
-          SDL_SetClipboardText(address.c_str());
-          online_internet_copied_at_ = SDL_GetTicks();
-        };
-      } else if (router->kind == net::RouterAddress::Kind::kPrivate) {
-        internet.values = {t_.online_internet_cgnat};
-        internet.tags = {"CGNAT"};
-        internet.tag_accent = {false};
-        internet.sub = t_.online_internet_cgnat_hint;
-      } else {
-        internet.values = {t_.online_internet_unknown};
-        internet.sub = t_.online_internet_unknown_hint;
+        // The router's internet address (UPnP): what friends type over the internet, or why there is none.
+        OptionRow internet;
+        internet.id = "online_internet";
+        internet.title = t_.online_internet;
+        std::snprintf(help, sizeof(help), t_.online_internet_help, o.online_port);
+        internet.help = help;
+        const net::RouterAddress* router = o.online ? RouterAnswer() : nullptr;
+        if (!router) {
+          internet.values = {t_.online_internet_asking};
+          internet.sub = t_.online_internet_asking_hint;
+        } else if (router->kind == net::RouterAddress::Kind::kPublic) {
+          const bool internet_copied = online_internet_copied_at_ && SDL_GetTicks() - online_internet_copied_at_ < 2000;
+          std::string address = router->address + ":" + port;
+          internet.values = {address};
+          internet.sub = internet_copied ? t_.online_your_address_copied : t_.online_internet_public_hint;
+          internet.icon = internet_copied ? Icon::kCheck : Icon::kNone;
+          internet.activate = [this, address] {
+            SDL_SetClipboardText(address.c_str());
+            online_internet_copied_at_ = SDL_GetTicks();
+          };
+        } else if (router->kind == net::RouterAddress::Kind::kPrivate) {
+          internet.values = {t_.online_internet_cgnat};
+          internet.tags = {"CGNAT"};
+          internet.tag_accent = {false};
+          internet.sub = t_.online_internet_cgnat_hint;
+        } else {
+          internet.values = {t_.online_internet_unknown};
+          internet.sub = t_.online_internet_unknown_hint;
+        }
+        lock_while_off(internet);
+        rows.push_back(std::move(internet));
       }
-      lock_while_off(internet);
-      rows.push_back(std::move(internet));
-    }
-    // The UDP port, typed in a sheet.
-    {
-      OptionRow row;
-      row.id = "online_port";
-      row.title = t_.online_port;
-      row.sub = t_.online_port_hint;
-      row.help = t_.online_port_help;
-      row.values = {std::to_string(o.online_port)};
-      row.icon = Icon::kPencil;
-      row.activate = [this] {
-        OpenTextSheet(t_.nav_online, t_.online_port, t_.online_port_sheet, std::to_string(settings_.o.online_port),
-                      std::to_string(kOnlinePort), 5, [this](const std::string& text) -> std::string {
-                        int port = OnlinePortOf(text);
-                        if (!port) return t_.online_port_invalid;
-                        settings_.o.online_port = port;
-                        Changed();
-                        return {};
-                      });
-      };
-      lock_while_off(row);
-      rows.push_back(std::move(row));
+      // The UDP port, typed in a sheet.
+      {
+        OptionRow row;
+        row.id = "online_port";
+        row.title = t_.online_port;
+        row.sub = t_.online_port_hint;
+        row.help = t_.online_port_help;
+        row.values = {std::to_string(o.online_port)};
+        row.icon = Icon::kPencil;
+        row.activate = [this] {
+          OpenTextSheet(t_.nav_online, t_.online_port, t_.online_port_sheet, std::to_string(settings_.o.online_port),
+                        std::to_string(kOnlinePort), 5, [this](const std::string& text) -> std::string {
+                          int port = OnlinePortOf(text);
+                          if (!port) return t_.online_port_invalid;
+                          settings_.o.online_port = port;
+                          Changed();
+                          return {};
+                        });
+        };
+        lock_while_off(row);
+        rows.push_back(std::move(row));
+      }
     }
     // Steam (the SDK's rexsteam.exe, with Valve's steam_api64.dll next to it; experimental): locked off in a build
     // without them.
@@ -438,7 +441,20 @@ void App::SettingsPage(const ImRect& rect) {
         row.locked_value = t_.off;
         row.sub = t_.online_steam_missing;
       }
-      lock_while_off(row);
+      if (!game::kOnlineByAddress) {
+        // Through Steam only: on with Online play, as it is the only way. Its value written, with the lock (a locked
+        // switch is drawn off whatever its value).
+        row.help = t_.online_steam_help_auto;
+        row.is_switch = false;
+        row.index = o.online && has_steam ? 0 : 1;
+        row.locked_value = row.values[size_t(row.index)];
+        row.locked = true;
+        row.sub = !o.online ? t_.online_needs_on : has_steam ? t_.online_steam_auto : t_.online_steam_missing;
+        row.activate = nullptr;
+        row.icon = Icon::kNone;
+      } else {
+        lock_while_off(row);
+      }
       rows.push_back(std::move(row));
     }
   } else if (category == 3) {

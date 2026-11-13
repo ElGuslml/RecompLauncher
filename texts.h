@@ -687,6 +687,13 @@ struct Texts {
   const char* online_steam_hint;
   const char* online_steam_help;
   const char* online_steam_missing;
+  // Launcher 3.21, online play through Steam only (game::kOnlineByAddress false): Online play's hint and help, and the
+  // Steam row's, which turns on with it.
+  const char* online_play_hint_steam;
+  const char* online_play_help_steam;
+  const char* online_steam_auto;
+  const char* online_steam_help_auto;
+  const char* settings_intro_online_steam;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

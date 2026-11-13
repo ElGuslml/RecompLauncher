@@ -656,6 +656,11 @@ const Texts kEnglish = {
     .online_steam_hint = "Your Steam friends who play, invites, no port to open.",
     .online_steam_help = "Through Steam (experimental): your Steam friends running the game appear in its friends list, invites go through Steam, and Steam's servers carry the game between you, so no port needs opening. Steam must be running and signed in on every PC. Steam shows your friends that you play Spacewar, the app the game uses for this. Friends without Steam can still join by address.",
     .online_steam_missing = "Not in this version of the game: steam_api64.dll is missing.",
+    .online_play_hint_steam = "Play with your Steam friends over the internet.",
+    .online_play_help_steam = "Online play with your Steam friends (experimental). Steam must be running and signed in on every PC. In the game, the online modes are in its menus, as with Xbox Live on the console: a party, invites, the friends list, which shows your Steam friends running the game. If a friend is not in it, invite them from Steam's friends list (Invite to game). Your saves and achievements stay as they are. Everyone needs this version of the game.",
+    .online_steam_auto = "On with Online play.",
+    .online_steam_help_auto = "Through Steam (experimental): your Steam friends running the game appear in its friends list, invites go through Steam, and Steam's servers carry the game between you, so no port needs opening. It turns on with Online play. Steam shows your friends that you play Spacewar, the app the game uses for this.",
+    .settings_intro_online_steam = "Play with your Steam friends.",
 };
 
 const Texts kGerman = {
@@ -1305,6 +1310,11 @@ const Texts kGerman = {
     .online_steam_hint = "Deine Steam-Freunde, die spielen, Einladungen, kein Port zu öffnen.",
     .online_steam_help = "Über Steam (experimentell): Deine Steam-Freunde, die das Spiel geöffnet haben, erscheinen in seiner Freundesliste, Einladungen laufen über Steam, und Steams Server übertragen das Spiel zwischen euch, also muss kein Port geöffnet werden. Steam muss auf jedem PC laufen und angemeldet sein. Steam zeigt deinen Freunden, dass du Spacewar spielst, die App, die das Spiel dafür nutzt. Freunde ohne Steam können weiterhin über die Adresse beitreten.",
     .online_steam_missing = "Nicht in dieser Version des Spiels: steam_api64.dll fehlt.",
+    .online_play_hint_steam = "Spiele mit deinen Steam-Freunden über das Internet.",
+    .online_play_help_steam = "Online-Spiel mit deinen Steam-Freunden (experimentell). Steam muss auf jedem PC laufen und angemeldet sein. Im Spiel sind die Online-Modi in seinen Menüs, wie mit Xbox Live auf der Konsole: die Party, Einladungen, die Freundesliste, die deine Steam-Freunde zeigt, die das Spiel geöffnet haben. Fehlt ein Freund darin, lade ihn über Steams Freundesliste ein (Zum Spiel einladen). Deine Spielstände und Erfolge bleiben, wie sie sind. Alle brauchen diese Version des Spiels.",
+    .online_steam_auto = "Mit dem Online-Spiel eingeschaltet.",
+    .online_steam_help_auto = "Über Steam (experimentell): Deine Steam-Freunde, die das Spiel geöffnet haben, erscheinen in seiner Freundesliste, Einladungen laufen über Steam, und Steams Server übertragen das Spiel zwischen euch, also muss kein Port geöffnet werden. Es schaltet sich mit dem Online-Spiel ein. Steam zeigt deinen Freunden, dass du Spacewar spielst, die App, die das Spiel dafür nutzt.",
+    .settings_intro_online_steam = "Spiele mit deinen Steam-Freunden.",
 };
 
 const Texts kFrench = {
@@ -1954,6 +1964,11 @@ const Texts kFrench = {
     .online_steam_hint = "Vos amis Steam qui jouent, les invitations, aucun port à ouvrir.",
     .online_steam_help = "Via Steam (expérimental) : vos amis Steam qui ont le jeu ouvert apparaissent dans sa liste d'amis, les invitations passent par Steam et les serveurs de Steam relaient la partie entre vous, donc aucun port n'est à ouvrir. Steam doit être ouvert et connecté sur chaque PC. Steam montre à vos amis que vous jouez à Spacewar, l'application que le jeu utilise pour cela. Les amis sans Steam peuvent toujours rejoindre par l'adresse.",
     .online_steam_missing = "Absent de cette version du jeu : steam_api64.dll manque.",
+    .online_play_hint_steam = "Jouez avec vos amis Steam par Internet.",
+    .online_play_help_steam = "Jeu en ligne avec vos amis Steam (expérimental). Steam doit être ouvert et connecté sur chaque PC. Dans le jeu, les modes en ligne sont dans ses menus, comme avec Xbox Live sur la console : le groupe, les invitations, la liste d'amis, qui montre vos amis Steam ayant le jeu ouvert. Si un ami n'y est pas, invitez-le depuis la liste d'amis de Steam (Inviter à jouer). Vos sauvegardes et succès restent tels quels. Tout le monde a besoin de cette version du jeu.",
+    .online_steam_auto = "Activé avec le jeu en ligne.",
+    .online_steam_help_auto = "Via Steam (expérimental) : vos amis Steam qui ont le jeu ouvert apparaissent dans sa liste d'amis, les invitations passent par Steam et les serveurs de Steam relaient la partie entre vous, donc aucun port n'est à ouvrir. Il s'active avec le jeu en ligne. Steam montre à vos amis que vous jouez à Spacewar, l'application que le jeu utilise pour cela.",
+    .settings_intro_online_steam = "Jouez avec vos amis Steam.",
 };
 
 const Texts kSpanish = {
@@ -2602,6 +2617,11 @@ const Texts kSpanish = {
     .online_steam_hint = "Tus amigos de Steam que juegan, invitaciones, sin abrir puertos.",
     .online_steam_help = "A través de Steam (experimental): tus amigos de Steam que tienen el juego abierto aparecen en su lista de amigos, las invitaciones van por Steam y los servidores de Steam llevan el juego entre ustedes, así que no hay que abrir ningún puerto. Steam debe estar abierto y con sesión iniciada en cada PC. Steam les muestra a tus amigos que juegas Spacewar, la aplicación que el juego usa para esto. Los amigos sin Steam aún pueden unirse con la dirección.",
     .online_steam_missing = "No está en esta versión del juego: falta steam_api64.dll.",
+    .online_play_hint_steam = "Juega con tus amigos de Steam por internet.",
+    .online_play_help_steam = "Juego en línea con tus amigos de Steam (experimental). Steam debe estar abierto y con sesión iniciada en cada PC. En el juego, los modos en línea están en sus menús, como con Xbox Live en la consola: el grupo, las invitaciones, la lista de amigos, que muestra a tus amigos de Steam que tienen el juego abierto. Si un amigo no aparece, invítalo desde la lista de amigos de Steam (Invitar a jugar). Tus partidas guardadas y logros quedan como están. Todos necesitan esta versión del juego.",
+    .online_steam_auto = "Se activa con Juego en línea.",
+    .online_steam_help_auto = "A través de Steam (experimental): tus amigos de Steam que tienen el juego abierto aparecen en su lista de amigos, las invitaciones van por Steam y los servidores de Steam llevan el juego entre ustedes, así que no hay que abrir ningún puerto. Se activa con Juego en línea. Steam les muestra a tus amigos que juegas Spacewar, la aplicación que el juego usa para esto.",
+    .settings_intro_online_steam = "Juega con tus amigos de Steam.",
 };
 
 const Texts kItalian = {
@@ -3250,6 +3270,11 @@ const Texts kItalian = {
     .online_steam_hint = "I tuoi amici di Steam che giocano, inviti, nessuna porta da aprire.",
     .online_steam_help = "Tramite Steam (sperimentale): i tuoi amici di Steam con il gioco aperto compaiono nel suo elenco amici, gli inviti passano da Steam e i server di Steam portano la partita tra voi, quindi non serve aprire porte. Steam deve essere aperto e connesso su ogni PC. Steam mostra ai tuoi amici che giochi a Spacewar, l'app che il gioco usa per questo. Gli amici senza Steam possono comunque unirsi con l'indirizzo.",
     .online_steam_missing = "Non in questa versione del gioco: manca steam_api64.dll.",
+    .online_play_hint_steam = "Gioca con i tuoi amici di Steam via Internet.",
+    .online_play_help_steam = "Gioco online con i tuoi amici di Steam (sperimentale). Steam deve essere aperto e connesso su ogni PC. Nel gioco, le modalità online sono nei suoi menu, come con Xbox Live sulla console: il gruppo, gli inviti, l'elenco amici, che mostra i tuoi amici di Steam con il gioco aperto. Se un amico non c'è, invitalo dall'elenco amici di Steam (Invita a giocare). I tuoi salvataggi e obiettivi restano come sono. Tutti hanno bisogno di questa versione del gioco.",
+    .online_steam_auto = "Attivo con il gioco online.",
+    .online_steam_help_auto = "Tramite Steam (sperimentale): i tuoi amici di Steam con il gioco aperto compaiono nel suo elenco amici, gli inviti passano da Steam e i server di Steam portano la partita tra voi, quindi non serve aprire porte. Si attiva con il gioco online. Steam mostra ai tuoi amici che giochi a Spacewar, l'app che il gioco usa per questo.",
+    .settings_intro_online_steam = "Gioca con i tuoi amici di Steam.",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.

@@ -140,6 +140,10 @@ inline constexpr float kArtCornerRise = 145.0f;
 // Settings > Online (launcher 3.20): online play between friends, the SDK's online_play (its changes 89-97 on the
 // online branch): the category and the options file's online_* keys. False: neither.
 inline constexpr bool kHasOnline = false;
+// Settings > Online (launcher 3.21): playing by address, the Connection row (hosting, or joining a friend's address),
+// this PC's addresses and the port. False: through Steam only, which turns on with Online play (Gustavo's choice while
+// online play is tried between homes; the options file then has no online_host and no UPnP).
+inline constexpr bool kOnlineByAddress = false;
 }  // namespace defaults
 using namespace defaults;
 

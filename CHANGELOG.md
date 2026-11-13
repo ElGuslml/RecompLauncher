@@ -2,6 +2,19 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.21.0
+
+Settings > Online through Steam only (2026-11-13, Gustavo's choice after the first game between two homes): playing by
+address waits until online play has been tried more widely.
+
+- `game::kOnlineByAddress` (false by default): with it false, Settings > Online shows Online play and Through Steam
+  only. Connection (Host / Join a friend), the friend's address, Your address, Internet and Port are not shown, and
+  the Steam row is locked: on while online play is on (locked off with `steam_api64.dll` missing, as before). The
+  options file gets `online_steam` = `online_play`, an empty `online_host` and `online_upnp = false` (no port asked of
+  the router). Online play's hint and help, the Steam row's and the category's line speak of Steam friends (texts in
+  the five languages). The friend's address typed before is kept in `launcher_online_address`.
+- A game that sets `kOnlineByAddress` true gets 3.20's page.
+
 ## 3.20.0
 
 Settings > Online (2026-11-13, on the `online` branch with the SDK's online play, changes 89-97): online play between
