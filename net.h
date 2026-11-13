@@ -37,4 +37,19 @@ struct LocalAddress {
 };
 std::vector<LocalAddress> LocalAddresses();
 
+// The router's internet address, as the router reports it by UPnP (Settings > Online's "Internet" row; the game asks
+// the router to forward its port when it hosts, the SDK's online_upnp). Read only: an SSDP search on the LAN, the
+// router's description and its GetExternalIPAddress, nothing outside the LAN. Takes up to about 5 seconds: call it on a
+// thread of its own.
+struct RouterAddress {
+  enum class Kind {
+    kNoRouter,  // no router answered (UPnP off on it, or none): the port is forwarded by hand
+    kPublic,    // `address` is what friends type over the internet
+    kPrivate,   // the provider's carrier-grade NAT, or another router in front: no friend can reach this PC
+  };
+  Kind kind = Kind::kNoRouter;
+  std::string address;  // "203.0.113.7" (kPublic, kPrivate)
+};
+RouterAddress AskRouter();
+
 }  // namespace launcher::net

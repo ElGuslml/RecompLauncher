@@ -161,6 +161,7 @@ class App {
                      size_t max_chars, std::function<std::string(const std::string&)> accept);
   void TextSheetWindow(ImVec2 size);
   TextSheet text_sheet_;
+  uint64_t online_internet_copied_at_ = 0;  // the same for the Internet row
   uint64_t online_copied_at_ = 0;  // Settings > Online: when "Your address" was copied (its line says so for 2 s)
   ImRect page_rect_;        // the page's area this frame (between the header and the footer)
   int fade_key_ = -1;       // the page last drawn, as the fade-in counts pages (the settings' categories are one)

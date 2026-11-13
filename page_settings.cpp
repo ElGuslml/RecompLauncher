@@ -8,7 +8,9 @@
 #include <cstdio>
 #include <filesystem>
 #include <functional>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -106,6 +108,37 @@ const std::vector<std::string>& AudioOutputs() {
   }
   SDL_free(ids);
   return names;
+}
+
+// The router's internet address (net::AskRouter, up to ~5 s), asked on a thread of its own when the row is first shown
+// and again a minute after each answer while it is shown; null until the first answer. The state outlives the thread
+// (never freed: a question may still be out when the launcher closes).
+const net::RouterAddress* RouterAnswer() {
+  struct State {
+    std::mutex mutex;
+    bool running = false;
+    bool answered = false;
+    uint64_t answered_at = 0;
+    net::RouterAddress answer;
+  };
+  static State* state = new State;
+  static net::RouterAddress shown;
+  std::lock_guard lock(state->mutex);
+  const uint64_t now = SDL_GetTicks();
+  if (!state->running && (!state->answered || now - state->answered_at > 60000)) {
+    state->running = true;
+    std::thread([] {
+      net::RouterAddress answer = net::AskRouter();
+      std::lock_guard lock(state->mutex);
+      state->answer = std::move(answer);
+      state->answered = true;
+      state->answered_at = SDL_GetTicks();
+      state->running = false;
+    }).detach();
+  }
+  if (!state->answered) return nullptr;
+  shown = state->answer;
+  return &shown;
 }
 
 // This PC's addresses, asked again every two seconds while the page is shown (a network connected).
@@ -328,6 +361,38 @@ void App::SettingsPage(const ImRect& rect) {
       }
       lock_while_off(row);
       rows.push_back(std::move(row));
+
+      // The router's internet address (UPnP): what friends type over the internet, or why there is none.
+      OptionRow internet;
+      internet.id = "online_internet";
+      internet.title = t_.online_internet;
+      std::snprintf(help, sizeof(help), t_.online_internet_help, o.online_port);
+      internet.help = help;
+      const net::RouterAddress* router = o.online ? RouterAnswer() : nullptr;
+      if (!router) {
+        internet.values = {t_.online_internet_asking};
+        internet.sub = t_.online_internet_asking_hint;
+      } else if (router->kind == net::RouterAddress::Kind::kPublic) {
+        const bool internet_copied = online_internet_copied_at_ && SDL_GetTicks() - online_internet_copied_at_ < 2000;
+        std::string address = router->address + ":" + port;
+        internet.values = {address};
+        internet.sub = internet_copied ? t_.online_your_address_copied : t_.online_internet_public_hint;
+        internet.icon = internet_copied ? Icon::kCheck : Icon::kNone;
+        internet.activate = [this, address] {
+          SDL_SetClipboardText(address.c_str());
+          online_internet_copied_at_ = SDL_GetTicks();
+        };
+      } else if (router->kind == net::RouterAddress::Kind::kPrivate) {
+        internet.values = {t_.online_internet_cgnat};
+        internet.tags = {"CGNAT"};
+        internet.tag_accent = {false};
+        internet.sub = t_.online_internet_cgnat_hint;
+      } else {
+        internet.values = {t_.online_internet_unknown};
+        internet.sub = t_.online_internet_unknown_hint;
+      }
+      lock_while_off(internet);
+      rows.push_back(std::move(internet));
     }
     // The UDP port, typed in a sheet.
     {

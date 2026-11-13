@@ -669,6 +669,15 @@ struct Texts {
   const char* online_your_address_copied;
   const char* online_your_address_none;
   const char* online_your_address_help;
+  const char* online_internet;
+  const char* online_internet_asking;
+  const char* online_internet_asking_hint;
+  const char* online_internet_public_hint;
+  const char* online_internet_cgnat;
+  const char* online_internet_cgnat_hint;
+  const char* online_internet_unknown;
+  const char* online_internet_unknown_hint;
+  const char* online_internet_help;
   const char* online_port;
   const char* online_port_hint;
   const char* online_port_help;

@@ -12,6 +12,7 @@
 #include <winhttp.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cwchar>
 #include <memory>
 #include <vector>
@@ -152,6 +153,139 @@ struct Request {
   }
 };
 
+// One request to a LAN address (a router): no proxy, short timeouts. The status (0 when it did not answer) and the
+// body (WinHTTP joins a chunked one).
+int LanRequest(const std::string& url, const wchar_t* method, const std::wstring& headers, const std::string& body,
+               std::string* reply) {
+  std::wstring wide_url = Wide(url);
+  URL_COMPONENTS parts = {sizeof(parts)};
+  wchar_t host[256] = {};
+  wchar_t path[1024] = {};
+  parts.lpszHostName = host;
+  parts.dwHostNameLength = DWORD(std::size(host));
+  parts.lpszUrlPath = path;
+  parts.dwUrlPathLength = DWORD(std::size(path));
+  if (!WinHttpCrackUrl(wide_url.c_str(), 0, 0, &parts) || parts.nScheme != INTERNET_SCHEME_HTTP) {
+    return 0;
+  }
+  Handle session, connection, request;
+  session.h = WinHttpOpen(L"RecompLauncher", WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME,
+                          WINHTTP_NO_PROXY_BYPASS, 0);
+  if (!session.h) return 0;
+  WinHttpSetTimeouts(session.h, 2500, 2500, 2500, 2500);
+  connection.h = WinHttpConnect(session.h, host, parts.nPort, 0);
+  if (!connection.h) return 0;
+  request.h = WinHttpOpenRequest(connection.h, method, std::wstring(parts.lpszUrlPath, parts.dwUrlPathLength).c_str(),
+                                 nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0);
+  if (!request.h) return 0;
+  if (!WinHttpSendRequest(request.h, headers.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : headers.c_str(),
+                          headers.empty() ? 0 : DWORD(-1L), body.empty() ? nullptr : const_cast<char*>(body.data()),
+                          DWORD(body.size()), DWORD(body.size()), 0) ||
+      !WinHttpReceiveResponse(request.h, nullptr)) {
+    return 0;
+  }
+  DWORD code = 0;
+  DWORD size = sizeof(code);
+  WinHttpQueryHeaders(request.h, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX,
+                      &code, &size, WINHTTP_NO_HEADER_INDEX);
+  char buffer[4096];
+  DWORD got = 0;
+  while (reply->size() < (1u << 20) && WinHttpReadData(request.h, buffer, sizeof(buffer), &got) && got) {
+    reply->append(buffer, got);
+  }
+  return int(code);
+}
+
+// The text of the first <tag>...</tag> (or <prefix:tag>) at or after `from`, trimmed; empty if none.
+std::string Element(const std::string& xml, const std::string& tag, size_t from = 0) {
+  size_t at = from;
+  while ((at = xml.find(tag, at)) != std::string::npos) {
+    const size_t after = at + tag.size();
+    size_t open = at;
+    if (open > 0 && xml[open - 1] == ':') {
+      --open;
+      while (open > 0 && (std::isalnum(uint8_t(xml[open - 1])) || xml[open - 1] == '_' || xml[open - 1] == '-')) {
+        --open;
+      }
+    }
+    if (open > 0 && xml[open - 1] == '<' && after < xml.size() &&
+        (xml[after] == '>' || xml[after] == ' ' || xml[after] == '\t')) {
+      const size_t text = xml.find('>', after);
+      const size_t close = text == std::string::npos ? text : xml.find("</", text);
+      if (close == std::string::npos) return {};
+      std::string value = xml.substr(text + 1, close - text - 1);
+      while (!value.empty() && std::isspace(uint8_t(value.back()))) value.pop_back();
+      size_t start = 0;
+      while (start < value.size() && std::isspace(uint8_t(value[start]))) ++start;
+      return value.substr(start);
+    }
+    at = after;
+  }
+  return {};
+}
+
+// 10/8, 172.16/12, 192.168/16, 100.64/10 (carrier-grade NAT), 169.254/16, 127/8.
+bool PrivateAddress(const uint8_t* b) {
+  return b[0] == 10 || b[0] == 127 || (b[0] == 172 && b[1] >= 16 && b[1] <= 31) || (b[0] == 192 && b[1] == 168) ||
+         (b[0] == 100 && b[1] >= 64 && b[1] <= 127) || (b[0] == 169 && b[1] == 254);
+}
+
+// The SSDP search on the LAN: the description URLs of the Internet gateways inside it that answered in 3 seconds.
+std::vector<std::string> FindGateways() {
+  std::vector<std::string> locations;
+  WSADATA wsa;
+  if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return locations;
+  SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (s != INVALID_SOCKET) {
+    DWORD ttl = 2;
+    setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<const char*>(&ttl), sizeof(ttl));
+    sockaddr_in to{};
+    to.sin_family = AF_INET;
+    to.sin_port = htons(1900);
+    inet_pton(AF_INET, "239.255.255.250", &to.sin_addr);
+    for (const char* target : {"urn:schemas-upnp-org:device:InternetGatewayDevice:1",
+                               "urn:schemas-upnp-org:device:InternetGatewayDevice:2"}) {
+      std::string search = std::string("M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\n") +
+                           "MAN: \"ssdp:discover\"\r\nMX: 2\r\nST: " + target + "\r\n\r\n";
+      sendto(s, search.data(), int(search.size()), 0, reinterpret_cast<sockaddr*>(&to), sizeof(to));
+    }
+    const ULONGLONG deadline = GetTickCount64() + 3000;
+    char buffer[2048];
+    for (ULONGLONG now = GetTickCount64(); now < deadline; now = GetTickCount64()) {
+      fd_set set;
+      FD_ZERO(&set);
+      FD_SET(s, &set);
+      const ULONGLONG left = deadline - now;
+      timeval timeout{long(left / 1000), long((left % 1000) * 1000)};
+      if (select(0, &set, nullptr, nullptr, &timeout) <= 0) break;
+      int n = recv(s, buffer, sizeof(buffer), 0);
+      if (n <= 0) continue;
+      std::string reply(buffer, size_t(n));
+      std::string lower = reply;
+      for (char& c : lower) c = char(std::tolower(uint8_t(c)));
+      size_t at = lower.find("\r\nlocation:");
+      if (at == std::string::npos) continue;
+      size_t value = at + 11;
+      size_t end = reply.find("\r\n", value);
+      std::string location = reply.substr(value, end == std::string::npos ? std::string::npos : end - value);
+      location.erase(0, location.find_first_not_of(' '));
+      while (!location.empty() && location.back() == ' ') location.pop_back();
+      // Only routers inside the LAN: "http://a.b.c.d[:port]/..." with a private address.
+      if (location.compare(0, 7, "http://") != 0) continue;
+      std::string host = location.substr(7, location.find_first_of(":/", 7) - 7);
+      in_addr address{};
+      if (inet_pton(AF_INET, host.c_str(), &address) != 1 ||
+          !PrivateAddress(reinterpret_cast<const uint8_t*>(&address))) {
+        continue;
+      }
+      if (std::find(locations.begin(), locations.end(), location) == locations.end()) locations.push_back(location);
+    }
+    closesocket(s);
+  }
+  WSACleanup();
+  return locations;
+}
+
 }  // namespace
 
 Response Get(const std::string& url, const char* accept) {
@@ -271,6 +405,52 @@ std::vector<LocalAddress> LocalAddresses() {
   }
   routed.insert(routed.end(), others.begin(), others.end());
   return routed;
+}
+
+RouterAddress AskRouter() {
+  RouterAddress result;
+  for (const std::string& location : FindGateways()) {
+    std::string description;
+    if (LanRequest(location, L"GET", {}, {}, &description) != 200) continue;
+    // The WAN connection service (IP, else PPP) and its control URL, relative to the description's host.
+    std::string root = location.substr(0, location.find('/', 7));
+    std::string base = Element(description, "URLBase");
+    if (base.compare(0, 7, "http://") == 0) root = base.substr(0, base.find('/', 7));
+    std::string service_type, control;
+    for (const char* kind : {"WANIPConnection", "WANPPPConnection"}) {
+      for (size_t at = 0; service_type.empty() && (at = description.find("<service>", at)) != std::string::npos;) {
+        size_t end = description.find("</service>", at);
+        if (end == std::string::npos) break;
+        std::string service = description.substr(at, end - at);
+        at = end;
+        std::string type = Element(service, "serviceType");
+        std::string url = Element(service, "controlURL");
+        if (type.find(kind) == std::string::npos || url.empty()) continue;
+        service_type = type;
+        control = url.compare(0, 7, "http://") == 0 ? url
+                  : url[0] == '/'                   ? root + url
+                                                    : location.substr(0, location.rfind('/') + 1) + url;
+      }
+      if (!service_type.empty()) break;
+    }
+    if (service_type.empty()) continue;
+    std::string body =
+        "<?xml version=\"1.0\"?>\r\n<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+        "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:GetExternalIPAddress xmlns:u=\"" +
+        service_type + "\"></u:GetExternalIPAddress></s:Body></s:Envelope>\r\n";
+    std::wstring headers = L"Content-Type: text/xml; charset=\"utf-8\"\r\nSOAPAction: \"" + Wide(service_type) +
+                           L"#GetExternalIPAddress\"\r\n";
+    std::string reply;
+    if (LanRequest(control, L"POST", headers, body, &reply) != 200) continue;
+    std::string text = Element(reply, "NewExternalIPAddress");
+    in_addr address{};
+    if (text.empty() || inet_pton(AF_INET, text.c_str(), &address) != 1 || address.s_addr == 0) continue;
+    result.address = text;
+    result.kind = PrivateAddress(reinterpret_cast<const uint8_t*>(&address)) ? RouterAddress::Kind::kPrivate
+                                                                              : RouterAddress::Kind::kPublic;
+    return result;
+  }
+  return result;
 }
 
 }  // namespace launcher::net

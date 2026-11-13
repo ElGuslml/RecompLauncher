@@ -15,6 +15,12 @@ others.
   (`online_port`, 1024-65535, 3074 by default); Through Steam (`online_steam`, experimental; locked off where
   `rexsteam.exe` or Valve's `steam_api64.dll` is not next to the game). While online play is off the other rows are
   locked with their values. Reset sets them back but keeps the friend's address.
+- An Internet row under Your address while hosting (the SDK's change 99 forwards the port by UPnP): the router's
+  internet address as it reports it by UPnP (`net::AskRouter`: an SSDP search on the LAN, the router's description,
+  GetExternalIPAddress; read only, on a thread, again a minute after each answer). A public address is shown with the
+  port and copied when chosen; a private one is "Not reachable" with a CGNAT badge (the provider's carrier-grade NAT,
+  or a second router: no forwarding reaches the PC); no answer is "Unknown" (UPnP off: the port by hand). Your
+  address's help now points at it.
 - The address and the port are typed in a sheet at the right (`App::OpenTextSheet`, `TextSheetWindow`: the field typed
   in from the start, Save with A or Enter, Cancel with B or Escape, what is wrong under the field). The address takes
   "a.b.c.d" or "a.b.c.d:port" (3074 when it names none), written as the SDK's `online_host` takes it
