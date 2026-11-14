@@ -2,6 +2,13 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.21.1
+
+`game::kHasFourLaneDrums` (2026-11-13; true by default, nothing changes for a game that leaves it out): false for a game
+whose drums are five lanes only (Guitar Hero 5's engine: GH5, Band Hero, Warriors of Rock). The Drum kit row (five or
+four lanes) is then not shown on a controller's page nor the keyboard's, and a kit's `:1` flag left in the options file
+reads as five lanes.
+
 ## 3.21.0
 
 Settings > Online through Steam only (2026-11-13, Gustavo's choice after the first game between two homes): playing by

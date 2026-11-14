@@ -324,6 +324,7 @@ Part PartOf(std::string_view list, std::string_view key) {
 }
 
 bool FourLanes(std::string_view list, std::string_view key) {
+  if (!game::kHasFourLaneDrums) return false;
   std::string_view value = KindValue(list, key);
   size_t colon = value.find(':');
   return colon != std::string_view::npos && (std::strtol(std::string(value.substr(colon + 1)).c_str(), nullptr, 0) & 1);

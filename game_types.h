@@ -144,6 +144,10 @@ inline constexpr bool kHasOnline = false;
 // this PC's addresses and the port. False: through Steam only, which turns on with Online play (Gustavo's choice while
 // online play is tried between homes; the options file then has no online_host and no UPnP).
 inline constexpr bool kOnlineByAddress = false;
+// Drums (game::kHasDrums, launcher 3.19.1): whether the game also plays a Rock Band kit on a four-lane highway (the
+// World Tour engine's games: the SDK's change 87, a kit's capability flags with bit 0). False: the Drum kit row (five
+// or four lanes) is not shown and every kit plays five lanes (a "8:1" left in the options file reads as five).
+inline constexpr bool kHasFourLaneDrums = true;
 }  // namespace defaults
 using namespace defaults;
 

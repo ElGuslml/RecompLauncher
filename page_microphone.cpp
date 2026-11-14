@@ -206,7 +206,9 @@ float App::PartRow(ImVec2 origin, float width, const std::string& key) {
 }
 
 float App::KitRow(ImVec2 origin, float width, const std::string& key, bool real_kit) {
-  // Five lanes (a Guitar Hero kit) or four (a Rock Band kit, the game's four-lane highway: the SDK's change 87).
+  // Five lanes (a Guitar Hero kit) or four (a Rock Band kit, the game's four-lane highway: the SDK's change 87). A game
+  // without a four-lane highway has no row (game::kHasFourLaneDrums).
+  if (!game::kHasFourLaneDrums) return 0.0f;
   const bool four = FourLanes(settings_.o.device_subtypes, key);
   if (SelectorRow("kit", origin, width, t_.drum_kit, four ? t_.drum_kit_four : t_.drum_kit_five)) {
     Options& o = settings_.o;
