@@ -5,9 +5,10 @@ The launcher's versions (`launcher_version.h`). Each game shows its own version 
 ## 3.21.1
 
 `game::kHasFourLaneDrums` (2026-11-13; true by default, nothing changes for a game that leaves it out): false for a game
-whose drums are five lanes only (Guitar Hero 5's engine: GH5, Band Hero, Warriors of Rock). The Drum kit row (five or
-four lanes) is then not shown on a controller's page nor the keyboard's, and a kit's `:1` flag left in the options file
-reads as five lanes.
+whose drums are five lanes only. The Drum kit row (five or four lanes) is then not shown on a controller's page nor the
+keyboard's, and a kit's `:1` flag left in the options file reads as five lanes. Added for Guitar Hero 5's engine, which
+then turned out to have the four-lane highway too (GH5, Band Hero and Warriors of Rock: a drum kit's type 11 kept
+unless its capability flags have bit 0, and `UseFourLaneHighway`, as GH Metallica's): no game sets it false yet.
 
 ## 3.21.0
 
