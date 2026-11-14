@@ -684,8 +684,15 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
   const bool real_kit = kind == SDL_JOYSTICK_TYPE_DRUM_KIT;
   const bool drums = real_kit || PlaysDrums(key);
   const bool four = FourLanes(settings_.o.device_subtypes, key);
+  // A real guitar's own list where the game's controllers play on another layout (game::kGuitarControlsApart).
+  auto instrument = [&]() -> const std::vector<game::GameControlGroup>& {
+    if constexpr (game::kGuitarControlsApart) {
+      if (kind == SDL_JOYSTICK_TYPE_GUITAR) return game::GameGuitarControlsFor(language_);
+    }
+    return game::GameControlsFor(language_);
+  };
   const std::vector<game::GameControlGroup>& functions =
-      drums && game::kHasDrums ? game::GameDrumControlsFor(language_, four) : game::GameControlsFor(language_);
+      drums && game::kHasDrums ? game::GameDrumControlsFor(language_, four) : instrument();
   bool with_functions = !functions.empty() && (!real_kit || game::kHasDrums);
   struct Row {
     int control;                         // -1: one the controllers cannot move

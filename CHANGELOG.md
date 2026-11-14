@@ -2,6 +2,13 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.21.2
+
+`game::kGuitarControlsApart` (2026-11-13; false by default, nothing changes for a game that leaves it out): for a game
+whose controllers play on a layout of their own. GH Aerosmith (Guitar Hero III's engine) plays a plain controller with
+the frets on LT, LB, RB, RT and A and no strum, and a guitar on its frets (A, B, Y, X, LB): a real guitar's page then
+names its controls with the game's `GameGuitarControlsFor`, a controller's and the keyboard's with `GameControlsFor`.
+
 ## 3.21.1
 
 `game::kHasFourLaneDrums` (2026-11-13; true by default, nothing changes for a game that leaves it out): false for a game

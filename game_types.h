@@ -71,6 +71,9 @@ struct GameControlGroup {
   const char* title;
   std::vector<GameControl> controls;
 };
+// A real guitar's functions, for a game that sets kGuitarControlsApart (game.cpp defines it then): a controller's are
+// GameControlsFor, on the controller's own layout.
+const std::vector<GameControlGroup>& GameGuitarControlsFor(uint32_t language);
 
 // What the game does with an installed package it does not read (DlcRule): the DLC page's note on such a package.
 enum class DlcForeign {
@@ -149,6 +152,11 @@ inline constexpr bool kOnlineByAddress = false;
 // Hero and Warriors of Rock all have it). False: the Drum kit row (five or four lanes) is not shown and every kit plays
 // five lanes (a "8:1" left in the options file reads as five).
 inline constexpr bool kHasFourLaneDrums = true;
+// A real guitar's controls apart from a controller's (launcher 3.21.2): true for a game that plays a plain controller on
+// a layout of its own (Guitar Hero III's engine: the frets on the triggers, the bumpers and A, no strum), so that a guitar's
+// page names its frets with GameGuitarControlsFor and a controller's and the keyboard's with GameControlsFor. False: one
+// list for both (a controller reported as a guitar, as GH Metallica's).
+inline constexpr bool kGuitarControlsApart = false;
 }  // namespace defaults
 using namespace defaults;
 
