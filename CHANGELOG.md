@@ -2,6 +2,18 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.21.3
+
+The DLC tab emptied itself (2026-11-14, Gustavo with GH Metallica 1.0.0-beta.1: the DLC folder chosen, then "Remove
+copies"; the log: "DLC folder: , 0 packages" right after the copies were deleted, though `dlc_library.txt` still named the
+folder). `GameUserDataFolder` wrote and deleted `userdata\.write_test` at every call to see whether the folder can be
+written, and the DLC page reads its two lists on two threads at once (after the copies are deleted, and when the
+launcher opens): now and then one found the other deleting the file, took the folder for read-only and looked in
+Documents, where there is no DLC folder setting, so the tab listed nothing and the game's `content_packages.txt` was
+deleted (a Play then would start the game without the folder's DLC). Measured with the old test on two threads: 13
+failures in 2,000 calls each, none on one. Now decided once per folder, under a lock, with a file of the launcher's own
+(`.launcher_write_test_<process>`; the game's own test uses `.write_test`).
+
 ## 3.21.2
 
 `game::kGuitarControlsApart` (2026-11-13; false by default, nothing changes for a game that leaves it out): for a game

@@ -14,6 +14,8 @@
 #include <cwctype>
 #include <fstream>
 #include <iterator>
+#include <map>
+#include <mutex>
 #include <set>
 #include <utility>
 
@@ -613,26 +615,40 @@ std::vector<uint8_t> PackageTitleThumbnail(const std::filesystem::path& path) {
   return {};
 }
 
+// Decided once per folder, under a lock, with a test file of the launcher's own (launcher 3.21.3). Each call used to
+// write and delete userdata\.write_test: two threads at once (the DLC page's listing and its folder scan, after the
+// extracted copies were deleted and when the launcher opens) now and then found it being deleted by the other, took
+// the folder for read-only and went to the Documents folder, where there is no DLC folder setting. The DLC tab then
+// listed nothing and the game's list of packages was deleted (a player's tab emptied after "Remove copies"; measured
+// with two threads: 13 failures in 2,000 calls each, none with one). The game's own test uses .write_test too.
 std::filesystem::path GameUserDataFolder(const std::filesystem::path& exe_dir) {
+  static std::mutex mutex;
+  static std::map<std::filesystem::path, std::filesystem::path> decided;
+  std::lock_guard lock(mutex);
+  if (auto it = decided.find(exe_dir); it != decided.end()) {
+    return it->second;
+  }
   std::filesystem::path portable = exe_dir / L"userdata";
   std::error_code ec;
   std::filesystem::create_directories(portable, ec);
-  std::filesystem::path probe = portable / L".write_test";
+  wchar_t name[64];
+  std::swprintf(name, std::size(name), L".launcher_write_test_%lu", static_cast<unsigned long>(GetCurrentProcessId()));
+  std::filesystem::path probe = portable / name;
   bool writable = false;
   {
     std::ofstream file(probe, std::ios::binary);
     writable = bool(file);
   }
   std::filesystem::remove(probe, ec);
-  if (writable) {
-    return portable;
-  }
-  PWSTR documents = nullptr;
   std::filesystem::path result = portable;
-  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &documents))) {
-    result = std::filesystem::path(documents) / game::kDocumentsFolder;
+  if (!writable) {
+    PWSTR documents = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &documents))) {
+      result = std::filesystem::path(documents) / game::kDocumentsFolder;
+    }
+    CoTaskMemFree(documents);
   }
-  CoTaskMemFree(documents);
+  decided.emplace(exe_dir, result);
   return result;
 }
 
