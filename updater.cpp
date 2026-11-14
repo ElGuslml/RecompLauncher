@@ -131,11 +131,52 @@ Version Version::Parse(const std::string& text) {
   v.patch = parts[2];
   v.valid = count >= 2;
   v.prerelease = at < text.size() && text[at] == '-';
+  if (v.prerelease) {
+    size_t plus = text.find('+', at + 1);
+    v.suffix = text.substr(at + 1, plus == std::string::npos ? std::string::npos : plus - at - 1);
+  }
   return v;
 }
 
-const Release* UpdateCheck::Newer(const Version& running) const {
-  return !releases.empty() && running < releases.front().version ? &releases.front() : nullptr;
+bool Version::operator<(const Version& o) const {
+  if (major != o.major) return major < o.major;
+  if (minor != o.minor) return minor < o.minor;
+  if (patch != o.patch) return patch < o.patch;
+  if (prerelease != o.prerelease) return prerelease;  // 1.2.3-beta.1 < 1.2.3
+  if (!prerelease) return false;
+  // Both with a suffix: part by part.
+  auto numeric = [](const std::string& part) {
+    return !part.empty() && part.size() < 10 &&
+           std::all_of(part.begin(), part.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); });
+  };
+  size_t a = 0, b = 0;
+  while (true) {
+    const bool a_end = a > suffix.size(), b_end = b > o.suffix.size();
+    if (a_end || b_end) return a_end && !b_end;  // the shorter list first
+    size_t a_dot = suffix.find('.', a), b_dot = o.suffix.find('.', b);
+    std::string pa = suffix.substr(a, a_dot == std::string::npos ? std::string::npos : a_dot - a);
+    std::string pb = o.suffix.substr(b, b_dot == std::string::npos ? std::string::npos : b_dot - b);
+    const bool na = numeric(pa), nb = numeric(pb);
+    if (na && nb) {
+      long va = std::stol(pa), vb = std::stol(pb);
+      if (va != vb) return va < vb;
+    } else if (na != nb) {
+      return na;  // a number before a word
+    } else if (pa != pb) {
+      return pa < pb;
+    }
+    a = a_dot == std::string::npos ? suffix.size() + 1 : a_dot + 1;
+    b = b_dot == std::string::npos ? o.suffix.size() + 1 : b_dot + 1;
+  }
+}
+
+const Release* UpdateCheck::Newer(const Version& running, bool betas) const {
+  // Newest first: the first one offered is the newest of its kind.
+  for (const Release& release : releases) {
+    if (release.prerelease && !betas) continue;
+    return running < release.version ? &release : nullptr;
+  }
+  return nullptr;
 }
 
 const Release* UpdateCheck::Of(const Version& version) const {
@@ -162,8 +203,9 @@ UpdateCheck CheckForUpdates(const std::string& url) {
     answer = json::array({answer});  // one release (releases/latest)
   }
   for (const json& item : answer) {
-    if (!item.is_object() || item.value("draft", false) || item.value("prerelease", false)) continue;
+    if (!item.is_object() || item.value("draft", false)) continue;
     Release release;
+    release.prerelease = item.value("prerelease", false);
     release.tag = String(item, "tag_name");
     release.version = Version::Parse(release.tag);
     if (!release.version.valid) continue;

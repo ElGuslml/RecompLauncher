@@ -1,7 +1,9 @@
 // The launcher's updates from this project's GitHub releases (game.h: kReleasesApi; none when it is empty).
 //
 // - The check asks GitHub's API for the releases (no token: 60 calls an hour per address, so once per launcher start
-//   and on request) and keeps those newer than the running version, without drafts and pre-releases.
+//   and on request) and keeps them all but drafts, pre-releases marked. An update is offered from the published ones,
+//   and from the pre-releases too when the player asks for betas (launcher 3.22, the Updates page's switch); an
+//   installed pre-release's own notes are shown either way.
 // - An update downloads the release's zip into update\ next to the launcher, checks its SHA-256 (the digest GitHub
 //   gives for each asset, or a <zip>.sha256 asset), extracts it there, and moves its files into place. Each file it
 //   replaces is renamed *.old-update first (Windows lets a running executable be renamed, so the launcher replaces
@@ -26,16 +28,16 @@ struct Version {
   int major = 0, minor = 0, patch = 0;
   bool valid = false;
   bool prerelease = false;  // a suffix after the numbers ("1.2.3-beta.1"): before 1.2.3, as in Semantic Versioning
+  std::string suffix;       // the suffix without its '-' ("beta.1"), up to a '+' (build metadata, ignored)
   // "v1.2.3", "1.2.3" or "1.2", with or without a suffix.
   static Version Parse(const std::string& text);
-  bool operator<(const Version& o) const {
-    if (major != o.major) return major < o.major;
-    if (minor != o.minor) return minor < o.minor;
-    if (patch != o.patch) return patch < o.patch;
-    return prerelease && !o.prerelease;
-  }
+  // Semantic Versioning's order: the numbers, then a version with a suffix before the same one without; two suffixes
+  // by their dot-separated parts, numbers by value and below words, words in ASCII order, the shorter list first when
+  // one starts the other ("beta.1" < "beta.2" < "beta.10" < "rc.1").
+  bool operator<(const Version& o) const;
   bool operator==(const Version& o) const {
-    return major == o.major && minor == o.minor && patch == o.patch && prerelease == o.prerelease;
+    return major == o.major && minor == o.minor && patch == o.patch && prerelease == o.prerelease &&
+           (!prerelease || suffix == o.suffix);
   }
 };
 
@@ -51,15 +53,16 @@ struct Release {
   uint64_t asset_size = 0;
   std::string sha256;        // hex, lower case; empty when GitHub gave none
   std::string sha256_url;    // a <zip>.sha256 asset, when there is one
+  bool prerelease = false;   // marked Pre-release on GitHub (a beta)
 };
 
 struct UpdateCheck {
   bool ok = false;
   bool rate_limited = false;
   std::string error;              // when !ok: the system's message, or "HTTP 404"
-  std::vector<Release> releases;  // published, not pre-releases, newest first
-  // The newest release newer than `running`, or null.
-  const Release* Newer(const Version& running) const;
+  std::vector<Release> releases;  // published and pre-releases (not drafts), newest first
+  // The newest release newer than `running`, pre-releases only with `betas`, or null.
+  const Release* Newer(const Version& running, bool betas) const;
   // The release of `version`, or null.
   const Release* Of(const Version& version) const;
 };

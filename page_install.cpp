@@ -190,7 +190,7 @@ void App::InstallScreen(ImVec2 size) {
       default_focus();
       if (Button("##quit", ImVec2(x + Px(2.0f) + KeyButtonWidth(primary, t_.start) + Px(20.0f), ghost_y()), ghost, t_.quit) ||
           back_pressed) {
-        result_ = Result::kQuit;
+        AskQuit();
       }
       break;
     }

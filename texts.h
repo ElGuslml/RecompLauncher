@@ -220,6 +220,13 @@ struct Texts {
   const char* updates_off;  // the game has no releases to look for (game.h)
   const char* check_on_start;
   const char* check_on_start_hint;
+  const char* beta_updates;  // launcher 3.22: the Updates page's switch for pre-releases
+  const char* beta_updates_hint;
+  const char* open_browser_title;  // launcher 3.22: asked before a page opens in the browser
+  const char* open_browser_text;   // %s: the address
+  const char* open_browser_action;
+  const char* quit_title;  // launcher 3.22: asked before the launcher quits (its button: quit)
+  const char* quit_text;
   const char* release_notes;  // upper case; %s: the version
   const char* release_notes_none;
   const char* whats_new;  // %s: the version

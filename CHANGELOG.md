@@ -2,6 +2,31 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.22.0
+
+Gustavo's requests of 2026-11-14 (GH Metallica first; the other games move later):
+
+- **Betas from the launcher.** Updates has a second switch, "Get beta versions" (`launcher_beta_updates`, off): with
+  it, the newest release offered may be a GitHub pre-release; without it, only published ones, as before (a player on a
+  beta stays on it until a newer final version). The check keeps the pre-releases (drafts still left out), so an
+  installed beta now shows its own notes (they were left empty: "Check for updates to see the notes"). Versions with a
+  suffix compare as Semantic Versioning says: `1.0.0-beta.2` < `1.0.0-beta.10` < `1.0.0-rc.1` < `1.0.0` (before, two
+  betas of one version compared equal, and beta.2 was never offered over beta.1). Checked with `--launcher_update_url`
+  on a local list: off, up to date with beta.1's notes; on, beta.10 offered with beta.10's and beta.2's notes.
+- **Settings' rows as an accordion with the mouse.** The row under the mouse opens after resting on it 80 ms (crossing
+  the list opens nothing): it grows over 200 ms, eased in and out, while the open one closes at the same pace, so the
+  rows under the mouse stay where they are. Its line of help fades in under the label, the value's two looks (the
+  small row's, the big row's between its arrows) crossfade; it stays open when the mouse leaves the rows. The
+  controller and the keyboard are as before (the focus's row is the big one; a move or A gives the choice back to
+  them). Windows' animation effects off: no animation.
+- **A click changes a value only on its control.** In Settings and Updates a switch flips on a click on it, a value
+  steps with its arrows; a click elsewhere on the row only opens it. Rows that open something (a list, a sheet) open
+  from anywhere on them. The controller's A is unchanged.
+- **Asked first** (`App::AskConfirm`, a card over a veil, Cancel with B, Escape or a click outside it; the action with
+  A): a page opening in the browser (Donate, Updates' full history) names its address, and quitting the launcher (B or
+  Escape on Play, the Quit buttons on Play and the first run's welcome) asks "Quit the launcher?". Not asked: the
+  window's own close button, Alt+F4 and Windows shutting down.
+
 ## 3.21.3
 
 The DLC tab emptied itself (2026-11-14, Gustavo with GH Metallica 1.0.0-beta.1: the DLC folder chosen, then "Remove

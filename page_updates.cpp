@@ -228,7 +228,7 @@ void App::UpdatesPage(const ImRect& rect) {
   const Update::Progress progress = update_.Get();
   const bool updating = progress.state == Update::State::kDownloading || progress.state == Update::State::kVerifying ||
                         progress.state == Update::State::kInstalling || progress.state == Update::State::kDone;
-  const Release* newer = updates_ ? updates_->Newer(running) : nullptr;
+  const Release* newer = NewerRelease();
   // A game without releases to look for (game.h): its version, and nothing to check.
   const bool off = update_url_.empty();
 
@@ -408,33 +408,41 @@ void App::UpdatesPage(const ImRect& rect) {
       }
       y += Px(36.0f);
 
-      // Checking when the launcher opens: a row between two hairlines, the whole row its item, its switch at the right.
+      // Checking when the launcher opens, and betas: rows between hairlines, each row its item (the controller's A flips
+      // it), its switch at the right the mouse's (launcher 3.22: a click elsewhere on the row changes nothing).
       constexpr Type kLabel{Font::kMedium, 18};
-      ImRect row(ImVec2(x, y), ImVec2(x + width, y + Px(76.0f)));
-      ItemState row_state = Item("##check_on_start", row);
-      FillRect(ImRect(row.Min, ImVec2(row.Max.x, row.Min.y + Snap(Px(1.0f)))), col::kHairline);
-      if (row_state.focused) {
-        FocusRow(ImRect(ImVec2(row.Min.x - Px(12.0f), row.Min.y + Px(4.0f)), ImVec2(row.Max.x + Px(12.0f), row.Max.y - Px(4.0f))),
-                 12.0f);
-      } else {
-        FillRect(ImRect(ImVec2(row.Min.x, row.Max.y - Snap(Px(1.0f))), row.Max), col::kHairline);
-      }
-      if (row_state.pressed) {
-        o.check_updates = !o.check_updates;
-        changed = true;
-      }
-      float block = LineHeight(kLabel) + Px(2.0f) + LineHeight(kSmall);
-      float ty = row.GetCenter().y - block * 0.5f;
-      float text_width = width - Px(52.0f) - Px(16.0f);
-      DrawLabel(kLabel, ImVec2(x, ty), row_state.focused ? col::kText : col::kTextSoft,
-                Ellipsize(kLabel, t_.check_on_start, text_width));
-      DrawLabel(kSmall, ImVec2(x, ty + LineHeight(kLabel) + Px(2.0f)), col::kTextDim,
-                Ellipsize(kSmall, t_.check_on_start_hint, text_width));
-      DrawToggle(ImVec2(row.Max.x - Px(52.0f), row.GetCenter().y - Px(15.0f)), o.check_updates, true, false,
-                 row_state.hovered);
-      y = row.Max.y + Px(20.0f);
+      auto switch_row = [&](const char* id, const char* label, const char* hint, bool& value) {
+        ImRect row(ImVec2(x, y), ImVec2(x + width, y + Px(76.0f)));
+        ItemState row_state = Item(id, row);
+        FillRect(ImRect(row.Min, ImVec2(row.Max.x, row.Min.y + Snap(Px(1.0f)))), col::kHairline);
+        if (row_state.focused) {
+          FocusRow(ImRect(ImVec2(row.Min.x - Px(12.0f), row.Min.y + Px(4.0f)),
+                          ImVec2(row.Max.x + Px(12.0f), row.Max.y - Px(4.0f))),
+                   12.0f);
+        } else {
+          FillRect(ImRect(ImVec2(row.Min.x, row.Max.y - Snap(Px(1.0f))), row.Max), col::kHairline);
+        }
+        const ImVec2 toggle(row.Max.x - Px(52.0f), row.GetCenter().y - Px(15.0f));
+        const ImRect toggle_hit(ImVec2(toggle.x - Px(8.0f), toggle.y - Px(8.0f)),
+                                ImVec2(toggle.x + Px(60.0f), toggle.y + Px(38.0f)));
+        const bool toggle_hovered = row_state.hovered && toggle_hit.Contains(ImGui::GetIO().MousePos);
+        if (row_state.pressed && (PressedByNav() || toggle_hit.Contains(ImGui::GetIO().MouseClickedPos[0]))) {
+          value = !value;
+          changed = true;
+        }
+        float block = LineHeight(kLabel) + Px(2.0f) + LineHeight(kSmall);
+        float ty = row.GetCenter().y - block * 0.5f;
+        float text_width = width - Px(52.0f) - Px(16.0f);
+        DrawLabel(kLabel, ImVec2(x, ty), row_state.focused ? col::kText : col::kTextSoft, Ellipsize(kLabel, label, text_width));
+        DrawLabel(kSmall, ImVec2(x, ty + LineHeight(kLabel) + Px(2.0f)), col::kTextDim, Ellipsize(kSmall, hint, text_width));
+        DrawToggle(toggle, value, true, false, toggle_hovered);
+        y = row.Max.y;
+      };
+      switch_row("##check_on_start", t_.check_on_start, t_.check_on_start_hint, o.check_updates);
+      switch_row("##beta_updates", t_.beta_updates, t_.beta_updates_hint, o.beta_updates);
+      y += Px(20.0f);
       if (Link("##history", ImVec2(x, y), t_.full_history, 15)) {
-        OpenUrl(game::kReleasesPage);
+        AskOpenUrl(game::kReleasesPage);
       }
     }
   }
@@ -448,8 +456,9 @@ void App::UpdatesPage(const ImRect& rect) {
     DrawLabel(kHeading, ImVec2(x, y), col::kText, t_.release_notes_title);
     std::vector<const Release*> shown;
     if (updates_ && updates_->ok) {
+      // A newer beta's notes only for a player who asks for betas; the installed version's own (a beta's too) below.
       for (const Release& release : updates_->releases) {
-        if (running < release.version) shown.push_back(&release);
+        if (running < release.version && (o.beta_updates || !release.prerelease)) shown.push_back(&release);
       }
       if (shown.empty()) {
         if (const Release* installed = updates_->Of(running)) shown.push_back(installed);

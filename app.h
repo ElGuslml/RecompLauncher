@@ -161,6 +161,23 @@ class App {
                      size_t max_chars, std::function<std::string(const std::string&)> accept);
   void TextSheetWindow(ImVec2 size);
   TextSheet text_sheet_;
+  // Launcher 3.22 (Gustavo): a question before what the player may not have meant: a page opening in the browser
+  // (Donate, every version on GitHub) and quitting the launcher (B or Escape on Play, the Quit buttons; not the window's
+  // own close, nor Windows asking). A card over a veil: its title, its line, Cancel (B, Escape) and the action (A, the
+  // focus on it first).
+  struct ConfirmDialog {
+    bool open = false;
+    bool opened = false;
+    std::string title;
+    std::string text;
+    std::string action;
+    std::function<void()> accept;
+  };
+  void AskConfirm(std::string title, std::string text, std::string action, std::function<void()> accept);
+  void AskOpenUrl(const char* url);
+  void AskQuit();
+  void ConfirmWindow(ImVec2 size);
+  ConfirmDialog confirm_;
   uint64_t online_internet_copied_at_ = 0;  // the same for the Internet row
   uint64_t online_copied_at_ = 0;  // Settings > Online: when "Your address" was copied (its line says so for 2 s)
   ImRect page_rect_;        // the page's area this frame (between the header and the footer)
@@ -276,6 +293,17 @@ class App {
   ImGuiID category_focus_ = 0; // the Settings tab's current category button
   int settings_row_[5] = {};   // the row in focus in each Settings category (its help shows)
   ImGuiID settings_row_focus_ = 0;  // the Settings row in focus last (right from a category returns to it)
+  // Launcher 3.22, the rows as an accordion: how open each row is (0 small, 1 the big row; by its ImGuiID), the rows'
+  // rectangles last frame (the mouse's row is found before this frame's layout), whether the mouse is in use (its row
+  // opens after resting on it), and until when the rows are still moving (Busy: frames while nothing else asks).
+  std::map<ImGuiID, float> settings_row_open_;
+  std::vector<ImRect> settings_row_rects_;
+  int settings_rects_category_ = -1;
+  int settings_drawn_frame_ = -1;
+  int settings_hover_candidate_ = -1;
+  double settings_hover_since_ = 0.0;
+  bool settings_mouse_ = false;
+  std::chrono::steady_clock::time_point settings_moving_until_{};
   bool controls_focus_mapping_ = false;  // a device chosen with A: the focus goes to its mapping
   ImGuiID mapping_first_ = 0;  // the Controls tab's first row control (the mapping's)
   std::vector<std::array<ImGuiID, 2>> mapping_rows_;  // its rows' controls, this frame (ColumnNav)
@@ -383,6 +411,9 @@ class App {
   // Updates (updater.h): checked on a thread when the launcher opens (if allowed) and on request.
   void CheckForUpdatesNow();
   void PollUpdates();
+  // The version an update would install: the newest newer than this one, a pre-release only when the player asks for
+  // betas (Options::beta_updates); null without a check.
+  const Release* NewerRelease() const;
   std::string update_url_;     // game::kReleasesApi, or --launcher_update_url for a test; empty: no updates
   std::string updated_from_;   // --launcher_updated_from: this start follows an update from that version
   std::future<UpdateCheck> update_check_;

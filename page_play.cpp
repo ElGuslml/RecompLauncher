@@ -84,7 +84,7 @@ void App::PlayPage(const ImRect& rect) {
     // Quit: an outline, 18 dp right of Play and centred on it.
     ButtonSpec quit{ButtonKind::kGhost, Type{Font::kSemiBold, 16}, 48, 24, 12};
     if (Button("##quit", ImVec2(button.Max.x + Px(18.0f), button.GetCenter().y - Px(24.0f)), quit, t_.quit)) {
-      result_ = Result::kQuit;
+      AskQuit();
     }
   }
 
@@ -123,7 +123,7 @@ void App::PlayPage(const ImRect& rect) {
     parts.push_back({Icon::kSliders, col::kTextDim, screen, Page::kVideo});
   }
   if (!update_url_.empty()) {
-    const Release* newer = updates_ ? updates_->Newer(Version::Parse(kVersion)) : nullptr;
+    const Release* newer = NewerRelease();
     if (newer) {
       std::string number = newer->tag.size() > 1 && (newer->tag[0] == 'v' || newer->tag[0] == 'V') ? newer->tag.substr(1)
                                                                                                     : newer->tag;

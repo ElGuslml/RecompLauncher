@@ -219,6 +219,7 @@ struct Options {
   // display language's (Settings > Game).
   uint32_t launcher_language = 0;
   bool check_updates = true;    // launcher_check_updates
+  bool beta_updates = false;    // launcher_beta_updates: pre-releases offered too (the Updates page, launcher 3.22)
   int64_t last_update_check = 0;  // launcher_last_update_check: when a check last answered (Unix time); 0 = never
   bool ui_fullscreen = true;    // launcher_ui_fullscreen: the launcher's window (fullscreen by default)
   bool ui_maximized = false;    // launcher_ui_maximized

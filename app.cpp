@@ -101,6 +101,7 @@ bool App::Busy() const {
          Animating() ||
          (focus_page_ && !installing_) || controls_focus_mapping_ ||
          std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
+         std::chrono::steady_clock::now() < settings_moving_until_ ||
          profile_games_loading_.valid() ||
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
          dlc_freeing_.valid() || dlc_free_confirm_ || dlc_search_.valid() ||
@@ -121,6 +122,7 @@ std::string App::BusyReasons() const {
   add(focus_page_ && !installing_, "the page's focus");
   add(controls_focus_mapping_, "the controls' focus");
   add(std::chrono::steady_clock::now() < notice_until_, "a notice");
+  add(std::chrono::steady_clock::now() < settings_moving_until_, "the Settings rows moving");
   add(achievements_loading_.valid(), "the achievements' reading");
   add(profile_games_loading_.valid(), "the profile's games");
   add(game_running_, "the game");
@@ -254,6 +256,10 @@ void App::SetLanguage(uint32_t language) {
   if (store_.Current()) {
     LoadProfileGames();
   }
+}
+
+const Release* App::NewerRelease() const {
+  return updates_ ? updates_->Newer(Version::Parse(kVersion), settings_.o.beta_updates) : nullptr;
 }
 
 void App::CheckForUpdatesNow() {
@@ -589,7 +595,7 @@ void App::FrameContents(ImVec2 size) {
         RequestFocus(back_focus_);
         ImGui::SetNavCursorVisible(true);
       } else if (page_ == Page::kPlay) {
-        result_ = Result::kQuit;
+        AskQuit();  // launcher 3.22: asked first
       } else {
         // A game's achievements go back to the games.
         if (page_ == Page::kProfileGame) profile_tab_ = 1;
@@ -618,6 +624,7 @@ void App::FrameContents(ImVec2 size) {
   ProfileDialogs(size);
   InfoPanelWindow(size);
   TextSheetWindow(size);
+  ConfirmWindow(size);
   // Not while a profile dialog waits (its first frame, before its popup takes the input).
   if (profile_dialog_ != ProfileDialog::kNone && result_ == Result::kPlay) {
     result_ = Result::kNone;

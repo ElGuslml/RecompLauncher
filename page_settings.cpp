@@ -69,6 +69,25 @@ constexpr Type kRowValue{Font::kSemiBold, 18};
 constexpr Type kRowValueFocused{Font::kSemiBold, 20};
 constexpr Type kRowDescription{Font::kRegular, 14};
 constexpr Type kGroupTitle{Font::kSemiBold, 14};
+// Launcher 3.22, the rows as an accordion: the mouse's row opens after it rests there this long (crossing the list
+// opens nothing), over this long.
+constexpr double kHoverDelay = 0.08;
+constexpr float kOpenSeconds = 0.2f;
+
+// Cubic, eased in and out: e(1 - t) = 1 - e(t), so a row opening and one closing at once change by the same height.
+float EaseInOut(float t) {
+  return t < 0.5f ? 4.0f * t * t * t : 1.0f - (-2.0f * t + 2.0f) * (-2.0f * t + 2.0f) * (-2.0f * t + 2.0f) * 0.5f;
+}
+
+// What was drawn since `start` (a vertex index of `draw`) made fainter: alpha times `alpha`.
+void FadeVertices(ImDrawList* draw, int start, float alpha) {
+  if (alpha >= 1.0f) return;
+  for (int i = start; i < draw->VtxBuffer.Size; ++i) {
+    ImU32& c = draw->VtxBuffer[i].col;
+    uint32_t a = (c >> IM_COL32_A_SHIFT) & 0xFF;
+    c = (c & ~IM_COL32_A_MASK) | (uint32_t(float(a) * std::max(alpha, 0.0f) + 0.5f) << IM_COL32_A_SHIFT);
+  }
+}
 
 // A chevron of the focused row (the mouse's; the controller steps with left and right).
 bool ArrowButton(const char* id, ImVec2 pos, bool left, bool active = false) {
@@ -1060,7 +1079,43 @@ void App::SettingsPage(const ImRect& rect) {
   // The row the controller's focus is on, or is going to (ColumnNav's RequestFocus, given when that row is drawn), is
   // the big one from the start of this frame: chosen while drawing, a row before it was already drawn small and the
   // one after it too, a frame with no row outlined (a jump, moving up).
+  // Launcher 3.22: with the mouse, the row under it once it rests there kHoverDelay (found in the rows' rectangles of
+  // the last frame: this frame's layout depends on the choice); it stays the big one when the mouse leaves the rows.
+  // A move or an activation of the controller or the keyboard, or a focus asked for, gives the choice back to the focus.
+  const int frame = ImGui::GetFrameCount();
+  const bool fresh = settings_drawn_frame_ != frame - 1 || settings_rects_category_ != category;
+  settings_drawn_frame_ = frame;
+  if (fresh) {
+    settings_row_rects_.clear();
+    settings_hover_candidate_ = -1;
+  }
   {
+    const ImGuiIO& io = ImGui::GetIO();
+    if (io.MouseDelta.x != 0.0f || io.MouseDelta.y != 0.0f) settings_mouse_ = true;
+    if (g.NavMoveSubmitted || g.NavActivateId != 0 || PendingFocus()) settings_mouse_ = false;
+  }
+  if (settings_mouse_) {
+    const ImVec2 mouse = ImGui::GetIO().MousePos;
+    int under = -1;
+    if (ImGui::IsWindowHovered() && list.Contains(mouse)) {
+      for (int i = 0; i < int(settings_row_rects_.size()) && i < int(rows.size()); ++i) {
+        if (settings_row_rects_[size_t(i)].Contains(mouse)) {
+          under = i;
+          break;
+        }
+      }
+    }
+    if (under < 0 || under == selected) {
+      settings_hover_candidate_ = -1;
+    } else if (under != settings_hover_candidate_) {
+      settings_hover_candidate_ = under;
+      settings_hover_since_ = ImGui::GetTime();
+    } else if (ImGui::GetTime() - settings_hover_since_ >= kHoverDelay) {
+      selected = under;
+      settings_hover_candidate_ = -1;
+    }
+  } else {
+    settings_hover_candidate_ = -1;
     const ImGuiID target = PendingFocus() ? PendingFocus()
                            : g.NavWindow == ImGui::GetCurrentWindow() ? g.NavId
                                                                       : 0;
@@ -1074,6 +1129,11 @@ void App::SettingsPage(const ImRect& rect) {
       }
     }
   }
+  const bool motion = MotionEnabled();
+  const float dt = ImGui::GetIO().DeltaTime;
+  bool moving = settings_hover_candidate_ >= 0;
+  settings_row_rects_.assign(rows.size(), ImRect());
+  settings_rects_category_ = category;
   std::vector<std::array<ImGuiID, 2>> row_ids;
   for (int i = 0; i < int(rows.size()); ++i) {
     OptionRow& row = rows[size_t(i)];
@@ -1082,11 +1142,24 @@ void App::SettingsPage(const ImRect& rect) {
       DrawLabel(kGroupTitle, ImVec2(row_left + Px(20.0f), y), col::kTextMuted, row.group);
       y += LineHeight(kGroupTitle) + Px(8.0f);
     }
-    // The current row grows to show its line of help and its arrows: the one in focus, or the last one chosen.
+    // The current row grows to show its line of help and its arrows: the one in focus, the mouse's, or the last one
+    // chosen. Launcher 3.22: it opens (and the one before closes) over kOpenSeconds, eased in and out: the two rows
+    // change by the same height at every moment, so the rows under the mouse stay where they are.
     const bool big = selected == i;
-    if (big) y += Px(kFocusedRowMargin);
-    ImRect r(ImVec2(row_left, y), ImVec2(row_right, y + Px(big ? kFocusedRowHeight : kRowHeight)));
     ImGui::PushID(row.id.c_str());
+    float& open = settings_row_open_.try_emplace(ImGui::GetID("##row"), big ? 1.0f : 0.0f).first->second;
+    if (fresh || !motion) {
+      open = big ? 1.0f : 0.0f;
+    } else if (big) {
+      open = std::min(1.0f, open + dt / kOpenSeconds);
+    } else {
+      open = std::max(0.0f, open - dt / kOpenSeconds);
+    }
+    if (open > 0.0f && open < 1.0f) moving = true;
+    const float e = EaseInOut(open);
+    y += Px(kFocusedRowMargin) * e;
+    ImRect r(ImVec2(row_left, y), ImVec2(row_right, y + Px(kRowHeight + (kFocusedRowHeight - kRowHeight) * e)));
+    settings_row_rects_[size_t(i)] = r;
     // The arrows are drawn over the row: a click on one steps the value at once.
     ImGui::SetNextItemAllowOverlap();
     ItemState state = Item("##row", r);
@@ -1120,32 +1193,41 @@ void App::SettingsPage(const ImRect& rect) {
       if (g.NavMoveDir == ImGuiDir_Left) RequestFocus(category_focus_);
       ImGui::NavMoveRequestCancel();
     }
+    // The mouse (launcher 3.22): a switch flips on a click on it, a value steps with its arrows (their own items, over
+    // the row); a click elsewhere on the row only opens it. A row that opens something (a list, a sheet) opens it
+    // from anywhere, having nothing else to click.
+    const float pad = Px(20.0f);
+    const ImVec2 toggle_pos(r.Max.x - pad - Px(52.0f), r.GetCenter().y - Px(15.0f));
+    const ImRect toggle_hit(ImVec2(toggle_pos.x - Px(8.0f), toggle_pos.y - Px(8.0f)),
+                            ImVec2(toggle_pos.x + Px(60.0f), toggle_pos.y + Px(38.0f)));
     if (state.pressed) {
       if (row.activate) {
         row.activate();
-      } else if (PressedByNav() && !row.is_switch) {
-        if (changeable) SetRowEditing(editing ? 0 : row_id);
-      } else {
+      } else if (PressedByNav()) {
+        if (!row.is_switch) {
+          if (changeable) SetRowEditing(editing ? 0 : row_id);
+        } else {
+          step(1);
+        }
+      } else if (row.is_switch && toggle_hit.Contains(ImGui::GetIO().MouseClickedPos[ImGuiMouseButton_Left])) {
         step(1);
       }
       selected = i;
     }
 
-    // The row: a hairline under it, or the focus's fill and outline when it is the big one.
-    if (big) {
-      if (state.focused) {
-        FocusRow(r, 12.0f);
-      } else {
-        FillRect(r, Fade(col::kFocus, 0.06f), 12.0f);
-      }
-    } else {
-      if (state.hovered) FillRect(r, Fade(col::kFocus, 0.03f), 8.0f);
-      FillRect(ImRect(ImVec2(r.Min.x, r.Max.y - Snap(Px(1.0f))), r.Max), col::kHairline);
+    // The row: a hairline under it, or the focus's fill and outline when it is the big one (both through its opening).
+    if (big && state.focused) {
+      FocusRow(r, 12.0f);
+    } else if (e > 0.0f) {
+      FillRect(r, Fade(col::kFocus, 0.06f * e), 12.0f);
+    }
+    if (e < 1.0f) {
+      if (state.hovered && !big) FillRect(r, Fade(col::kFocus, 0.03f * (1.0f - e)), 8.0f);
+      FillRect(ImRect(ImVec2(r.Min.x, r.Max.y - Snap(Px(1.0f))), r.Max), Fade(col::kHairline, 1.0f - e));
     }
 
     // The value at the right: a switch, or its text (with a lock when it cannot change) and its chip; in the big row
     // between the arrows, its place among the values under it.
-    const float pad = Px(20.0f);
     float value_left = r.Max.x - pad;
     std::string tag = ChipText(row.Tag());
     bool tag_warning = !tag.empty() && !(row.tag_accent.empty() ||
@@ -1153,7 +1235,7 @@ void App::SettingsPage(const ImRect& rect) {
     if (row.is_switch) {
       bool on = row.locked ? row.locked_value == std::string(t_.on) : row.index == 0;
       value_left = r.Max.x - pad - Px(52.0f);
-      DrawToggle(ImVec2(value_left, r.GetCenter().y - Px(15.0f)), on, !row.locked, false, state.hovered);
+      DrawToggle(toggle_pos, on, !row.locked, false, state.hovered && toggle_hit.Contains(ImGui::GetIO().MousePos));
       if (row.locked) {
         DrawIcon(Icon::kLock, ImVec2(value_left - Px(10.0f) - Px(18.0f), r.GetCenter().y - Px(9.0f)), 18.0f,
                  col::kTextDim, 1.8f);
@@ -1163,81 +1245,109 @@ void App::SettingsPage(const ImRect& rect) {
         value_left -= Px(12.0f) + ChipWidth(tag);
         DrawChip(ImVec2(value_left, r.GetCenter().y), tag, tag_warning);
       }
-    } else if (big && changeable) {
-      const Type& type = kRowValueFocused;
-      float max_text = std::max(Px(150.0f), (r.GetWidth() - pad * 2.0f) * 0.45f);
-      float tag_width = tag.empty() ? 0.0f : Px(10.0f) + ChipWidth(tag);
-      std::string shown = Ellipsize(type, row.Value(), max_text - tag_width);
-      float content = MeasureText(type, shown).x + tag_width;
-      float block = std::max(Px(150.0f), content);
-      float right_arrow = r.Max.x - pad - Px(28.0f);
-      float block_right = right_arrow - Px(4.0f);
-      float block_left = block_right - block;
-      float left_arrow = block_left - Px(4.0f) - Px(28.0f);
-      bool dots = count <= 12;
-      float block_height = LineHeight(type) + (dots ? Px(5.0f) + Px(6.0f) : 0.0f);
-      float text_y = r.GetCenter().y - block_height * 0.5f;
-      float text_x = (block_left + block_right - content) * 0.5f;
-      DrawLabel(type, ImVec2(text_x, text_y), col::kText, shown);
-      if (!tag.empty()) {
-        DrawChip(ImVec2(text_x + MeasureText(type, shown).x + Px(10.0f), text_y + LineHeight(type) * 0.5f), tag,
-                 tag_warning);
-      }
-      if (dots) {
-        float dot = Px(6.0f);
-        float gap = Px(5.0f);
-        float dots_width = float(count) * dot + float(count - 1) * gap;
-        float dx = (block_left + block_right - dots_width) * 0.5f;
-        float dy = text_y + LineHeight(type) + Px(5.0f);
-        for (int d = 0; d < count; ++d) {
-          ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(dx + dot * 0.5f, dy + dot * 0.5f), dot * 0.5f,
-                                                      d == row.index ? col::kText : Fade(col::kTextDim, 0.6f), 12);
-          dx += dot + gap;
-        }
-      }
-      if (ArrowButton("##prev", ImVec2(left_arrow, r.GetCenter().y - Px(14.0f)), true, editing)) step(-1);
-      if (ArrowButton("##next", ImVec2(right_arrow, r.GetCenter().y - Px(14.0f)), false, editing)) step(1);
-      value_left = left_arrow;
     } else {
-      const Type& type = big ? kRowValueFocused : kRowValue;
-      float max_text = std::max(Px(150.0f), (r.GetWidth() - pad * 2.0f) * 0.5f);
-      float tag_width = tag.empty() ? 0.0f : Px(10.0f) + ChipWidth(tag);
-      std::string shown = Ellipsize(type, row.Value(), max_text - tag_width);
-      float text_width = MeasureText(type, shown).x;
-      float x = r.Max.x - pad - tag_width - text_width;
-      float text_y = r.GetCenter().y - LineHeight(type) * 0.5f;
-      DrawLabel(type, ImVec2(x, text_y), row.locked ? col::kTextDim : col::kText, shown);
-      if (!tag.empty()) {
-        DrawChip(ImVec2(x + text_width + Px(10.0f), r.GetCenter().y), tag, tag_warning);
+      // Launcher 3.22: a changeable value's two looks (the big row's between its arrows, the small row's at the
+      // right) crossfaded as the row opens or closes; a value that cannot change keeps one look.
+      auto arrows_value = [&]() -> float {
+        const Type& type = kRowValueFocused;
+        float max_text = std::max(Px(150.0f), (r.GetWidth() - pad * 2.0f) * 0.45f);
+        float tag_width = tag.empty() ? 0.0f : Px(10.0f) + ChipWidth(tag);
+        std::string shown = Ellipsize(type, row.Value(), max_text - tag_width);
+        float content = MeasureText(type, shown).x + tag_width;
+        float block = std::max(Px(150.0f), content);
+        float right_arrow = r.Max.x - pad - Px(28.0f);
+        float block_right = right_arrow - Px(4.0f);
+        float block_left = block_right - block;
+        float left_arrow = block_left - Px(4.0f) - Px(28.0f);
+        bool dots = count <= 12;
+        float block_height = LineHeight(type) + (dots ? Px(5.0f) + Px(6.0f) : 0.0f);
+        float text_y = r.GetCenter().y - block_height * 0.5f;
+        float text_x = (block_left + block_right - content) * 0.5f;
+        DrawLabel(type, ImVec2(text_x, text_y), col::kText, shown);
+        if (!tag.empty()) {
+          DrawChip(ImVec2(text_x + MeasureText(type, shown).x + Px(10.0f), text_y + LineHeight(type) * 0.5f), tag,
+                   tag_warning);
+        }
+        if (dots) {
+          float dot = Px(6.0f);
+          float gap = Px(5.0f);
+          float dots_width = float(count) * dot + float(count - 1) * gap;
+          float dx = (block_left + block_right - dots_width) * 0.5f;
+          float dy = text_y + LineHeight(type) + Px(5.0f);
+          for (int d = 0; d < count; ++d) {
+            ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(dx + dot * 0.5f, dy + dot * 0.5f), dot * 0.5f,
+                                                        d == row.index ? col::kText : Fade(col::kTextDim, 0.6f), 12);
+            dx += dot + gap;
+          }
+        }
+        if (ArrowButton("##prev", ImVec2(left_arrow, r.GetCenter().y - Px(14.0f)), true, editing)) step(-1);
+        if (ArrowButton("##next", ImVec2(right_arrow, r.GetCenter().y - Px(14.0f)), false, editing)) step(1);
+        return left_arrow;
+      };
+      auto plain_value = [&](bool large) -> float {
+        const Type& type = large ? kRowValueFocused : kRowValue;
+        float max_text = std::max(Px(150.0f), (r.GetWidth() - pad * 2.0f) * 0.5f);
+        float tag_width = tag.empty() ? 0.0f : Px(10.0f) + ChipWidth(tag);
+        std::string shown = Ellipsize(type, row.Value(), max_text - tag_width);
+        float text_width = MeasureText(type, shown).x;
+        float x = r.Max.x - pad - tag_width - text_width;
+        float text_y = r.GetCenter().y - LineHeight(type) * 0.5f;
+        DrawLabel(type, ImVec2(x, text_y), row.locked ? col::kTextDim : col::kText, shown);
+        if (!tag.empty()) {
+          DrawChip(ImVec2(x + text_width + Px(10.0f), r.GetCenter().y), tag, tag_warning);
+        }
+        if (row.locked) {
+          x -= Px(8.0f) + Px(18.0f);
+          DrawIcon(Icon::kLock, ImVec2(x, r.GetCenter().y - Px(9.0f)), 18.0f, col::kTextDim, 1.8f);
+        } else if (row.icon != Icon::kNone) {
+          x -= Px(10.0f) + Px(18.0f);
+          DrawIcon(row.icon, ImVec2(x, r.GetCenter().y - Px(9.0f)), 18.0f,
+                   row.icon == Icon::kCheck ? col::kAccent : state.hovered || large ? col::kTextSoft : col::kTextMuted,
+                   1.8f);
+        }
+        return x;
+      };
+      ImDrawList* draw = ImGui::GetWindowDrawList();
+      if (changeable && e > 0.0f) {
+        float small_left = r.Max.x;
+        if (e < 1.0f) {
+          const int start = draw->VtxBuffer.Size;
+          small_left = plain_value(false);
+          FadeVertices(draw, start, 1.0f - e);
+        }
+        const int start = draw->VtxBuffer.Size;
+        const float big_left = arrows_value();
+        FadeVertices(draw, start, e);
+        value_left = std::min(small_left, big_left);
+      } else {
+        value_left = plain_value(e >= 0.5f);
       }
-      if (row.locked) {
-        x -= Px(8.0f) + Px(18.0f);
-        DrawIcon(Icon::kLock, ImVec2(x, r.GetCenter().y - Px(9.0f)), 18.0f, col::kTextDim, 1.8f);
-      } else if (row.icon != Icon::kNone) {
-        x -= Px(10.0f) + Px(18.0f);
-        DrawIcon(row.icon, ImVec2(x, r.GetCenter().y - Px(9.0f)), 18.0f,
-                 row.icon == Icon::kCheck ? col::kAccent : state.hovered || big ? col::kTextSoft : col::kTextMuted,
-                 1.8f);
-      }
-      value_left = x;
     }
 
-    // The label at the left; in the big row its line of help under it. Both cut to what the value leaves.
+    // The label at the left; in the big row its line of help under it. Both cut to what the value leaves. Launcher
+    // 3.22: the label moves up as the row opens, and its line of help fades in under it, inside the row.
     float text_left = r.Min.x + pad;
     float text_width = std::max(Px(60.0f), value_left - Px(24.0f) - text_left);
-    if (big) {
-      float height = LineHeight(kRowLabelFocused) + Px(3.0f) + LineHeight(kRowDescription);
-      float ty = r.GetCenter().y - height * 0.5f;
-      DrawLabel(kRowLabelFocused, ImVec2(text_left, ty), row.locked ? col::kTextMuted : col::kText,
-                Ellipsize(kRowLabelFocused, row.title, text_width));
-      DrawLabel(kRowDescription, ImVec2(text_left, ty + LineHeight(kRowLabelFocused) + Px(3.0f)), col::kTextMuted,
-                Ellipsize(kRowDescription, row.Sub(), text_width));
-    } else {
-      DrawLabel(kRowLabel, ImVec2(text_left, r.GetCenter().y - LineHeight(kRowLabel) * 0.5f),
-                row.locked ? col::kTextDim : col::kTextSoft, Ellipsize(kRowLabel, row.title, text_width));
+    const float small_y = r.GetCenter().y - LineHeight(kRowLabel) * 0.5f;
+    const float big_y =
+        r.GetCenter().y - (LineHeight(kRowLabelFocused) + Px(3.0f) + LineHeight(kRowDescription)) * 0.5f;
+    const float label_y = small_y + (big_y - small_y) * e;
+    const bool strong = e >= 0.5f;
+    const Type& label_type = strong ? kRowLabelFocused : kRowLabel;
+    DrawLabel(label_type, ImVec2(text_left, label_y),
+              row.locked ? (strong ? col::kTextMuted : col::kTextDim) : (strong ? col::kText : col::kTextSoft),
+              Ellipsize(label_type, row.title, text_width));
+    if (e > 0.0f) {
+      ImGui::PushClipRect(r.Min, r.Max, true);
+      DrawLabel(kRowDescription, ImVec2(text_left, label_y + LineHeight(kRowLabelFocused) + Px(3.0f)),
+                Fade(col::kTextMuted, e), Ellipsize(kRowDescription, row.Sub(), text_width));
+      ImGui::PopClipRect();
     }
     ImGui::PopID();
-    y = r.Max.y + (big ? Px(kFocusedRowMargin) : 0.0f);
+    y = r.Max.y + Px(kFocusedRowMargin) * e;
+  }
+  if (moving) {
+    settings_moving_until_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
   }
   ImGui::SetCursorScreenPos(origin);
   ImGui::Dummy(ImVec2(row_right - row_left, y - origin.y));

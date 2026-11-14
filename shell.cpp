@@ -89,7 +89,34 @@ void App::NextTab(int step) {
   Navigate(kTabs[i], true);
 }
 
-void App::Donate() { OpenUrl(kDonateUrl); }
+void App::Donate() { AskOpenUrl(kDonateUrl); }
+
+void App::AskConfirm(std::string title, std::string text, std::string action, std::function<void()> accept) {
+  if (confirm_.open) return;
+  confirm_ = ConfirmDialog{};
+  confirm_.open = true;
+  confirm_.title = std::move(title);
+  confirm_.text = std::move(text);
+  confirm_.action = std::move(action);
+  confirm_.accept = std::move(accept);
+}
+
+void App::AskOpenUrl(const char* url) {
+  // The address as a person reads it: without its scheme and its last slash.
+  std::string shown = url;
+  for (const char* scheme : {"https://", "http://"}) {
+    if (shown.rfind(scheme, 0) == 0) shown = shown.substr(std::char_traits<char>::length(scheme));
+  }
+  if (!shown.empty() && shown.back() == '/') shown.pop_back();
+  char text[512];
+  std::snprintf(text, sizeof(text), t_.open_browser_text, shown.c_str());
+  std::string target = url;
+  AskConfirm(t_.open_browser_title, text, t_.open_browser_action, [target] { OpenUrl(target.c_str()); });
+}
+
+void App::AskQuit() {
+  AskConfirm(t_.quit_title, t_.quit_text, t_.quit, [this] { result_ = Result::kQuit; });
+}
 
 bool App::ColumnNav(std::span<const std::array<ImGuiID, 2>> rows) {
   ImGuiContext& g = *GImGui;
@@ -267,7 +294,7 @@ void App::Header(const ImRect& rect) {
                col::kAccent, 3.0f, ImDrawFlags_RoundCornersTop);
     }
     // A new version: a dot on Updates.
-    if (kTabs[i] == Page::kUpdates && updates_ && updates_->Newer(Version::Parse(kVersion))) {
+    if (kTabs[i] == Page::kUpdates && NewerRelease()) {
       float dot = Px(7.0f);
       ImVec2 c(tab.Max.x - Px(10.0f), rect.GetCenter().y - Px(11.0f));
       FillRect(ImRect(ImVec2(c.x - dot * 0.5f, c.y - dot * 0.5f), ImVec2(c.x + dot * 0.5f, c.y + dot * 0.5f)),
@@ -427,6 +454,9 @@ std::vector<App::Hint> App::PageHints() const {
   if (text_sheet_.open) {
     return {{HintKey::kA, t_.save}, {HintKey::kB, t_.cancel}};
   }
+  if (confirm_.open) {
+    return {{HintKey::kA, confirm_.action.c_str()}, {HintKey::kB, t_.cancel}};
+  }
   // A dialog's own (it keeps the footer under its veil).
   if (profile_dialog_ == ProfileDialog::kCreate) {
     if (profile_first_) {
@@ -519,7 +549,7 @@ std::vector<App::Hint> App::PageHints() const {
     }
     case Page::kUpdates: {
       // The main button's own words.
-      const Release* newer = updates_ ? updates_->Newer(Version::Parse(kVersion)) : nullptr;
+      const Release* newer = NewerRelease();
       if (update_url_.empty()) return {{HintKey::kB, t_.hint_back}};
       return {{HintKey::kA, newer ? t_.update_now : updates_ ? t_.check_again : t_.check_updates},
               {HintKey::kB, t_.hint_back}};
@@ -798,6 +828,88 @@ ItemState KeyButton(const char* id, ImVec2 pos, const KeyButtonSpec& spec, std::
     FocusRing(r, spec.radius);
   }
   return state;
+}
+
+void App::ConfirmWindow(ImVec2 size) {
+  if (!confirm_.open) {
+    return;
+  }
+  constexpr const char* kPopup = "##confirm";
+  // The press that asked (B, Escape, A on a button) is still down this frame: the dialog's own keys from the next.
+  const bool first = !confirm_.opened;
+  if (first) {
+    ImGui::OpenPopup(kPopup);
+  }
+  ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImVec2 origin = viewport->Pos;
+  ImGui::SetNextWindowPos(origin);
+  ImGui::SetNextWindowSize(size);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleColor(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 0));
+  if (ImGui::BeginPopupModal(kPopup, nullptr,
+                             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+                                 ImGuiWindowFlags_NoBackground)) {
+    // As the DLC's dialog (launcher 3.18): a flat veil over the header and the page, the footer with the dialog's hints.
+    const float footer_height = Snap(Px(52.0f));
+    ImGui::GetWindowDrawList()->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y - footer_height),
+                                              Hex(0x000000, 158));
+    constexpr Type kTitle{Font::kDisplayMedium, 28, 0.015f};
+    constexpr Type kText{Font::kRegular, 15};
+    constexpr float kWidth = 520.0f;
+    constexpr float kPadding = 28.0f;
+    const float inner_width = Px(kWidth - kPadding * 2.0f);
+    const float title_height = DrawParagraph(kTitle, ImVec2(0, 0), inner_width, 1.15f, 0, confirm_.title, false);
+    const float text_height =
+        confirm_.text.empty() ? 0.0f : DrawParagraph(kText, ImVec2(0, 0), inner_width, 1.5f, 0, confirm_.text, false);
+    KeyButtonSpec cancel_spec{KeyLook::kGhost, 'B', Type{Font::kSemiBold, 16}, 48, 22, 12, 22, 10};
+    KeyButtonSpec action_spec{KeyLook::kPrimary, 'A', Type{Font::kSemiBold, 16}, 48, 22, 12, 22, 10};
+    float height = Px(kPadding) + title_height + (text_height > 0.0f ? Px(12.0f) + text_height : 0.0f) + Px(28.0f) +
+                   Px(48.0f) + Px(kPadding);
+    float width = Px(kWidth);
+    float space = size.y - footer_height;
+    ImRect card(Snap(ImVec2(origin.x + (size.x - width) * 0.5f, origin.y + (space - height) * 0.5f)),
+                Snap(ImVec2(origin.x + (size.x + width) * 0.5f, origin.y + (space + height) * 0.5f)));
+    FillRect(card, col::kCard, 18.0f);
+    StrokeRect(card, col::kHairline, 18.0f);
+    float x = card.Min.x + Px(kPadding);
+    float y = card.Min.y + Px(kPadding);
+    DrawParagraph(kTitle, ImVec2(x, y), inner_width, 1.15f, col::kText, confirm_.title);
+    y += title_height;
+    if (text_height > 0.0f) {
+      y += Px(12.0f);
+      DrawParagraph(kText, ImVec2(x, y), inner_width, 1.5f, col::kTextMuted, confirm_.text);
+      y += text_height;
+    }
+    y += Px(28.0f);
+    float right = card.Max.x - Px(kPadding);
+    float action_width = KeyButtonWidth(action_spec, confirm_.action);
+    float cancel_width = KeyButtonWidth(cancel_spec, t_.cancel);
+    bool cancel = KeyButton("##confirm_cancel", ImVec2(right - action_width - Px(12.0f) - cancel_width, y), cancel_spec,
+                            t_.cancel)
+                      .pressed;
+    if (first) {
+      ImGui::SetKeyboardFocusHere();
+    }
+    bool accept = KeyButton("##confirm_action", ImVec2(right - action_width, y), action_spec, confirm_.action).pressed;
+    // B, Escape, or a click on the veil outside the card: Cancel. (The footer's hints are the dialog's: PageHints.)
+    if (!first && (ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false) ||
+                   (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !card.Contains(ImGui::GetIO().MousePos)))) {
+      cancel = true;
+    }
+    if (first) accept = cancel = false;
+    confirm_.opened = true;
+    if (accept || cancel) {
+      std::function<void()> action = accept ? std::move(confirm_.accept) : nullptr;
+      confirm_ = ConfirmDialog{};
+      ImGui::CloseCurrentPopup();
+      if (action) action();
+    }
+    ImGui::EndPopup();
+  }
+  ImGui::PopStyleColor();
+  ImGui::PopStyleVar(3);
 }
 
 }  // namespace launcher

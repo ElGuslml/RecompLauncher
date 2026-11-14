@@ -648,6 +648,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   o.launcher_language = uint32_t(std::max(GetInt(c, "launcher_language", 0), 0));
   if (TextsLanguage(o.launcher_language) != o.launcher_language) o.launcher_language = 0;
   o.check_updates = GetBool(c, "launcher_check_updates", true);
+  o.beta_updates = GetBool(c, "launcher_beta_updates", false);
   o.last_update_check = std::strtoll(GetString(c, "launcher_last_update_check").c_str(), nullptr, 10);
   o.ui_fullscreen = GetBool(c, "launcher_ui_fullscreen", true);
   o.ui_maximized = GetBool(c, "launcher_ui_maximized", false);
@@ -1245,6 +1246,7 @@ bool SaveOptions(const Settings& s) {
   }
   f << "launcher_language = " << o.launcher_language << "\n";
   f << "launcher_check_updates = " << boolean(o.check_updates) << "\n";
+  f << "launcher_beta_updates = " << boolean(o.beta_updates) << "\n";
   if (o.last_update_check > 0) {
     f << "launcher_last_update_check = " << o.last_update_check << "\n";
   }
