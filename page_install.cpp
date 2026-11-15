@@ -434,12 +434,13 @@ void App::InstallScreen(ImVec2 size) {
       fact(Icon::kInfo, "", t_.delete_iso, col::kTextMuted);
 
       if (KeyButton("##play", ImVec2(x + Px(2.0f), buttons_y), primary, t_.nav_play).pressed) {
-        // Without a profile yet, the launcher first asks for one (page_profile.cpp); then Play.
+        // Without a profile yet, the launcher first asks for one (page_profile.cpp); then Play. The first run ends
+        // either way: left on, this screen stayed in front of "Compiling shaders", whose poll then never ran (the
+        // game started at a later click, even Review settings', and a second Play waited for the first compile).
         if (profiles::Load().Current()) {
           result_ = Result::kPlay;
-        } else {
-          installing_ = false;
         }
+        installing_ = false;
       }
       default_focus();
       KeyButtonSpec review{KeyLook::kGhost, 'X', Type{Font::kSemiBold, 16}, 48, 22, 12, 22, 10};

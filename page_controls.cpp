@@ -8,6 +8,10 @@
 // GUID (PadKey), applied after gamepad_remap's sections for its type (change 36: one layout per type of controller,
 // as launchers before 3.4 kept them, still read). The names, the standard layout and the order sections apply in are
 // the SDK's, repeated here. The keyboard's rows are page_keyboard.cpp's.
+//
+// A controller on Guitar Hero III's layout in a song (game::kHasGh3PadLayout, launcher 3.23) has its own buttons there,
+// apart from the menus': the SDK's gamepad_song_binds (recomp change 113), the frets, the open note, Star Power and the
+// whammy bar, each on up to two inputs ("In a song"); its gamepad_device_remap is then the menus' ("Navigation").
 
 #include <SDL3/SDL_gamepad.h>
 #include <SDL3/SDL_joystick.h>
@@ -217,9 +221,11 @@ constexpr Sint16 kTriggerPressed = 29491;
 
 // --- The whammy bar (game::kHasWhammy): the SDK's gamepad_whammy_calibration (recomp change 60) ---
 
-// What a bar or a tilt can be on, as the SDK names them: SDL_GamepadAxis's order, then the accelerometer's axes.
-constexpr const char* kAxisNames[] = {"lx", "ly", "rx", "ry", "lt", "rt", "ax", "ay", "az"};
+// What a bar or a tilt can be on, as the SDK names them: SDL_GamepadAxis's order, then the accelerometer's axes, then
+// an Xbox One guitar's tilt, its GameInput report's byte (launcher 3.23, the SDK's change 110).
+constexpr const char* kAxisNames[] = {"lx", "ly", "rx", "ry", "lt", "rt", "ax", "ay", "az", "gip"};
 constexpr int kAccelSource = SDL_GAMEPAD_AXIS_COUNT;
+constexpr int kGipTiltSource = kAccelSource + 3;
 // The SDK's gamepad_tilt_calibration: 32767 from a fifth short of the position held, as the game takes only the
 // axis's very end.
 constexpr double kTiltReachedAt = 0.8;
@@ -234,7 +240,10 @@ std::string AxisLabel(int axis) {
 // An axis's span of values: a stick's -32768 to 32767, a trigger's 0 to 32767, an accelerometer's about 2 g, in
 // thousandths of m/s2.
 double AxisSpan(int axis) {
-  return axis >= kAccelSource ? 20000.0 : axis < SDL_GAMEPAD_AXIS_LEFT_TRIGGER ? 65535.0 : 32767.0;
+  return axis == kGipTiltSource ? 255.0
+         : axis >= kAccelSource ? 20000.0
+         : axis < SDL_GAMEPAD_AXIS_LEFT_TRIGGER ? 65535.0
+                                                : 32767.0;
 }
 
 struct WhammyEntry {
@@ -286,6 +295,93 @@ int PrimaryInput(uint64_t sources) {
   return -1;
 }
 
+// --- gamepad_song_binds (recomp change 113), as the SDK reads it ---
+
+// The controls of Guitar Hero III's layout in a song, as the SDK names them, and the sticks pushed as two more inputs.
+constexpr int kSongActions = 8;
+constexpr const char* kSongActionNames[kSongActions] = {"green", "red",    "yellow", "blue",
+                                                        "orange", "open", "star",   "whammy"};
+constexpr int kInputLeftStick = 34;
+constexpr int kInputRightStick = 35;
+constexpr int kSongWhammy = 7;
+// Each control's two chips (an input's token each, "" for none); Guitar Hero III's own, the SDK's defaults.
+using SongTokens = std::array<std::array<std::string, 2>, kSongActions>;
+SongTokens DefaultSongTokens() {
+  return {{{"lt", ""},
+           {"lb", ""},
+           {"rb", ""},
+           {"rt", ""},
+           {"south", ""},
+           {"east", ""},
+           {"back", "dpad"},
+           {"lstick", "rstick"}}};
+}
+// The rows' swatches: the frets' colors (the game's), the open note's purple; none for Star Power and the bar.
+constexpr uint32_t kSongColors[kSongActions] = {0x3FAE5F, 0xD9443A, 0xE8C547, 0x3E82D6, 0xEB8A35, 0x9B6BD6, 0, 0};
+
+// The inputs a token is: a button or a trigger (gamepad_remap's names), the D-pad's four directions, a stick.
+uint64_t TokenBits(std::string_view token) {
+  if (token.empty()) return 0;
+  if (token == "dpad") {
+    return Bit(SDL_GAMEPAD_BUTTON_DPAD_UP) | Bit(SDL_GAMEPAD_BUTTON_DPAD_DOWN) | Bit(SDL_GAMEPAD_BUTTON_DPAD_LEFT) |
+           Bit(SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+  }
+  if (token == "lstick") return Bit(kInputLeftStick);
+  if (token == "rstick") return Bit(kInputRightStick);
+  for (const InputName& n : kInputNames) {
+    if (EqualsCI(token, n.name)) return Bit(n.input);
+  }
+  return 0;
+}
+
+// gamepad_song_binds' section of the controller `key` over Guitar Hero III's own: each control's first two inputs.
+SongTokens SongTokensOf(std::string_view text, std::string_view key) {
+  SongTokens tokens = DefaultSongTokens();
+  ForEachPiece(text, ';', [&](std::string_view section) {
+    if (!IsSectionOf(section, key)) return;
+    ForEachPiece(section.substr(section.rfind(':') + 1), ',', [&](std::string_view entry) {
+      size_t equals = entry.find('=');
+      if (equals == std::string_view::npos) return;
+      std::string_view action = Trim(entry.substr(0, equals));
+      for (int a = 0; a < kSongActions; ++a) {
+        if (!EqualsCI(action, kSongActionNames[a])) continue;
+        std::array<std::string, 2> chips;
+        size_t n = 0;
+        ForEachPiece(entry.substr(equals + 1), '|', [&](std::string_view input) {
+          if (!input.empty() && n < 2 && TokenBits(input)) chips[n++] = std::string(input);
+        });
+        tokens[size_t(a)] = chips;
+      }
+    });
+  });
+  return tokens;
+}
+
+// gamepad_song_binds with the controller `key`'s section replaced by one holding what `tokens` changes from Guitar
+// Hero III's own; none when nothing does.
+std::string WithSongTokens(std::string_view text, std::string_view key, const SongTokens& tokens) {
+  const SongTokens defaults = DefaultSongTokens();
+  std::string entries;
+  for (int a = 0; a < kSongActions; ++a) {
+    const auto& chips = tokens[size_t(a)];
+    if (chips == defaults[size_t(a)]) continue;
+    std::string inputs;
+    for (const std::string& chip : chips) {
+      if (!chip.empty()) inputs += (inputs.empty() ? "" : "|") + chip;
+    }
+    entries += (entries.empty() ? "" : ",") + std::string(kSongActionNames[a]) + "=" + inputs;
+  }
+  std::string out;
+  ForEachPiece(text, ';', [&](std::string_view section) {
+    if (section.empty() || IsSectionOf(section, key)) return;
+    out += (out.empty() ? "" : ";") + std::string(section);
+  });
+  if (!entries.empty()) {
+    out += (out.empty() ? "" : ";") + std::string(key) + ":" + entries;
+  }
+  return out;
+}
+
 // --- The controllers ---
 
 struct Pad {
@@ -298,7 +394,7 @@ struct Pad {
 std::vector<Pad> ConnectedPads() {
   std::vector<Pad> pads;
   int count = 0;
-  SDL_JoystickID* ids = SDL_GetGamepads(&count);
+  SDL_JoystickID* ids = Gamepads(&count);
   for (int i = 0; i < count; ++i) {
     Pad pad;
     pad.id = ids[i];
@@ -429,6 +525,17 @@ Label LabelOf(int input, SDL_GamepadType type) {
       }
       return {"—", Icon::kNone, col::kTextDim};  // no button: the control is off
   }
+}
+
+// A chip of the song's rows: an input as LabelOf names it, the D-pad's four directions as the D-pad, a stick by name.
+Label SongLabelOf(std::string_view token, SDL_GamepadType type, const Texts& t) {
+  if (token == "dpad") return {t.pad_buttons[12]};
+  if (token == "lstick") return {t.song_left_stick};
+  if (token == "rstick") return {t.song_right_stick};
+  for (const InputName& n : kInputNames) {
+    if (EqualsCI(token, n.name)) return LabelOf(n.input, type);
+  }
+  return {"—", Icon::kNone, col::kTextDim};
 }
 
 // The rows without the game's functions: the original buttons, the D-pad (not remappable) before Guide.
@@ -602,14 +709,20 @@ bool App::OnPadCapture(const SDL_Event& event) {
         return false;
     }
   }
-  if (pad_listen_ < 0) {
+  if (pad_listen_ < 0 && song_listen_ < 0) {
     return false;
   }
   switch (event.type) {
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
       // Only the controller being edited.
       if (event.gbutton.which == pad_listen_id_) {
-        AssignPad(event.gbutton.button);
+        if (song_listen_ >= 0) {
+          auto n = std::find_if(std::begin(kInputNames), std::end(kInputNames),
+                                [&](const InputName& i) { return i.input == event.gbutton.button; });
+          if (n != std::end(kInputNames)) AssignSong(n->name);
+        } else {
+          AssignPad(event.gbutton.button);
+        }
       }
       return true;
     case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
@@ -621,7 +734,19 @@ bool App::OnPadCapture(const SDL_Event& event) {
                                                                          : -1;
       if (trigger >= 0 && event.gaxis.which == pad_listen_id_ && pad_trigger_free_[size_t(trigger)] &&
           event.gaxis.value > kTriggerPressed) {
-        AssignPad(trigger == 0 ? kInputLeftTrigger : kInputRightTrigger);
+        if (song_listen_ >= 0) {
+          AssignSong(trigger == 0 ? "lt" : "rt");
+        } else {
+          AssignPad(trigger == 0 ? kInputLeftTrigger : kInputRightTrigger);
+        }
+      }
+      // A stick, for a control in a song: at rest as the wait began, then pushed most of the way.
+      int stick = event.gaxis.axis == SDL_GAMEPAD_AXIS_LEFTX || event.gaxis.axis == SDL_GAMEPAD_AXIS_LEFTY     ? 0
+                  : event.gaxis.axis == SDL_GAMEPAD_AXIS_RIGHTX || event.gaxis.axis == SDL_GAMEPAD_AXIS_RIGHTY ? 1
+                                                                                                                : -1;
+      if (song_listen_ >= 0 && stick >= 0 && event.gaxis.which == pad_listen_id_ &&
+          song_stick_free_[size_t(stick)] && std::abs(int(event.gaxis.value)) > kTriggerPressed) {
+        AssignSong(stick == 0 ? "lstick" : "rstick");
       }
       return true;
     }
@@ -673,6 +798,100 @@ void App::AssignPad(int input) {
   pad_release_wait_ = true;
 }
 
+// The input given to the control of the song being assigned. It leaves any other chip it was on, so that one input
+// never plays two controls (the D-pad's chip goes when one of its directions is taken).
+void App::AssignSong(const std::string& token) {
+  const std::string key = PadKey(pad_listen_id_);
+  SongTokens tokens = SongTokensOf(settings_.o.song_binds, key);
+  const int action = song_listen_;
+  const int slot = song_listen_slot_;
+  if (tokens[size_t(action)][size_t(slot)] != token) {
+    const uint64_t bits = TokenBits(token);
+    for (int a = 0; a < kSongActions; ++a) {
+      for (int c = 0; c < 2; ++c) {
+        if ((a != action || c != slot) && (TokenBits(tokens[size_t(a)][size_t(c)]) & bits)) {
+          tokens[size_t(a)][size_t(c)].clear();
+        }
+      }
+    }
+    tokens[size_t(action)][size_t(slot)] = token;
+    settings_.o.song_binds = WithSongTokens(settings_.o.song_binds, key, tokens);
+    Changed();
+  }
+  StopListening();
+  pad_release_wait_ = true;
+}
+
+float App::SongRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadType type) {
+  const std::string key = PadKey(id);
+  SongTokens tokens = SongTokensOf(settings_.o.song_binds, key);
+  float y = origin.y;
+  constexpr float kSlot = 128.0f;
+  for (int a = 0; a < kSongActions; ++a) {
+    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kMappingRow)));
+    ImRect slots[2];
+    slots[1] = MappingChipRect(r, kSlot);
+    slots[0] = MappingChipRect(r, kSlot, 16.0f + kSlot + 8.0f);
+    // The row shows the focus when either of its chips has it.
+    bool focused = false;
+    for (int slot = 0; slot < 2; ++slot) {
+      ImGui::PushID(1000 + a * 2 + slot);
+      focused = focused || RowFocused(ImGui::GetID("##song"));
+      ImGui::PopID();
+    }
+    MappingRow(r, kSongColors[a] ? Hex(kSongColors[a]) : 0, t_.song_actions[a], slots[0].Min.x - Px(16.0f),
+               song_listen_ == a, focused);
+    std::array<ImGuiID, 2> chips{};
+    for (int slot = 0; slot < 2; ++slot) {
+      const std::string& token = tokens[size_t(a)][size_t(slot)];
+      const bool listening = song_listen_ == a && song_listen_slot_ == slot;
+      ChipLook look;
+      if (listening) {
+        look.text = t_.press_button;
+        look.listening = true;
+      } else if (token.empty()) {
+        look.text = t_.unbound;
+        look.empty = true;
+      } else {
+        Label label = SongLabelOf(token, type, t_);
+        look.text = label.text;
+        look.icon = label.icon;
+        look.icon_color = label.color;
+      }
+      ImGui::PushID(1000 + a * 2 + slot);
+      ItemState state = MappingChip("##song", slots[slot], look);
+      ImGui::PopID();
+      chips[size_t(slot)] = ImGui::GetItemID();
+      if (!mapping_first_) mapping_first_ = chips[size_t(slot)];
+      if (state.pressed) {
+        const bool again = listening;
+        StopListening();
+        if (!again) {
+          song_listen_ = a;
+          song_listen_slot_ = slot;
+          pad_listen_id_ = id;
+          SDL_Gamepad* gamepad = SDL_GetGamepadFromID(id);
+          auto axis = [gamepad](SDL_GamepadAxis which) { return gamepad ? int(SDL_GetGamepadAxis(gamepad, which)) : 0; };
+          pad_trigger_free_ = {axis(SDL_GAMEPAD_AXIS_LEFT_TRIGGER) < kTriggerFree,
+                               axis(SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) < kTriggerFree};
+          song_stick_free_ = {std::abs(axis(SDL_GAMEPAD_AXIS_LEFTX)) < kTriggerFree * 2 &&
+                                  std::abs(axis(SDL_GAMEPAD_AXIS_LEFTY)) < kTriggerFree * 2,
+                              std::abs(axis(SDL_GAMEPAD_AXIS_RIGHTX)) < kTriggerFree * 2 &&
+                                  std::abs(axis(SDL_GAMEPAD_AXIS_RIGHTY)) < kTriggerFree * 2};
+        }
+      } else if (!listening && !token.empty() && !pad_release_wait_ && ClearPressed(state)) {
+        // Cleared: nothing on this chip.
+        tokens[size_t(a)][size_t(slot)].clear();
+        settings_.o.song_binds = WithSongTokens(settings_.o.song_binds, key, tokens);
+        Changed();
+      }
+    }
+    mapping_rows_.push_back(chips);
+    y += Px(kMappingRow);
+  }
+  return y - origin.y;
+}
+
 float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadType type, SDL_JoystickType kind,
                    bool with_part) {
   std::string type_key = TypeKey(type);
@@ -684,6 +903,10 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
   const bool real_kit = kind == SDL_JOYSTICK_TYPE_DRUM_KIT;
   const bool drums = real_kit || PlaysDrums(key);
   const bool four = FourLanes(settings_.o.device_subtypes, key);
+  // A controller playing guitar (not singing: PartRow below returns first then), on Guitar Hero III's layout while
+  // its switch is on (game::kHasGh3PadLayout).
+  const bool pad_guitar = kind != SDL_JOYSTICK_TYPE_GUITAR && !drums;
+  const bool gh3 = game::kHasGh3PadLayout && pad_guitar && settings_.o.gh3_pad;
   // A real guitar's own list where the game's controllers play on another layout (game::kGuitarControlsApart).
   auto instrument = [&]() -> const std::vector<game::GameControlGroup>& {
     if constexpr (game::kGuitarControlsApart) {
@@ -693,7 +916,9 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
   };
   const std::vector<game::GameControlGroup>& functions =
       drums && game::kHasDrums ? game::GameDrumControlsFor(language_, four) : instrument();
-  bool with_functions = !functions.empty() && (!real_kit || game::kHasDrums);
+  // On Guitar Hero III's layout the song's controls are rows of their own (SongRows), and these the menus' Xbox 360
+  // controls.
+  bool with_functions = !functions.empty() && (!real_kit || game::kHasDrums) && !gh3;
   struct Row {
     int control;                         // -1: one the controllers cannot move
     const game::GameControl* function;   // null: the Xbox 360 control of kRowControl[xbox_row]
@@ -721,10 +946,21 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
   if (game::kHasDrums && drums) {
     y += KitRow(ImVec2(origin.x, y), width, key, real_kit);
   }
+  // Guitar Hero III's controller layout in a song (game::kHasGh3PadLayout, the SDK's gamepad_guitar_layout): one
+  // switch for every controller playing guitar.
+  if (game::kHasGh3PadLayout && pad_guitar) {
+    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kMappingRow)));
+    if (SwitchRow("##gh3_layout", r, t_.gh3_layout_title, &settings_.o.gh3_pad)) {
+      Changed();
+    }
+    if (!mapping_first_) mapping_first_ = ImGui::GetItemID();
+    mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
+    y += Px(kMappingRow);
+  }
   // Its frets strum as they are pressed (game.h's kKeyboardTapTarget, the SDK's gamepad_tap_target): one switch for
-  // every controller playing guitar, as the keyboard's on its page.
+  // every controller playing guitar, as the keyboard's on its page; on Guitar Hero III's layout there is no strum.
   const game::GameTexts& own = game::GameTextsFor(language_);
-  if (*game::kKeyboardTapTarget && own.keyboard_tap_title && kind != SDL_JOYSTICK_TYPE_GUITAR && !drums) {
+  if (*game::kKeyboardTapTarget && own.keyboard_tap_title && pad_guitar && !gh3) {
     ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kMappingRow)));
     if (SwitchRow("##gamepad_tap", r, own.keyboard_tap_title, &settings_.o.gamepad_tap)) {
       Changed();
@@ -733,10 +969,24 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
     mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
     y += Px(kMappingRow);
   }
-  // The whammy bar and the tilt: a guitar's, or those of a controller playing guitar (a drum kit has neither).
-  if (game::kHasWhammy && !drums) {
+  // The whammy bar and the tilt: a guitar's, or those of a controller playing guitar (a drum kit has neither). On
+  // Guitar Hero III's layout the bar is a song's control (SongRows) and there is no tilt (a calibration would make the
+  // SDK take the controller for a guitar).
+  if (game::kHasWhammy && !drums && !gh3) {
     y += AxisRow(ImVec2(origin.x, y), width, id, kind, false);
     y += AxisRow(ImVec2(origin.x, y), width, id, kind, true);
+  }
+  // Guitar Hero III's layout: a song's buttons, then the menus' (a group's title as the keyboard's page has them).
+  constexpr Type kGroup{Font::kSemiBold, 14};
+  auto group = [&](const char* title) {
+    y += Px(16.0f);
+    DrawLabel(kGroup, ImVec2(origin.x + Px(16.0f), y), col::kTextMuted, title);
+    y += LineHeight(kGroup) + Px(6.0f);
+  };
+  if (gh3) {
+    group(t_.song_section);
+    y += SongRows(ImVec2(origin.x, y), width, id, type);
+    group(t_.nav_section);
   }
   for (int i = 0; i < int(rows.size()); ++i) {
     const Row& row = rows[size_t(i)];
@@ -786,7 +1036,7 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
         pad_trigger_free_ = {gamepad && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) < kTriggerFree,
                              gamepad && SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) < kTriggerFree};
       }
-    } else if (row.control >= 0 && !listening && input >= 0 && ClearPressed(state)) {
+    } else if (row.control >= 0 && !listening && input >= 0 && !pad_release_wait_ && ClearPressed(state)) {
       // Cleared: no button presses it.
       sources[size_t(row.control)] = 0;
       settings_.o.device_remap =
@@ -807,6 +1057,7 @@ float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickTy
   const char* what = tilt ? "tilt" : "whammy bar";
   SDL_Gamepad* gamepad = SDL_GetGamepadFromID(id);
   std::array<int, WhammyCalibration::kSources> axes{};
+  static_assert(std::size(kAxisNames) == WhammyCalibration::kSources, "a name for each source");
   for (int a = 0; a < kAccelSource; ++a) {
     axes[size_t(a)] = gamepad ? SDL_GetGamepadAxis(gamepad, SDL_GamepadAxis(a)) : 0;
   }
@@ -817,6 +1068,12 @@ float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickTy
     if (SDL_GetGamepadSensorData(gamepad, SDL_SENSOR_ACCEL, accel, 3)) {
       for (int a = 0; a < 3; ++a) axes[size_t(kAccelSource + a)] = int(std::lround(accel[a] * 1000.0f));
     }
+  }
+  // An Xbox One guitar's tilt is its GameInput report's byte (SDL gives it only as the right shoulder, and its pickup
+  // selector as the right stick's Y).
+  const bool xbox_one_guitar = tilt && IsXboxOneGuitar(id);
+  if (xbox_one_guitar) {
+    axes[size_t(kGipTiltSource)] = std::max(0, XboxOneGuitarTilt(id));
   }
 
   // The assignment: pushed all the way or tilted and held, then let go. Where each source has stayed, and since when.
@@ -832,7 +1089,9 @@ float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickTy
     const double reach = tilt ? 0.15 : 0.4;
     for (size_t a = 0; a < axes.size() && gamepad; ++a) {
       // An accelerometer's noise grows with its scale (a PS3 guitar's reads in steps of over 20 m/s2 through SDL).
-      const int still = a < size_t(kAccelSource) ? 1024 : std::max(600, std::abs(axes[a] - cal.start[a]) / 10);
+      const int still = a == size_t(kGipTiltSource) ? 4
+                        : a < size_t(kAccelSource)  ? 1024
+                                                    : std::max(600, std::abs(axes[a] - cal.start[a]) / 10);
       if (std::abs(axes[a] - cal.still[a]) > still) {
         cal.still[a] = axes[a];
         cal.still_since[a] = now;
@@ -841,7 +1100,7 @@ float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickTy
     if (cal.step == WhammyCalibration::kHold) {
       // All the way: a source far enough from where it began, still for 0.8 s. The axis the game reads first, then the
       // others, then the accelerometer: a guitar's other axes may move with it.
-      const size_t usual = tilt ? SDL_GAMEPAD_AXIS_RIGHTY : SDL_GAMEPAD_AXIS_RIGHTX;
+      const size_t usual = xbox_one_guitar ? size_t(kGipTiltSource) : tilt ? SDL_GAMEPAD_AXIS_RIGHTY : SDL_GAMEPAD_AXIS_RIGHTX;
       double best = 0.0;
       for (size_t a = 0; a < axes.size(); ++a) {
         double moved = std::abs(cal.still[a] - cal.start[a]) / AxisSpan(int(a));
@@ -889,6 +1148,9 @@ float App::AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickTy
   const bool assigned = entry.axis >= 0;
   if (!assigned && !tilt && IsPs3Guitar(id)) {
     entry = {SDL_GAMEPAD_AXIS_RIGHTX, kPs3GuitarWhammyRest, kPs3GuitarWhammyFull};
+  }
+  if (!assigned && xbox_one_guitar) {
+    entry = {kGipTiltSource, kXboxOneGuitarTiltRest, kXboxOneGuitarTiltFull};
   }
   double position = 0.0;
   if (entry.axis >= 0) {
@@ -973,7 +1235,7 @@ void App::ControlsPage(const ImRect& rect) {
   const Pad* pad = microphone || keyboard_selected_ || pads.empty() ? nullptr : &*chosen;
   SDL_GamepadType type = pad ? pad->type : SDL_GAMEPAD_TYPE_UNKNOWN;
   if (type != pad_type_) {
-    if (pad_listen_ >= 0) StopListening();
+    if (pad_listen_ >= 0 || song_listen_ >= 0) StopListening();
     pad_type_ = type;
   }
   auto name_of = [&](const Pad& p) { return p.name.empty() ? std::string(TypeName(p.type, t_)) : p.name; };
@@ -1012,11 +1274,16 @@ void App::ControlsPage(const ImRect& rect) {
     const float width = Px(320.0f);
     const float height = Px(64.0f);
     float y = page_top + Px(126.0f);
-    int entries = int(pads.size()) + 1 + (game::kHasMicrophones ? 1 : 0);
+    // Last, while Microsoft GameInput is missing: Xbox One guitars, which need it (pressed: its installer).
+    const GameInputState gameinput = GameInputStatus();
+    const bool gameinput_row = (gameinput == GameInputState::kMissing && GameInputInstallerFound()) ||
+                               gameinput == GameInputState::kInstalling;
+    int entries = int(pads.size()) + 1 + (game::kHasMicrophones ? 1 : 0) + (gameinput_row ? 1 : 0);
     for (int i = 0; i < entries; ++i) {
+      bool gi = gameinput_row && i == entries - 1;
       bool keyboard = i == int(pads.size());
-      bool mic = i == int(pads.size()) + 1;
-      const Pad* p = keyboard || mic ? nullptr : &pads[size_t(i)];
+      bool mic = !gi && i == int(pads.size()) + 1;
+      const Pad* p = keyboard || mic || gi ? nullptr : &pads[size_t(i)];
       if (keyboard && pads.empty()) {
         // No controller: a dashed place for one above the keyboard.
         ImRect place(ImVec2(left, y), ImVec2(left + width, y + height));
@@ -1026,16 +1293,20 @@ void App::ControlsPage(const ImRect& rect) {
         y += height + Px(6.0f);
       }
       ImRect r(ImVec2(left, y), ImVec2(left + width, y + height));
-      ImGui::PushID(mic ? -2 : keyboard ? -1 : int(p->id));
+      ImGui::PushID(gi ? -3 : mic ? -2 : keyboard ? -1 : int(p->id));
       ItemState state = Item("##device", r);
       ImGuiID id = ImGui::GetItemID();
       ImGui::PopID();
       device_ids.push_back(id);
-      bool on = mic ? microphone : keyboard ? !pad && !microphone : pad == p;
+      bool on = gi ? false : mic ? microphone : keyboard ? !pad && !microphone : pad == p;
       if (on) {
         device_focus = id;
       }
-      if (state.pressed) {
+      if (gi && state.pressed) {
+        if (gameinput != GameInputState::kInstalling) {
+          AskConfirm(t_.gameinput_title, t_.gameinput_text, t_.gameinput_action, [] { InstallGameInput(); });
+        }
+      } else if (state.pressed) {
         if (!on) {
           StopListening();
           microphone_selected_ = mic;
@@ -1054,15 +1325,24 @@ void App::ControlsPage(const ImRect& rect) {
         ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(r.Min.x + Px(10.0f) + dot * 0.5f, r.GetCenter().y), dot * 0.5f,
                                                     col::kAccent, 16);
       }
-      DeviceLook device = mic ? kMicrophoneLook : LookOf(p ? p->kind : SDL_JOYSTICK_TYPE_GAMEPAD, keyboard);
+      DeviceLook device = mic ? kMicrophoneLook
+                          : LookOf(gi ? SDL_JOYSTICK_TYPE_GUITAR : p ? p->kind : SDL_JOYSTICK_TYPE_GAMEPAD, keyboard);
       DrawIcon(device.icon, ImVec2(r.Min.x + Px(30.0f), r.GetCenter().y - Px(13.0f)), 26.0f, col::kTextMuted, 1.75f);
       // The name, and under it a dot and the status: connected (green) with its kind, or the keyboard on or off.
       float text_x = r.Min.x + Px(30.0f) + Px(26.0f) + Px(14.0f);
       float text_width = r.Max.x - Px(14.0f) - text_x;
-      std::string name = keyboard ? std::string(t_.device_keyboard) : mic ? std::string(t_.device_microphone) : name_of(*p);
+      std::string name = gi         ? std::string(t_.gameinput_row)
+                         : keyboard ? std::string(t_.device_keyboard)
+                         : mic      ? std::string(t_.device_microphone)
+                                    : name_of(*p);
       std::string status;
       ImU32 dot = col::kSuccess;
-      if (mic) {
+      if (gi) {
+        status = gameinput == GameInputState::kInstalling ? t_.gameinput_installing
+                 : GameInputInstallFailed()               ? t_.gameinput_failed
+                                                          : t_.gameinput_missing;
+        dot = gameinput == GameInputState::kInstalling ? col::kTextDim : col::kError;
+      } else if (mic) {
         status = MicStatus(&dot);
       } else if (keyboard) {
         status = settings_.o.mnk ? t_.keyboard_status_on : t_.keyboard_status_off;
@@ -1073,11 +1353,12 @@ void App::ControlsPage(const ImRect& rect) {
         if (type_name != t_.controller) status += std::string(" \xC2\xB7 ") + type_name;
       }
       // The singer's controller says so, and a controller playing drums (its part: page_microphone.cpp).
-      if (game::kHasMicrophones && !mic && (keyboard ? settings_.o.mnk && Sings(kKeyboardKey)
-                                                     : p->kind == SDL_JOYSTICK_TYPE_GAMEPAD && Sings(PadKey(p->id)))) {
+      if (!gi && game::kHasMicrophones && !mic &&
+          (keyboard ? settings_.o.mnk && Sings(kKeyboardKey)
+                    : p->kind == SDL_JOYSTICK_TYPE_GAMEPAD && Sings(PadKey(p->id)))) {
         const game::GameTexts& own = game::GameTextsFor(language_);
         status += std::string(" \xC2\xB7 ") + (own.part_vocals ? own.part_vocals : t_.part_vocals);
-      } else if (game::kHasDrums && !mic &&
+      } else if (!gi && game::kHasDrums && !mic &&
                  (keyboard ? settings_.o.mnk && PlaysDrums(kKeyboardKey)
                            : p->kind == SDL_JOYSTICK_TYPE_GAMEPAD && PlaysDrums(PadKey(p->id)))) {
         status += std::string(" \xC2\xB7 ") + t_.part_drums;
@@ -1199,7 +1480,8 @@ void App::ControlsPage(const ImRect& rect) {
 
   // The tips (Y): the device's kind, what to do, its tips, as the help column showed them before launcher 3.18.
   const bool popup = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
-  if (!popup && !Listening() && ButtonPressed(PadButton::kY)) {
+  // Not the Y just assigned, still held (ImGui reads the controller's buttons as state).
+  if (!popup && !Listening() && !pad_release_wait_ && ButtonPressed(PadButton::kY)) {
     SDL_JoystickType kind = pad ? pad->kind : SDL_JOYSTICK_TYPE_GAMEPAD;
     bool guitar = kind == SDL_JOYSTICK_TYPE_GUITAR;
     bool drums = kind == SDL_JOYSTICK_TYPE_DRUM_KIT || (pad && PlaysDrums(PadKey(pad->id)));
@@ -1222,8 +1504,10 @@ void App::ControlsPage(const ImRect& rect) {
         tips.push_back(t_.help_tip_part);
       }
       if (game::kHasDrums && drums) tips.push_back(t_.help_tip_drum_kit);
-      if (*game::kKeyboardTapTarget && !guitar && !drums) tips.push_back(t_.help_tip_gamepad_tap);
-      if (game::kHasWhammy && !drums) {
+      const bool gh3 = game::kHasGh3PadLayout && !guitar && !drums && settings_.o.gh3_pad;
+      if (game::kHasGh3PadLayout && !guitar && !drums) tips.push_back(t_.help_tip_gh3_layout);
+      if (*game::kKeyboardTapTarget && !guitar && !drums && !gh3) tips.push_back(t_.help_tip_gamepad_tap);
+      if (game::kHasWhammy && !drums && !gh3) {
         tips.push_back(t_.help_tip_whammy);
         tips.push_back(t_.help_tip_tilt);
       }
@@ -1267,6 +1551,9 @@ void App::ControlsPage(const ImRect& rect) {
       settings_.o.device_remap =
           WithDeviceLayout(settings_.o.device_remap, PadKey(pad->id), SourcesFor(settings_.o.gamepad_remap, type_key, false),
                            SourcesFor(settings_.o.gamepad_remap, type_key, true));
+      if (game::kHasGh3PadLayout) {
+        settings_.o.song_binds = WithSongTokens(settings_.o.song_binds, PadKey(pad->id), DefaultSongTokens());
+      }
     } else if (KeyboardDrums(settings_.o)) {
       ResetDrumKeys(settings_.o, KeyboardFourLanes(settings_.o));
     } else {

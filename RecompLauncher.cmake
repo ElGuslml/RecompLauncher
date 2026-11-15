@@ -79,6 +79,15 @@ function(recomp_launcher_add target)
       "${ARG_SDK_DIR}/thirdparty/inja/third_party/include" "${ARG_SDK_DIR}/thirdparty/stb")
   target_link_libraries(${target} PRIVATE imgui SDL3::SDL3 d3d11 dxgi d3dcompiler shcore windowscodecs ole32 winhttp
       bcrypt shell32 secur32 iphlpapi ws2_32)
+  # Xbox One guitars' tilt through GameInput, as the SDK's SDL driver reads it (an SDK with its GameInput header and
+  # reader, the ghmetal line's change 110; without them the Controls page reads those guitars as SDL gives them).
+  set(gameinput_reader "${ARG_SDK_DIR}/src/input/sdl/gameinput_instruments.cpp")
+  if(EXISTS "${gameinput_reader}" AND EXISTS "${ARG_SDK_DIR}/thirdparty/gameinput/include/GameInput.h")
+    target_sources(${target} PRIVATE "${gameinput_reader}")
+    target_include_directories(${target} PRIVATE "${ARG_SDK_DIR}/src/input/sdl"
+        "${ARG_SDK_DIR}/thirdparty/gameinput/include")
+    target_compile_definitions(${target} PRIVATE LAUNCHER_HAS_GAMEINPUT=1)
+  endif()
 
   # The resource compiler gets the same include directories, where it also looks for the files a resource names: the
   # script finds "fonts/..." here and "art/..." in the game's folder. A change to any of them rebuilds the resources.

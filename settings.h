@@ -184,6 +184,9 @@ struct Options {
   bool keyboard_tap = false;
   // The same for every controller playing guitar (game::kKeyboardTapTarget: the SDK's gamepad_tap_target).
   bool gamepad_tap = false;
+  // Every controller playing guitar plays a song on Guitar Hero III's controller layout (game::kHasGh3PadLayout: the
+  // SDK's gamepad_guitar_layout, "gh3"; off: "guitar").
+  bool gh3_pad = true;
   float mnk_sensitivity = 1.0f;
   std::array<std::string, int(Bind::kCount)> binds;
   // The keyboard's keys while it plays drums (game::kHasDrums, launcher 3.19.1), the same controls kept apart so that the
@@ -197,6 +200,10 @@ struct Options {
   // (page_controls.cpp).
   std::string gamepad_remap;
   std::string device_remap;
+  // Each controller's own buttons in a song on Guitar Hero III's layout (game::kHasGh3PadLayout), apart from the
+  // menus' above: the SDK's gamepad_song_binds (recomp change 113), "controller:action=input|input,..." sections joined
+  // by ';', a controller by its serial number or GUID; an action left out keeps Guitar Hero III's.
+  std::string song_binds;
   // The whammy bars calibrated on the Controls tab (game::kHasWhammy): the SDK's gamepad_whammy_calibration (change
   // 60), "controller=axis:rest:full" comma-separated, a controller by its serial number or GUID.
   std::string whammy_calibration;

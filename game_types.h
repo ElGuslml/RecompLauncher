@@ -157,6 +157,14 @@ inline constexpr bool kHasFourLaneDrums = true;
 // page names its frets with GameGuitarControlsFor and a controller's and the keyboard's with GameControlsFor. False: one
 // list for both (a controller reported as a guitar, as GH Metallica's).
 inline constexpr bool kGuitarControlsApart = false;
+// Guitar Hero III's controller layout for a controller playing guitar (launcher 3.23, the SDK's gamepad_guitar_layout
+// = "gh3", its change 112): for a game that has no layout of its own for a controller, which it is told is a guitar
+// (Guitar Hero 5 and later give a controller the vocals). In a song the frets on LT, LB, RB, RT and A, a change of the
+// frets held strums, Star Power on the D-pad or Back, the whammy bar on either stick; the menus as they are. True: a
+// switch on each controller playing guitar (on until the player turns it off, as the game's src/startup.cpp), its
+// buttons in a song apart from the menus' (the SDK's gamepad_song_binds, recomp change 113: "In a song" and
+// "Navigation"), and the options file's gamepad_guitar_layout. False: none of them.
+inline constexpr bool kHasGh3PadLayout = false;
 }  // namespace defaults
 using namespace defaults;
 

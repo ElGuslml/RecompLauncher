@@ -2,6 +2,48 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.23.0
+
+Gustavo's request of 2026-11-14 (a player's PDP Riffmaster for Xbox, seen by none of the games):
+
+- **Xbox One guitars** (GIP instruments, neither XInput nor HID: the PDP Riffmaster and Jaguar, the Mad Catz
+  Stratocaster, the CRKD / RedOctane Stage Tour guitar). SDL reads them through Microsoft GameInput's raw reports once
+  the SDK builds it against GameInput's API 3 (the SDK's change 110, which this version needs for the rest; with an
+  older SDK the launcher builds and behaves as 3.22.0). The Controls page reads their tilt as the game does, their
+  GameInput report's byte (SDL gives it only as the right shoulder, and their pickup selector as the right stick's Y):
+  the tilt's meter, and its calibration, which finds it as the source `gip`. Through `gameinput_instruments.cpp` of
+  the SDK, compiled in here.
+- **Microsoft GameInput missing** (`game::kHasWhammy` games): the Controls page lists "Xbox One guitars · GameInput
+  missing · Install" last among the devices, when `GameInputRedist.msi` is beside the launcher (a release
+  ships it). Pressed, it asks first, then runs the installer (`msiexec /passive`; Windows asks for an administrator's
+  consent) and, when it ends, starts the gamepad subsystem again so that SDL finds GameInput; the row goes. A failure
+  stays on the row ("did not install · Try again"). The log says at the start whether GameInput 3 answers.
+- **GameInput's twins left out.** With GameInput's raw reports on, SDL also lists a plain controller a second time,
+  through GameInput (its GUID's driver byte 'g'): the Controls page showed it twice. `Gamepads()` (controllers.h) is
+  SDL's list less those that are not an instrument, everywhere the launcher lists the controllers; the log's
+  controllers line marks them "GameInput's twin: left out". The SDK's change 110 does the same for the game.
+- **Guitar Hero III's controller layout** (`game::kHasGh3PadLayout`, the SDK's change 112, `gamepad_guitar_layout`;
+  Gustavo's request for GH Warriors of Rock, on by default there). A switch "Guitar Hero III layout" on each
+  controller playing guitar: in a song the game plays it with Guitar Hero III's own controller code (the game's
+  hooks), its frets on LT, LB, RB, RT and A, the open note on B, no strum (pressing a fret plays, releasing one never
+  does), Star Power on the D-pad or Back, the whammy bar on either stick; the menus as they are. While on, the strum
+  switch and the whammy bar's and the tilt's rows go (nothing to strum, no tilt; a calibration would make the SDK take
+  the controller for a guitar), and its rows are two groups (Gustavo: an orange fret on Triangle must not move the
+  menus' Accept). **In a song**: the five frets, the open note, Star Power and the whammy bar, each with two chips,
+  any of the controller's buttons, triggers, D-pad directions or sticks (the SDK's `gamepad_song_binds`, its change
+  113; GH III's own by default: Star Power on Back and the D-pad, the bar on the left and the right stick). An input
+  given to one chip leaves any other (the D-pad's chip goes when one of its directions is taken); X, Delete or a right
+  click clears one; a whammy bar on a button is all or nothing in the game. **Navigation**: the Xbox 360 controls of
+  the menus and the pause menu, the controller's `gamepad_device_remap` as before. Reset puts both back. Off:
+  "guitar", as before. Texts in five languages, and a tip in the controller's help.
+- **Play from the first run's last step** (a player who already had a profile, e.g. from another game: GH Warriors of
+  Rock's first two-PC test). Its Play left the first run on, and its screen was drawn before "Compiling shaders", which
+  never showed; the preparation's poll, there only, never ran either. Play pressed again started a second compile and
+  waited for the first on the main thread (8.5 s without answering, a watchdog dump); the game started at a later
+  Play, and once more, unasked, when "Review settings" ended the first run. Now Play ends the first run, "Compiling
+  shaders" comes before the install's screens, and a Play during a preparation waits for it. The busy line names
+  "compiling shaders".
+
 ## 3.22.0
 
 Gustavo's requests of 2026-11-14 (GH Metallica first; the other games move later):

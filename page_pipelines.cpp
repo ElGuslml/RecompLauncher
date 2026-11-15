@@ -20,6 +20,9 @@ constexpr Type kHint{Font::kRegular, 14};
 }  // namespace
 
 bool App::PreparePipelinesFirst(const std::wstring& arguments) {
+  if (preparing_) {
+    return true;  // one at a time: Play again waits for it (Start would wait for the running one on this thread)
+  }
   if (prepared_) {
     prepared_ = false;  // just compiled, or skipped: Play goes on
     return false;

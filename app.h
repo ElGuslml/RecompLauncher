@@ -81,7 +81,9 @@ class App {
   // What makes it busy, for the log ("" when nothing).
   std::string BusyReasons() const;
   // A key is being assigned: the controller does not navigate meanwhile (B cancels).
-  bool Listening() const { return listen_bind_ >= 0 || pad_listen_ >= 0 || WhammyCalibrating(); }
+  bool Listening() const {
+    return listen_bind_ >= 0 || pad_listen_ >= 0 || song_listen_ >= 0 || WhammyCalibrating();
+  }
   // A controller button was just assigned: the controller does nothing until its buttons are up.
   bool GamepadLocked() const { return pad_release_wait_; }
   Settings& settings() { return settings_; }
@@ -214,6 +216,10 @@ class App {
   // row too (singing).
   float PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadType type, SDL_JoystickType kind,
                 bool with_part);
+  // A controller's buttons in a song on Guitar Hero III's layout (game::kHasGh3PadLayout, the SDK's
+  // gamepad_song_binds): the frets, the open note, Star Power and the whammy bar, each on up to two inputs of its own,
+  // apart from the menus'.
+  float SongRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadType type);
   // The whammy bar's and the tilt's rows (game::kHasWhammy): how far the game reads it, and its assignment.
   float AxisRow(ImVec2 origin, float width, SDL_JoystickID id, SDL_JoystickType kind, bool tilt);
   bool WhammyCalibrating() const {
@@ -264,6 +270,9 @@ class App {
   // A controller's control being assigned a button (page_controls.cpp).
   bool OnPadCapture(const SDL_Event& event);
   void AssignPad(int input);
+  // A control of Guitar Hero III's layout in a song being given an input (page_controls.cpp): its token in the SDK's
+  // gamepad_song_binds ("north", "dpup", "lt", "lstick"...).
+  void AssignSong(const std::string& token);
   void StartListening(int bind, int slot);
   void StopListening();
   void Assign(std::string token);
@@ -333,12 +342,17 @@ class App {
   SDL_JoystickID pad_listen_id_ = 0;  // the controller it waits on
   // Each trigger (left, right) was released when the wait began: only then can it be the button pressed.
   std::array<bool, 2> pad_trigger_free_{};
+  // The control of Guitar Hero III's layout in a song waiting for an input (SongRows), or -1, and which of its two
+  // chips; each stick (left, right) was at rest when the wait began: only then can it be the input pushed.
+  int song_listen_ = -1;
+  int song_listen_slot_ = 0;
+  std::array<bool, 2> song_stick_free_{};
   // The assignment of a whammy bar or a tilt (page_controls.cpp): pushed all the way or tilted and held (the axis that
   // moved and stayed, its value there), then let go (its value at rest); the result shown for a moment. SDL's six axes
   // and the accelerometer's three, each one's value where the step began and where it has stayed since `still_since`.
   struct WhammyCalibration {
     enum Step { kOff, kHold, kRelease, kDone, kFailed } step = kOff;
-    static constexpr int kSources = 9;
+    static constexpr int kSources = 10;  // SDL_GamepadAxis, the accelerometer's axes, an Xbox One guitar's tilt
     SDL_JoystickID id = 0;
     bool tilt = false;
     std::chrono::steady_clock::time_point since;

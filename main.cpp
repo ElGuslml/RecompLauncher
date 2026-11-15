@@ -494,6 +494,17 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // The watchdog's heartbeat (launcher_log.h); while the game runs the launcher waits for it on purpose.
     launcher::Heartbeat();
     launcher::SetWaiting(app.GameRunning());
+    // Microsoft GameInput installed from the Controls page (Xbox One guitars): SDL looks for it as its gamepad
+    // subsystem starts, so the subsystem starts again.
+    bool gameinput_installed = false;
+    if (!app.GameRunning() && launcher::GameInputInstallEnded(&gameinput_installed)) {
+      launcher::CloseControllers();
+      SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
+      launcher::RestartGameInput();
+      SDL_InitSubSystem(SDL_INIT_GAMEPAD);
+      launcher::OpenControllers();
+      LogGamepads("after GameInput's installer");
+    }
     // Play: the game starts, and the launcher stays.
     if (app.result() == App::Result::kPlay) {
       if (!save()) {
@@ -607,8 +618,9 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       }
       if (event.type == SDL_EVENT_GAMEPAD_ADDED || event.type == SDL_EVENT_GAMEPAD_REMOVED) {
         const char* name = SDL_GetGamepadNameForID(event.gdevice.which);
-        launcher::Log("controller %s: %s", event.type == SDL_EVENT_GAMEPAD_ADDED ? "connected" : "disconnected",
-                      name ? name : "?");
+        const bool twin = event.type == SDL_EVENT_GAMEPAD_ADDED && launcher::IsGameInputTwin(event.gdevice.which);
+        launcher::Log("controller %s: %s%s", event.type == SDL_EVENT_GAMEPAD_ADDED ? "connected" : "disconnected",
+                      name ? name : "?", twin ? " (GameInput's twin of another: left out)" : "");
       }
       if (log_first_input && !app.GameRunning()) {
         if (const char* kind = InputKind(event.type)) {

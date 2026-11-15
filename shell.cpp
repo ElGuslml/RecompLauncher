@@ -11,6 +11,7 @@
 #include <string>
 
 #include "app.h"
+#include "controllers.h"
 #include "game.h"
 #include "pages.h"
 
@@ -57,7 +58,7 @@ struct Device {
 Device ConnectedDevice() {
   Device device;
   int count = 0;
-  SDL_JoystickID* pads = SDL_GetGamepads(&count);
+  SDL_JoystickID* pads = Gamepads(&count);
   for (int i = 0; pads && i < count; ++i) {
     SDL_JoystickType type = SDL_GetJoystickTypeForID(pads[i]);
     int kind = type == SDL_JOYSTICK_TYPE_GUITAR ? 1 : type == SDL_JOYSTICK_TYPE_DRUM_KIT ? 2 : 3;

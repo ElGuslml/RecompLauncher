@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "app.h"
+#include "controllers.h"
 #include "pages.h"
 
 namespace launcher {
@@ -105,7 +106,7 @@ bool App::PlaysDrums(const std::string& key) const {
 std::string App::SingersText() {
   std::string names;
   int count = 0;
-  SDL_JoystickID* ids = SDL_GetGamepads(&count);
+  SDL_JoystickID* ids = Gamepads(&count);
   for (int i = 0; ids && i < count; ++i) {
     SDL_JoystickType kind = SDL_GetJoystickTypeForID(ids[i]);
     if (kind == SDL_JOYSTICK_TYPE_GUITAR || kind == SDL_JOYSTICK_TYPE_DRUM_KIT || !Sings(PadKey(ids[i]))) continue;

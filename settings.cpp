@@ -616,9 +616,14 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   }
   o.keyboard_tap = *game::kKeyboardTapTarget && !GetString(c, "mnk_tap_target").empty();
   o.gamepad_tap = *game::kKeyboardTapTarget && !GetString(c, "gamepad_tap_target").empty();
+  // Guitar Hero III's layout unless the file says "guitar" (the game's own default, src/startup.cpp).
+  o.gh3_pad = game::kHasGh3PadLayout && GetString(c, "gamepad_guitar_layout") != "guitar";
 
   o.gamepad_remap = GetString(c, "gamepad_remap");
   o.device_remap = GetEscapedString(c, "gamepad_device_remap");
+  if (game::kHasGh3PadLayout) {
+    o.song_binds = GetEscapedString(c, "gamepad_song_binds");
+  }
   if (game::kHasWhammy) {
     o.whammy_calibration = GetEscapedString(c, "gamepad_whammy_calibration");
     o.tilt_calibration = GetEscapedString(c, "gamepad_tilt_calibration");
@@ -1202,6 +1207,9 @@ bool SaveOptions(const Settings& s) {
     f << "mnk_tap_target = \"" << (o.keyboard_tap && !keyboard_drums ? game::kKeyboardTapTarget : "") << "\"\n";
     f << "gamepad_tap_target = \"" << (o.gamepad_tap ? game::kKeyboardTapTarget : "") << "\"\n";
   }
+  if (game::kHasGh3PadLayout) {
+    f << "gamepad_guitar_layout = \"" << (o.gh3_pad ? "gh3" : "guitar") << "\"\n";
+  }
   {
     char text[32];
     std::snprintf(text, sizeof(text), "%.2f", double(o.mnk_sensitivity));
@@ -1222,6 +1230,10 @@ bool SaveOptions(const Settings& s) {
   // standard layout.
   f << "gamepad_remap = \"" << o.gamepad_remap << "\"\n";
   f << "gamepad_device_remap = \"" << Escaped(o.device_remap) << "\"\n";
+  if (game::kHasGh3PadLayout) {
+    // Each controller's buttons in a song on Guitar Hero III's layout ("<GUID>:orange=north,star=back|dpup").
+    f << "gamepad_song_binds = \"" << Escaped(o.song_binds) << "\"\n";
+  }
   if (game::kHasWhammy) {
     // The whammy bars calibrated: each controller's axis, its value at rest and all the way ("<GUID>=rx:-32768:32767").
     f << "gamepad_whammy_calibration = \"" << Escaped(o.whammy_calibration) << "\"\n";

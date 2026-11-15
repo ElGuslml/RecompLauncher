@@ -604,6 +604,17 @@ struct Texts {
   const char* help_vocals_text;
   // Launcher 3.3: a controller's switch for its frets' strum (game::kKeyboardTapTarget).
   const char* help_tip_gamepad_tap;
+  // Launcher 3.23: a controller's switch for Guitar Hero III's controller layout in a song (game::kHasGh3PadLayout),
+  // and its tip in the help.
+  const char* gh3_layout_title;
+  const char* help_tip_gh3_layout;
+  // Its two groups of rows: the buttons in a song (the five frets, the open note, Star Power, the whammy bar, each on
+  // up to two inputs: the SDK's gamepad_song_binds) and those of the menus (gamepad_device_remap); the sticks pushed.
+  const char* song_section;
+  const char* nav_section;
+  const char* song_actions[8];
+  const char* song_left_stick;
+  const char* song_right_stick;
   // Launcher 3.18: the "More info" panel (Y on a page), its Close, and the Play page's status strip.
   const char* more_info;
   const char* close;
@@ -701,6 +712,15 @@ struct Texts {
   const char* online_steam_auto;
   const char* online_steam_help_auto;
   const char* settings_intro_online_steam;
+  // Launcher 3.23: Xbox One guitars (GIP instruments such as the PDP Riffmaster) need Microsoft GameInput. The Controls
+  // page's row while it is missing (name and status), and the question before its installer runs.
+  const char* gameinput_row;
+  const char* gameinput_missing;
+  const char* gameinput_installing;
+  const char* gameinput_failed;
+  const char* gameinput_title;
+  const char* gameinput_text;
+  const char* gameinput_action;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

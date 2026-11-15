@@ -97,7 +97,8 @@ bool App::Busy() const {
   bool updating = update == Update::State::kDownloading || update == Update::State::kVerifying ||
                   update == Update::State::kInstalling;
   // focus_page_ waits for the page, which the first run's screens do not draw.
-  return listen_bind_ >= 0 || pad_listen_ >= 0 || whammy_cal_.step != WhammyCalibration::kOff || FocusRequested() ||
+  return listen_bind_ >= 0 || pad_listen_ >= 0 || song_listen_ >= 0 || whammy_cal_.step != WhammyCalibration::kOff ||
+         FocusRequested() ||
          Animating() ||
          (focus_page_ && !installing_) || controls_focus_mapping_ ||
          std::chrono::steady_clock::now() < notice_until_ || achievements_loading_.valid() ||
@@ -106,6 +107,7 @@ bool App::Busy() const {
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
          dlc_freeing_.valid() || dlc_free_confirm_ || dlc_search_.valid() ||
          dlc_install_.Get().state == DlcInstall::State::kRunning || mic_meter_.stream || preparing_ ||
+         launcher::GameInputStatus() == launcher::GameInputState::kInstalling ||
          (installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning));
 }
 
@@ -115,7 +117,7 @@ std::string App::BusyReasons() const {
   auto add = [&reasons](bool on, const char* name) {
     if (on) reasons += std::string(reasons.empty() ? "" : ", ") + name;
   };
-  add(listen_bind_ >= 0 || pad_listen_ >= 0, "a key being assigned");
+  add(listen_bind_ >= 0 || pad_listen_ >= 0 || song_listen_ >= 0, "a key being assigned");
   add(whammy_cal_.step != WhammyCalibration::kOff, "the whammy calibration");
   add(FocusRequested(), "a focus request");
   add(Animating(), "an animation");
@@ -134,6 +136,8 @@ std::string App::BusyReasons() const {
           dlc_install_.Get().state == DlcInstall::State::kRunning,
       "the DLC");
   add(mic_meter_.stream != nullptr, "the microphone's meter");
+  add(preparing_, "compiling shaders");
+  add(launcher::GameInputStatus() == launcher::GameInputState::kInstalling, "GameInput's installer");
   add(installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning), "the install");
   return reasons;
 }
@@ -429,7 +433,7 @@ void App::FrameContents(ImVec2 size) {
   GImGui->ConfigNavWindowingWithGamepad = false;
   if (!glyphs_chosen_) {
     int count = 0;
-    SDL_JoystickID* pads = SDL_GetGamepads(&count);
+    SDL_JoystickID* pads = Gamepads(&count);
     if (pads && count > 0) {
       UseGlyphsOf(SDL_GetGamepadTypeForID(pads[0]));
       glyphs_chosen_ = false;  // a connected controller's until an input says which
@@ -455,13 +459,14 @@ void App::FrameContents(ImVec2 size) {
                    ImGuiWindowFlags_NoScrollWithMouse);
   ImGui::PopStyleVar(3);
 
-  if (installing_) {
-    InstallScreen(size);
+  // "Compiling shaders" first: it runs after Play, and its poll is what starts the game.
+  if (preparing_) {
+    PreparingScreen(size);
     ImGui::End();
     return;
   }
-  if (preparing_) {
-    PreparingScreen(size);
+  if (installing_) {
+    InstallScreen(size);
     ImGui::End();
     return;
   }
