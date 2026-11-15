@@ -2,6 +2,16 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.25.0
+
+The volume up to 200 % (2026-11-15), for games that sound quiet. Needs the SDK's change 117 (`audio_volume` clamped to
+0-200): with an older SDK the game takes anything above 100 as 100.
+
+- Settings > Audio > **Volume** from 0 to 200 % in steps of 10 (21 values; it was 0 to 100). Written as
+  `audio_volume`, read and written clamped to 0-200 (`settings.cpp`). The default stays 100 %.
+- Above 100 % it is a gain above the game's own, with no limiter: the loudest moments can distort. The help says so
+  (`audio_volume_help`, five languages).
+
 ## 3.24.0
 
 DLSS's model for a game that sets `game::kHasDlssModel` (2026-11-12; false by default, nothing changes for a game that

@@ -514,15 +514,15 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.audio_channels = index; };
       rows.push_back(std::move(row));
     }
-    // The volume, 0-100 % in tens.
+    // The volume, 0-200 % in tens (above 100 a gain above the game's own: its loudest moments can clip).
     {
       OptionRow row;
       row.id = "audio_volume";
       row.title = t_.audio_volume;
       row.sub = t_.audio_volume_hint;
       row.help = t_.audio_volume_help;
-      for (int v = 0; v <= 100; v += 10) row.values.push_back(std::to_string(v) + " %");
-      row.index = std::clamp((o.audio_volume + 5) / 10, 0, 10);
+      for (int v = 0; v <= 200; v += 10) row.values.push_back(std::to_string(v) + " %");
+      row.index = std::clamp((o.audio_volume + 5) / 10, 0, 20);
       row.apply = [&o](int index) { o.audio_volume = index * 10; };
       rows.push_back(std::move(row));
     }
