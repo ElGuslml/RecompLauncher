@@ -623,6 +623,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   o.device_remap = GetEscapedString(c, "gamepad_device_remap");
   if (game::kHasGh3PadLayout) {
     o.song_binds = GetEscapedString(c, "gamepad_song_binds");
+    o.guitar_layouts = GetEscapedString(c, "gamepad_device_guitar_layout");
   }
   if (game::kHasWhammy) {
     o.whammy_calibration = GetEscapedString(c, "gamepad_whammy_calibration");
@@ -1233,6 +1234,8 @@ bool SaveOptions(const Settings& s) {
   if (game::kHasGh3PadLayout) {
     // Each controller's buttons in a song on Guitar Hero III's layout ("<GUID>:orange=north,star=back|dpup").
     f << "gamepad_song_binds = \"" << Escaped(o.song_binds) << "\"\n";
+    // Each controller's play style where it is not the default's ("<GUID>=guitar": a guitar through an adapter).
+    f << "gamepad_device_guitar_layout = \"" << Escaped(o.guitar_layouts) << "\"\n";
   }
   if (game::kHasWhammy) {
     // The whammy bars calibrated: each controller's axis, its value at rest and all the way ("<GUID>=rx:-32768:32767").

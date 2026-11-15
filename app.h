@@ -232,7 +232,22 @@ class App {
   float MicRows(ImVec2 origin, float width);
   float PartRow(ImVec2 origin, float width, const std::string& key);
   // A selector row (the part, the drum kit): -1, 0 or 1, the step asked.
-  int SelectorRow(const char* id, ImVec2 origin, float width, const char* label, const std::string& value);
+  // A selector row (launcher 3.18; a list since 3.23): its value a chip with a chevron, which opens the list of
+  // `values` under it (ChoiceList), `current` checked. The index picked there, at the row's next frame; -1 otherwise.
+  int SelectorRow(const char* id, ImVec2 origin, float width, const char* label, const std::vector<std::string>& values,
+                  int current);
+  // A selector's list (SelectorRow): its row, its values, the one checked and its chip (where the list opens); the
+  // index picked, read by the row at its next frame. Drawn last on the Controls page, over the rows.
+  struct Choice {
+    ImGuiID row = 0;
+    std::vector<std::string> values;
+    int current = 0;
+    ImRect chip;
+    bool opened = false;
+    int picked = -1;
+  };
+  Choice choice_;
+  void ChoiceList();
   // A drum kit's lanes (launcher 3.19.1): five (Guitar Hero) or four (Rock Band). `real_kit`: a drum kit of its own.
   float KitRow(ImVec2 origin, float width, const std::string& key, bool real_kit);
   // The keyboard's keys of what it plays: the drum keys while it plays drums, else the guitar's.

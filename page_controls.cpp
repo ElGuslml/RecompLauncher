@@ -382,6 +382,22 @@ std::string WithSongTokens(std::string_view text, std::string_view key, const So
   return out;
 }
 
+// --- gamepad_device_guitar_layout: each controller's play style ---
+
+// A controller's play style: its own entry ("key=gh3" or "key=guitar", the key cut at the entry's last '='), else
+// every controller's (`all`, the options file's gamepad_guitar_layout).
+bool Gh3StyleOf(std::string_view text, std::string_view key, bool all) {
+  bool gh3 = all;
+  ForEachPiece(text, ',', [&](std::string_view entry) {
+    size_t equals = entry.rfind('=');
+    if (equals == std::string_view::npos || !EqualsCI(Trim(entry.substr(0, equals)), key)) return;
+    std::string_view value = Trim(entry.substr(equals + 1));
+    if (EqualsCI(value, "gh3")) gh3 = true;
+    if (EqualsCI(value, "guitar")) gh3 = false;
+  });
+  return gh3;
+}
+
 // --- The controllers ---
 
 struct Pad {
@@ -906,7 +922,7 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
   // A controller playing guitar (not singing: PartRow below returns first then), on Guitar Hero III's layout while
   // its switch is on (game::kHasGh3PadLayout).
   const bool pad_guitar = kind != SDL_JOYSTICK_TYPE_GUITAR && !drums;
-  const bool gh3 = game::kHasGh3PadLayout && pad_guitar && settings_.o.gh3_pad;
+  const bool gh3 = game::kHasGh3PadLayout && pad_guitar && Gh3StyleOf(settings_.o.guitar_layouts, key, settings_.o.gh3_pad);
   // A real guitar's own list where the game's controllers play on another layout (game::kGuitarControlsApart).
   auto instrument = [&]() -> const std::vector<game::GameControlGroup>& {
     if constexpr (game::kGuitarControlsApart) {
@@ -946,15 +962,17 @@ float App::PadRows(ImVec2 origin, float width, SDL_JoystickID id, SDL_GamepadTyp
   if (game::kHasDrums && drums) {
     y += KitRow(ImVec2(origin.x, y), width, key, real_kit);
   }
-  // Guitar Hero III's controller layout in a song (game::kHasGh3PadLayout, the SDK's gamepad_guitar_layout): one
-  // switch for every controller playing guitar.
+  // Its play style (game::kHasGh3PadLayout): a controller as in Guitar Hero III, or an Xbox 360 guitar (a guitar
+  // through an adapter that Windows sees as a controller). Each controller its own (the SDK's
+  // gamepad_device_guitar_layout); an entry only where it is not every controller's (gamepad_guitar_layout).
   if (game::kHasGh3PadLayout && pad_guitar) {
-    ImRect r(ImVec2(origin.x, y), ImVec2(origin.x + width, y + Px(kMappingRow)));
-    if (SwitchRow("##gh3_layout", r, t_.gh3_layout_title, &settings_.o.gh3_pad)) {
+    if (SelectorRow("play_style", ImVec2(origin.x, y), width, t_.play_style,
+                    {t_.play_style_controller, t_.play_style_guitar}, gh3 ? 0 : 1) >= 0) {
+      const bool now_gh3 = !gh3;
+      settings_.o.guitar_layouts = WithWhammyEntry(settings_.o.guitar_layouts, key,
+                                                   now_gh3 == settings_.o.gh3_pad ? "" : now_gh3 ? "gh3" : "guitar");
       Changed();
     }
-    if (!mapping_first_) mapping_first_ = ImGui::GetItemID();
-    mapping_rows_.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
     y += Px(kMappingRow);
   }
   // Its frets strum as they are pressed (game.h's kKeyboardTapTarget, the SDK's gamepad_tap_target): one switch for
@@ -1504,7 +1522,8 @@ void App::ControlsPage(const ImRect& rect) {
         tips.push_back(t_.help_tip_part);
       }
       if (game::kHasDrums && drums) tips.push_back(t_.help_tip_drum_kit);
-      const bool gh3 = game::kHasGh3PadLayout && !guitar && !drums && settings_.o.gh3_pad;
+      const bool gh3 = game::kHasGh3PadLayout && !guitar && !drums &&
+                       Gh3StyleOf(settings_.o.guitar_layouts, PadKey(pad->id), settings_.o.gh3_pad);
       if (game::kHasGh3PadLayout && !guitar && !drums) tips.push_back(t_.help_tip_gh3_layout);
       if (*game::kKeyboardTapTarget && !guitar && !drums && !gh3) tips.push_back(t_.help_tip_gamepad_tap);
       if (game::kHasWhammy && !drums && !gh3) {
@@ -1536,6 +1555,9 @@ void App::ControlsPage(const ImRect& rect) {
     OpenInfo(word, title, body, std::move(tips));
   }
 
+  // An open selector's list (Instrument, Drum kit, Play style), over the rows.
+  ChoiceList();
+
   // Reset: the button (with A on it, or a click). Back to the standard layout for this controller, its whammy bar and
   // tilt to the SDK's own judgment; the keyboard's defaults; the microphone's.
   if (reset) {
@@ -1553,6 +1575,7 @@ void App::ControlsPage(const ImRect& rect) {
                            SourcesFor(settings_.o.gamepad_remap, type_key, true));
       if (game::kHasGh3PadLayout) {
         settings_.o.song_binds = WithSongTokens(settings_.o.song_binds, PadKey(pad->id), DefaultSongTokens());
+        settings_.o.guitar_layouts = WithWhammyEntry(settings_.o.guitar_layouts, PadKey(pad->id), "");
       }
     } else if (KeyboardDrums(settings_.o)) {
       ResetDrumKeys(settings_.o, KeyboardFourLanes(settings_.o));

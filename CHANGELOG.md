@@ -18,13 +18,21 @@ Gustavo's request of 2026-11-14 (a player's PDP Riffmaster for Xbox, seen by non
   ships it). Pressed, it asks first, then runs the installer (`msiexec /passive`; Windows asks for an administrator's
   consent) and, when it ends, starts the gamepad subsystem again so that SDL finds GameInput; the row goes. A failure
   stays on the row ("did not install · Try again"). The log says at the start whether GameInput 3 answers.
+- **GameInput's raw reports only with an Xbox One instrument connected** (the SDK's change 114): before each start of
+  SDL's gamepads, `ChooseGameInputReports` counts the Xbox One guitars and drum kits GameInput sees
+  (`CountRawInstruments`) and sets SDL_HINT_JOYSTICK_GAMEINPUT_RAW. With the reports on, SDL's GameInput driver also
+  took Xbox 360 instruments: a wired X-plorer came as a gamepad, a wireless guitar twice. One connected later shows from
+  the next start of the launcher.
 - **GameInput's twins left out.** With GameInput's raw reports on, SDL also lists a plain controller a second time,
   through GameInput (its GUID's driver byte 'g'): the Controls page showed it twice. `Gamepads()` (controllers.h) is
   SDL's list less those that are not an instrument, everywhere the launcher lists the controllers; the log's
   controllers line marks them "GameInput's twin: left out". The SDK's change 110 does the same for the game.
 - **Guitar Hero III's controller layout** (`game::kHasGh3PadLayout`, the SDK's change 112, `gamepad_guitar_layout`;
-  Gustavo's request for GH Warriors of Rock, on by default there). A switch "Guitar Hero III layout" on each
-  controller playing guitar: in a song the game plays it with Guitar Hero III's own controller code (the game's
+  Gustavo's request for GH Warriors of Rock, on by default there). A selector "Play style" on each controller playing
+  guitar, its own (the SDK's `gamepad_device_guitar_layout`, its change 115; an entry only where it is not every
+  controller's, `gamepad_guitar_layout`): "Controller · GH III" or "Guitar · Xbox 360" (a guitar through an adapter
+  that Windows sees as a controller plays as before, while a DualSense plays as in GH III). As a controller, in a
+  song the game plays it with Guitar Hero III's own controller code (the game's
   hooks), its frets on LT, LB, RB, RT and A, the open note on B, no strum (pressing a fret plays, releasing one never
   does), Star Power on the D-pad or Back, the whammy bar on either stick; the menus as they are. While on, the strum
   switch and the whammy bar's and the tilt's rows go (nothing to strum, no tilt; a calibration would make the SDK take
@@ -34,8 +42,14 @@ Gustavo's request of 2026-11-14 (a player's PDP Riffmaster for Xbox, seen by non
   113; GH III's own by default: Star Power on Back and the D-pad, the bar on the left and the right stick). An input
   given to one chip leaves any other (the D-pad's chip goes when one of its directions is taken); X, Delete or a right
   click clears one; a whammy bar on a button is all or nothing in the game. **Navigation**: the Xbox 360 controls of
-  the menus and the pause menu, the controller's `gamepad_device_remap` as before. Reset puts both back. Off:
+  the menus and the pause menu, the controller's `gamepad_device_remap` as before. Reset puts both groups and the
+  play style back. As a guitar:
   "guitar", as before. Texts in five languages, and a tip in the controller's help.
+- **A selector opens a list** (Gustavo: "deberían desplegar una lista y poder seleccionar una opción"): Instrument,
+  Drum kit and Play style. A or a click on the row opens its values under the chip (over it when the page ends first),
+  the current one checked and focused; up and down move, A or a click picks, B, Escape or a click outside closes it
+  unchanged (`SelectorRow` takes the values and the current index and answers the one picked; `ChoiceList`, drawn last
+  on the Controls page). Before, A started a change stepped with left and right, and a click stepped to the next value.
 - **Play from the first run's last step** (a player who already had a profile, e.g. from another game: GH Warriors of
   Rock's first two-PC test). Its Play left the first run on, and its screen was drawn before "Compiling shaders", which
   never showed; the preparation's poll, there only, never ran either. Play pressed again started a second compile and

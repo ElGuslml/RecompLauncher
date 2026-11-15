@@ -377,6 +377,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   const launcher::Texts& t = launcher::TextsFor(language);
 
   SDL_SetMainReady();
+  launcher::ChooseGameInputReports();
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
     ShowError(SDL_GetError());
     return 1;
@@ -501,6 +502,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       launcher::CloseControllers();
       SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
       launcher::RestartGameInput();
+      launcher::ChooseGameInputReports();
       SDL_InitSubSystem(SDL_INIT_GAMEPAD);
       launcher::OpenControllers();
       LogGamepads("after GameInput's installer");
@@ -534,6 +536,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         app.GameStarted();
       } else {
         launcher::Log("the game did not start");
+        launcher::ChooseGameInputReports();
         SDL_InitSubSystem(SDL_INIT_GAMEPAD);
         launcher::OpenControllers();
         app.GameExited(0);
@@ -547,6 +550,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         launcher::Log("the game exited (code 0x%08X) after %.1f s", exit_code,
                       double(SDL_GetTicks() - game_started_at) / 1000.0);
         game.Close();
+        launcher::ChooseGameInputReports();
         SDL_InitSubSystem(SDL_INIT_GAMEPAD);
         launcher::OpenControllers();
         SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);

@@ -204,6 +204,9 @@ struct Options {
   // menus' above: the SDK's gamepad_song_binds (recomp change 113), "controller:action=input|input,..." sections joined
   // by ';', a controller by its serial number or GUID; an action left out keeps Guitar Hero III's.
   std::string song_binds;
+  // Each controller's own play style (game::kHasGh3PadLayout): the SDK's gamepad_device_guitar_layout, "controller=gh3"
+  // or "controller=guitar" comma-separated, a controller by its serial number or GUID; one not named plays on gh3_pad's.
+  std::string guitar_layouts;
   // The whammy bars calibrated on the Controls tab (game::kHasWhammy): the SDK's gamepad_whammy_calibration (change
   // 60), "controller=axis:rest:full" comma-separated, a controller by its serial number or GUID.
   std::string whammy_calibration;

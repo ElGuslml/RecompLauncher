@@ -3,6 +3,7 @@
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_gamepad.h>
 #include <SDL3/SDL_guid.h>
+#include <SDL3/SDL_hints.h>
 #include <SDL3/SDL_stdinc.h>
 
 #include <imgui_impl_sdl3.h>
@@ -330,6 +331,25 @@ void RestartGameInput() {
 }
 
 bool GameInputInstallFailed() { return g_gameinput_failed && !g_gameinput_on; }
+
+void ChooseGameInputReports() {
+  if (!g_gameinput_looked) LookForGameInput();
+  int instruments = 0;
+  std::string names;
+#if defined(LAUNCHER_HAS_GAMEINPUT)
+  if (g_gameinput_on) instruments = gameinput::CountRawInstruments(&names);
+#endif
+  SDL_SetHint(SDL_HINT_JOYSTICK_GAMEINPUT_RAW, instruments > 0 ? "1" : "0");
+  static int logged = -1;
+  if (logged != instruments) {
+    logged = instruments;
+    if (instruments > 0) {
+      Log("GameInput's raw reports on: Xbox One instruments connected (%d: %s)", instruments, names.c_str());
+    } else {
+      Log("GameInput's raw reports off: no Xbox One guitar or drum kit connected (Xbox 360 ones stay XInput's)");
+    }
+  }
+}
 
 bool IsXboxOneGuitar(SDL_JoystickID id) {
   if (!game::kHasWhammy || SDL_GetJoystickTypeForID(id) != SDL_JOYSTICK_TYPE_GUITAR ||

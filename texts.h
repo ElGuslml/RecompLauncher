@@ -606,7 +606,10 @@ struct Texts {
   const char* help_tip_gamepad_tap;
   // Launcher 3.23: a controller's switch for Guitar Hero III's controller layout in a song (game::kHasGh3PadLayout),
   // and its tip in the help.
-  const char* gh3_layout_title;
+  // The selector's row and its two values: Guitar Hero III's controller layout, or an Xbox 360 guitar's.
+  const char* play_style;
+  const char* play_style_controller;
+  const char* play_style_guitar;
   const char* help_tip_gh3_layout;
   // Its two groups of rows: the buttons in a song (the five frets, the open note, Star Power, the whammy bar, each on
   // up to two inputs: the SDK's gamepad_song_binds) and those of the menus (gamepad_device_remap); the sticks pushed.

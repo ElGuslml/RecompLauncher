@@ -144,11 +144,11 @@ std::string App::MicStatus(ImU32* dot) {
   return text;
 }
 
-int App::SelectorRow(const char* id, ImVec2 origin, float width, const char* label, const std::string& value) {
-  // A selector (launcher 3.18): the row is its item, its value a chip with a chevron. A starts changing it, then left
-  // and right step it until A or B (ui::RowEditing; the chip outlined in the accent meanwhile); a click steps it
-  // forward.
-  ImGuiContext& g = *GImGui;
+int App::SelectorRow(const char* id, ImVec2 origin, float width, const char* label,
+                     const std::vector<std::string>& values, int current) {
+  // A selector (launcher 3.18; a list since 3.23, Gustavo: "deberían desplegar una lista y poder seleccionar una
+  // opción"): the row is its item, its value a chip with a chevron. A or a click opens the list of its values under the
+  // chip (ChoiceList), the current one checked and focused; a value picked there is this row's answer at its next frame.
   ImRect r(origin, ImVec2(origin.x + width, origin.y + Px(kMappingRow)));
   // Wider than a control's chip: "4 carriles · Rock Band".
   ImRect chip = MappingChipRect(r, 224.0f);
@@ -158,29 +158,95 @@ int App::SelectorRow(const char* id, ImVec2 origin, float width, const char* lab
   ImGui::PopID();
   if (!mapping_first_) mapping_first_ = item;
   mapping_rows_.push_back({item, item});
-  const bool editing = RowEditing(item);
-  int step = EditingStep(item);
-  if (state.pressed) {
-    if (PressedByNav()) {
-      SetRowEditing(editing ? 0 : item);
-    } else {
-      step = 1;
-    }
+  int picked = -1;
+  if (choice_.row == item && choice_.picked >= 0) {
+    picked = choice_.picked != current ? choice_.picked : -1;
+    choice_ = Choice{};
+  }
+  const bool open = choice_.row == item;
+  if (open) choice_.chip = chip;  // the list follows the rows as they scroll
+  if (state.pressed && !open && !values.empty()) {
+    StopListening();
+    choice_ = Choice{item, values, std::clamp(current, 0, int(values.size()) - 1), chip};
   }
   MappingRow(r, 0, label, chip.Min.x - Px(16.0f), false, state.focused);
   if (state.hovered && !state.focused) FillRect(r, Fade(col::kFocus, 0.03f), 12.0f);
   // Drawn only: the row is the item.
   FillRect(chip, state.hovered ? Brighten(col::kField) : col::kField, 8.0f);
-  StrokeRect(chip, editing ? col::kAccent : col::kFieldBorder, 8.0f, editing ? 2.0f : 1.0f);
+  StrokeRect(chip, open ? col::kAccent : col::kFieldBorder, 8.0f, open ? 2.0f : 1.0f);
   constexpr Type kChip{Font::kSemiBold, 15};
+  const std::string value = current >= 0 && current < int(values.size()) ? values[size_t(current)] : std::string();
   std::string shown = Ellipsize(kChip, value, chip.GetWidth() - Px(28.0f) - Px(22.0f));
   float text_width = MeasureText(kChip, shown).x;
   float x = chip.GetCenter().x - (text_width + Px(6.0f) + Px(16.0f)) * 0.5f;
   DrawLabel(kChip, ImVec2(x, chip.Min.y), col::kText, shown, chip.GetHeight());
   DrawIcon(Icon::kChevronDown, ImVec2(x + text_width + Px(6.0f), chip.GetCenter().y - Px(8.0f)), 16.0f, col::kTextSoft,
            2.0f);
-  if (step) StopListening();
-  return step;
+  return picked;
+}
+
+void App::ChoiceList() {
+  // The open selector's list (SelectorRow): a card under its chip (over it when the page ends first), as wide as the
+  // chip, a row for each value, the current one checked; the controller's focus on it as the list opens, up and down
+  // move, A or a click picks, B, Escape or a click outside closes it unchanged.
+  constexpr const char* kPopup = "##choice_list";
+  if (!choice_.row || choice_.picked >= 0) return;
+  if (!choice_.opened) ImGui::OpenPopup(kPopup);
+  const int count = int(choice_.values.size());
+  const float row_height = Px(44.0f);
+  const float padding = Px(6.0f);
+  const ImVec2 size(choice_.chip.GetWidth(), padding * 2.0f + row_height * float(count));
+  ImGuiViewport* viewport = ImGui::GetMainViewport();
+  const float bottom = viewport->Pos.y + viewport->Size.y - Snap(Px(52.0f));  // above the footer
+  ImVec2 pos(choice_.chip.Min.x, choice_.chip.Max.y + Px(6.0f));
+  if (pos.y + size.y > bottom) pos.y = choice_.chip.Min.y - Px(6.0f) - size.y;
+  ImGui::SetNextWindowPos(Snap(pos));
+  ImGui::SetNextWindowSize(size);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.0f);
+  if (ImGui::BeginPopup(kPopup, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                                    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground)) {
+    const ImVec2 origin = ImGui::GetWindowPos();
+    ImRect card(origin, ImVec2(origin.x + size.x, origin.y + size.y));
+    FillRect(card, col::kCardRaised, 12.0f);
+    StrokeRect(card, col::kHairline, 12.0f);
+    constexpr Type kValue{Font::kSemiBold, 15};
+    for (int i = 0; i < count; ++i) {
+      ImRect r(ImVec2(card.Min.x + padding, card.Min.y + padding + row_height * float(i)),
+               ImVec2(card.Max.x - padding, card.Min.y + padding + row_height * float(i + 1)));
+      if (!choice_.opened && i == choice_.current) ImGui::SetKeyboardFocusHere();
+      ImGui::PushID(i);
+      ItemState state = Item("##value", r);
+      ImGui::PopID();
+      const bool checked = i == choice_.current;
+      if (state.focused || state.hovered) {
+        FillRect(r, state.focused ? Fade(col::kAccent, 0.16f) : Fade(col::kFocus, 0.06f), 8.0f);
+      }
+      DrawLabel(kValue, ImVec2(r.Min.x + Px(14.0f), r.Min.y), checked || state.focused ? col::kText : col::kTextSoft,
+                Ellipsize(kValue, choice_.values[size_t(i)], r.GetWidth() - Px(14.0f) - Px(40.0f)), r.GetHeight());
+      if (checked) {
+        DrawIcon(Icon::kCheck, ImVec2(r.Max.x - Px(14.0f) - Px(16.0f), r.GetCenter().y - Px(8.0f)), 16.0f, col::kAccent,
+                 2.0f);
+      }
+      if (state.pressed) {
+        choice_.picked = i;
+        ImGui::CloseCurrentPopup();
+      }
+    }
+    if (choice_.picked < 0 &&
+        (ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false))) {
+      choice_ = Choice{};
+      ImGui::CloseCurrentPopup();
+    } else {
+      choice_.opened = true;
+    }
+    ImGui::EndPopup();
+  } else if (choice_.opened && choice_.picked < 0) {
+    choice_ = Choice{};  // closed by a click outside it
+  }
+  ImGui::PopStyleVar(4);
 }
 
 float App::PartRow(ImVec2 origin, float width, const std::string& key) {
@@ -191,12 +257,15 @@ float App::PartRow(ImVec2 origin, float width, const std::string& key) {
   if (game::kHasDrums) parts.push_back(kPartDrums);
   if (game::kHasMicrophones) parts.push_back(kPartVocals);
   const Part part = PartOf(settings_.o.device_subtypes, key);
-  const char* text = part == kPartVocals ? (own.part_vocals ? own.part_vocals : t_.part_vocals)
-                     : part == kPartDrums ? t_.part_drums
-                                          : (own.part_instrument ? own.part_instrument : t_.part_instrument);
-  if (int step = SelectorRow("part", origin, width, t_.part, text)) {
-    int index = int(std::find(parts.begin(), parts.end(), part) - parts.begin());
-    index = (index + step + int(parts.size())) % int(parts.size());
+  auto name = [&](Part p) -> std::string {
+    return p == kPartVocals  ? (own.part_vocals ? own.part_vocals : t_.part_vocals)
+           : p == kPartDrums ? t_.part_drums
+                             : (own.part_instrument ? own.part_instrument : t_.part_instrument);
+  };
+  std::vector<std::string> names;
+  for (Part p : parts) names.push_back(name(p));
+  const int current = int(std::find(parts.begin(), parts.end(), part) - parts.begin());
+  if (int index = SelectorRow("part", origin, width, t_.part, names, current); index >= 0) {
     const bool four = FourLanes(settings_.o.device_subtypes, key);
     settings_.o.device_subtypes = WithPart(settings_.o.device_subtypes, key, parts[size_t(index)], four);
     // The keyboard back on drums: its keys the kit's while they are the other kit's defaults.
@@ -211,7 +280,7 @@ float App::KitRow(ImVec2 origin, float width, const std::string& key, bool real_
   // without a four-lane highway has no row (game::kHasFourLaneDrums).
   if (!game::kHasFourLaneDrums) return 0.0f;
   const bool four = FourLanes(settings_.o.device_subtypes, key);
-  if (SelectorRow("kit", origin, width, t_.drum_kit, four ? t_.drum_kit_four : t_.drum_kit_five)) {
+  if (SelectorRow("kit", origin, width, t_.drum_kit, {t_.drum_kit_five, t_.drum_kit_four}, four ? 1 : 0) >= 0) {
     Options& o = settings_.o;
     // A real kit is a drum kit already: only four lanes needs naming it.
     o.device_subtypes = real_kit && four ? WithPart(o.device_subtypes, key, kPartInstrument, false)

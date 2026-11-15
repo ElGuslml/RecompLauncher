@@ -63,6 +63,10 @@ bool InstallGameInput();
 bool GameInputInstallEnded(bool* installed);
 // After the gamepad subsystem quits, before it starts again: GameInput looked for once more.
 void RestartGameInput();
+// Before SDL's gamepad subsystem starts: GameInput's raw reports (SDL_HINT_JOYSTICK_GAMEINPUT_RAW) on only while an
+// Xbox One guitar or drum kit is connected (the SDK's CountRawInstruments): with them on, SDL's GameInput driver also
+// takes Xbox 360 instruments and controllers, as gamepads or as well as XInput.
+void ChooseGameInputReports();
 // The installer ran and GameInput still does not answer.
 bool GameInputInstallFailed();
 
