@@ -684,6 +684,10 @@ const Texts kEnglish = {
     .gameinput_title = "Install Microsoft GameInput?",
     .gameinput_text = "Xbox One guitars and drum kits, such as the PDP Riffmaster, are read through Microsoft GameInput, which this PC does not have. Its installer comes with the game; Windows will ask for your permission to install it.",
     .gameinput_action = "Install",
+    .dlss_model = "DLSS model",
+    .dlss_model_help = "Transformer: NVIDIA's current model, sharper and steadier, a little heavier; NVIDIA picks it for each mode. CNN: the earlier model, lighter; NVIDIA marks it deprecated. A DLSS override in the NVIDIA App wins over this choice. Applied when the game starts.",
+    .dlss_model_transformer_sub = "NVIDIA's current model: sharper, steadier",
+    .dlss_model_cnn_sub = "The earlier model: lighter",
 };
 
 const Texts kGerman = {
@@ -1361,6 +1365,10 @@ const Texts kGerman = {
     .gameinput_title = "Microsoft GameInput installieren?",
     .gameinput_text = "Xbox-One-Gitarren und -Schlagzeuge wie die PDP Riffmaster werden über Microsoft GameInput gelesen, das auf diesem PC fehlt. Das Installationsprogramm liegt dem Spiel bei; Windows fragt dich um Erlaubnis, es zu installieren.",
     .gameinput_action = "Installieren",
+    .dlss_model = "DLSS-Modell",
+    .dlss_model_help = "Transformer: NVIDIAs aktuelles Modell, schärfer und stabiler, etwas aufwendiger; NVIDIA wählt es für jeden Modus. CNN: das frühere Modell, leichter; NVIDIA stuft es als veraltet ein. Eine DLSS-Vorgabe in der NVIDIA App hat Vorrang vor dieser Wahl. Gilt beim Start des Spiels.",
+    .dlss_model_transformer_sub = "NVIDIAs aktuelles Modell: schärfer, stabiler",
+    .dlss_model_cnn_sub = "Das frühere Modell: leichter",
 };
 
 const Texts kFrench = {
@@ -2038,6 +2046,10 @@ const Texts kFrench = {
     .gameinput_title = "Installer Microsoft GameInput ?",
     .gameinput_text = "Les guitares et batteries Xbox One, comme la PDP Riffmaster, sont lues via Microsoft GameInput, absent de ce PC. Son programme d'installation est fourni avec le jeu ; Windows vous demandera l'autorisation de l'installer.",
     .gameinput_action = "Installer",
+    .dlss_model = "Modèle DLSS",
+    .dlss_model_help = "Transformer : le modèle actuel de NVIDIA, plus net et plus stable, un peu plus lourd ; NVIDIA le choisit pour chaque mode. CNN : le modèle précédent, plus léger ; NVIDIA le considère comme obsolète. Un remplacement de DLSS dans l'application NVIDIA l'emporte sur ce choix. Appliqué au lancement du jeu.",
+    .dlss_model_transformer_sub = "Le modèle actuel de NVIDIA : plus net, plus stable",
+    .dlss_model_cnn_sub = "Le modèle précédent : plus léger",
 };
 
 const Texts kSpanish = {
@@ -2714,6 +2726,10 @@ const Texts kSpanish = {
     .gameinput_title = "¿Instalar Microsoft GameInput?",
     .gameinput_text = "Las guitarras y baterías de Xbox One, como la PDP Riffmaster, se leen con Microsoft GameInput, que este PC no tiene. Su instalador viene con el juego; Windows te pedirá permiso para instalarlo.",
     .gameinput_action = "Instalar",
+    .dlss_model = "Modelo de DLSS",
+    .dlss_model_help = "Transformer: el modelo actual de NVIDIA, más nítido y estable, algo más pesado; NVIDIA lo elige para cada modo. CNN: el modelo anterior, más ligero; NVIDIA lo marca como obsoleto. Si la app de NVIDIA fuerza un modelo de DLSS, eso manda sobre esta opción. Se aplica al iniciar el juego.",
+    .dlss_model_transformer_sub = "El modelo actual de NVIDIA: más nítido y estable",
+    .dlss_model_cnn_sub = "El modelo anterior: más ligero",
 };
 
 const Texts kItalian = {
@@ -3390,6 +3406,10 @@ const Texts kItalian = {
     .gameinput_title = "Installare Microsoft GameInput?",
     .gameinput_text = "Le chitarre e le batterie Xbox One, come la PDP Riffmaster, vengono lette tramite Microsoft GameInput, che questo PC non ha. Il programma di installazione è incluso nel gioco; Windows ti chiederà il permesso di installarlo.",
     .gameinput_action = "Installa",
+    .dlss_model = "Modello DLSS",
+    .dlss_model_help = "Transformer: il modello attuale di NVIDIA, più nitido e stabile, un po' più pesante; NVIDIA lo sceglie per ogni modalità. CNN: il modello precedente, più leggero; NVIDIA lo indica come obsoleto. Un'impostazione di DLSS forzata nell'app NVIDIA prevale su questa scelta. Si applica all'avvio del gioco.",
+    .dlss_model_transformer_sub = "Il modello attuale di NVIDIA: più nitido, più stabile",
+    .dlss_model_cnn_sub = "Il modello precedente: più leggero",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.
