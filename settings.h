@@ -48,10 +48,12 @@ enum Upscaler : int { kUpscaleOff, kUpscaleFsr1, kUpscaleNis, kUpscaleFsr3, kUps
 inline constexpr bool kFrameGenerationRow = false;
 
 // DLSS's model (Settings > Video > DLSS model, launcher 3.24, game::kHasDlssModel; NativeXRenderer's
-// native_x_renderer_dlss_model): Transformer, NVIDIA's own choice for each mode (render preset 0), or CNN, the earlier
-// model (preset F, which DLSS 310.9 takes; NativeXRenderer's D156).
-enum DlssModel : int { kDlssTransformer, kDlssCnn, kDlssModelCount };
-inline constexpr const char* kDlssModelNames[] = {"transformer", "cnn"};
+// native_x_renderer_dlss_model, D156): Transformer, NVIDIA's own choice for each mode (render preset 0), Transformer K,
+// the first Transformer model in every mode (preset K, launcher 3.26: NVIDIA's own choice is K for DLAA, Quality and
+// Balanced, the heavier M and L for Performance and Ultra Performance), or CNN, the earlier model (preset F, which
+// DLSS 310.9 takes).
+enum DlssModel : int { kDlssTransformer, kDlssTransformerK, kDlssCnn, kDlssModelCount };
+inline constexpr const char* kDlssModelNames[] = {"transformer", "k", "cnn"};
 
 inline constexpr bool IsTemporal(int upscaler) { return upscaler == kUpscaleFsr3 || upscaler == kUpscaleDlss; }
 inline constexpr bool IsSpatial(int upscaler) { return upscaler == kUpscaleFsr1 || upscaler == kUpscaleNis; }

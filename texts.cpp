@@ -685,8 +685,9 @@ const Texts kEnglish = {
     .gameinput_text = "Xbox One guitars and drum kits, such as the PDP Riffmaster, are read through Microsoft GameInput, which this PC does not have. Its installer comes with the game; Windows will ask for your permission to install it.",
     .gameinput_action = "Install",
     .dlss_model = "DLSS model",
-    .dlss_model_help = "Transformer: NVIDIA's current model, sharper and steadier, a little heavier; NVIDIA picks it for each mode. CNN: the earlier model, lighter; NVIDIA marks it deprecated. A DLSS override in the NVIDIA App wins over this choice. Applied when the game starts.",
-    .dlss_model_transformer_sub = "NVIDIA's current model: sharper, steadier",
+    .dlss_model_help = "Transformer: NVIDIA's current models, sharper and steadier, a little heavier; NVIDIA picks one for each mode. Transformer K: NVIDIA's first Transformer model (render preset K) in every mode; NVIDIA's own choice takes heavier models for Performance and Ultra Performance, so K is lighter there, and the same in DLAA, Quality and Balanced. CNN: the earlier model, lighter; NVIDIA marks it deprecated. A DLSS override in the NVIDIA App wins over this choice. Applied when the game starts.",
+    .dlss_model_transformer_sub = "NVIDIA's current models: sharper, steadier",
+    .dlss_model_transformer_k_sub = "The first Transformer model in every mode: lighter",
     .dlss_model_cnn_sub = "The earlier model: lighter",
 };
 
@@ -1366,8 +1367,9 @@ const Texts kGerman = {
     .gameinput_text = "Xbox-One-Gitarren und -Schlagzeuge wie die PDP Riffmaster werden über Microsoft GameInput gelesen, das auf diesem PC fehlt. Das Installationsprogramm liegt dem Spiel bei; Windows fragt dich um Erlaubnis, es zu installieren.",
     .gameinput_action = "Installieren",
     .dlss_model = "DLSS-Modell",
-    .dlss_model_help = "Transformer: NVIDIAs aktuelles Modell, schärfer und stabiler, etwas aufwendiger; NVIDIA wählt es für jeden Modus. CNN: das frühere Modell, leichter; NVIDIA stuft es als veraltet ein. Eine DLSS-Vorgabe in der NVIDIA App hat Vorrang vor dieser Wahl. Gilt beim Start des Spiels.",
-    .dlss_model_transformer_sub = "NVIDIAs aktuelles Modell: schärfer, stabiler",
+    .dlss_model_help = "Transformer: NVIDIAs aktuelle Modelle, schärfer und stabiler, etwas aufwendiger; NVIDIA wählt eines für jeden Modus. Transformer K: NVIDIAs erstes Transformer-Modell (Render-Preset K) in jedem Modus; NVIDIAs eigene Wahl nimmt für Leistung und Ultra-Leistung aufwendigere Modelle, daher ist K dort leichter und bei DLAA, Qualität und Ausgewogen gleich. CNN: das frühere Modell, leichter; NVIDIA stuft es als veraltet ein. Eine DLSS-Vorgabe in der NVIDIA App hat Vorrang vor dieser Wahl. Gilt beim Start des Spiels.",
+    .dlss_model_transformer_sub = "NVIDIAs aktuelle Modelle: schärfer, stabiler",
+    .dlss_model_transformer_k_sub = "Das erste Transformer-Modell in jedem Modus: leichter",
     .dlss_model_cnn_sub = "Das frühere Modell: leichter",
 };
 
@@ -2047,8 +2049,9 @@ const Texts kFrench = {
     .gameinput_text = "Les guitares et batteries Xbox One, comme la PDP Riffmaster, sont lues via Microsoft GameInput, absent de ce PC. Son programme d'installation est fourni avec le jeu ; Windows vous demandera l'autorisation de l'installer.",
     .gameinput_action = "Installer",
     .dlss_model = "Modèle DLSS",
-    .dlss_model_help = "Transformer : le modèle actuel de NVIDIA, plus net et plus stable, un peu plus lourd ; NVIDIA le choisit pour chaque mode. CNN : le modèle précédent, plus léger ; NVIDIA le considère comme obsolète. Un remplacement de DLSS dans l'application NVIDIA l'emporte sur ce choix. Appliqué au lancement du jeu.",
-    .dlss_model_transformer_sub = "Le modèle actuel de NVIDIA : plus net, plus stable",
+    .dlss_model_help = "Transformer : les modèles actuels de NVIDIA, plus nets et plus stables, un peu plus lourds ; NVIDIA en choisit un pour chaque mode. Transformer K : le premier modèle Transformer de NVIDIA (preset de rendu K) dans tous les modes ; le choix de NVIDIA prend des modèles plus lourds en Performance et Ultra performance, donc K y est plus léger, et identique en DLAA, Qualité et Équilibré. CNN : le modèle précédent, plus léger ; NVIDIA le considère comme obsolète. Un remplacement de DLSS dans l'application NVIDIA l'emporte sur ce choix. Appliqué au lancement du jeu.",
+    .dlss_model_transformer_sub = "Les modèles actuels de NVIDIA : plus nets, plus stables",
+    .dlss_model_transformer_k_sub = "Le premier modèle Transformer dans tous les modes : plus léger",
     .dlss_model_cnn_sub = "Le modèle précédent : plus léger",
 };
 
@@ -2727,8 +2730,9 @@ const Texts kSpanish = {
     .gameinput_text = "Las guitarras y baterías de Xbox One, como la PDP Riffmaster, se leen con Microsoft GameInput, que este PC no tiene. Su instalador viene con el juego; Windows te pedirá permiso para instalarlo.",
     .gameinput_action = "Instalar",
     .dlss_model = "Modelo de DLSS",
-    .dlss_model_help = "Transformer: el modelo actual de NVIDIA, más nítido y estable, algo más pesado; NVIDIA lo elige para cada modo. CNN: el modelo anterior, más ligero; NVIDIA lo marca como obsoleto. Si la app de NVIDIA fuerza un modelo de DLSS, eso manda sobre esta opción. Se aplica al iniciar el juego.",
-    .dlss_model_transformer_sub = "El modelo actual de NVIDIA: más nítido y estable",
+    .dlss_model_help = "Transformer: los modelos actuales de NVIDIA, más nítidos y estables, algo más pesados; NVIDIA elige uno para cada modo. Transformer K: el primer modelo Transformer de NVIDIA (preset de renderizado K) en todos los modos; la elección de NVIDIA usa modelos más pesados en Rendimiento y Ultra rendimiento, así que K es más ligero ahí e igual en DLAA, Calidad y Equilibrado. CNN: el modelo anterior, más ligero; NVIDIA lo marca como obsoleto. Si la app de NVIDIA fuerza un modelo de DLSS, eso manda sobre esta opción. Se aplica al iniciar el juego.",
+    .dlss_model_transformer_sub = "Los modelos actuales de NVIDIA: más nítidos y estables",
+    .dlss_model_transformer_k_sub = "El primer modelo Transformer en todos los modos: más ligero",
     .dlss_model_cnn_sub = "El modelo anterior: más ligero",
 };
 
@@ -3407,8 +3411,9 @@ const Texts kItalian = {
     .gameinput_text = "Le chitarre e le batterie Xbox One, come la PDP Riffmaster, vengono lette tramite Microsoft GameInput, che questo PC non ha. Il programma di installazione è incluso nel gioco; Windows ti chiederà il permesso di installarlo.",
     .gameinput_action = "Installa",
     .dlss_model = "Modello DLSS",
-    .dlss_model_help = "Transformer: il modello attuale di NVIDIA, più nitido e stabile, un po' più pesante; NVIDIA lo sceglie per ogni modalità. CNN: il modello precedente, più leggero; NVIDIA lo indica come obsoleto. Un'impostazione di DLSS forzata nell'app NVIDIA prevale su questa scelta. Si applica all'avvio del gioco.",
-    .dlss_model_transformer_sub = "Il modello attuale di NVIDIA: più nitido, più stabile",
+    .dlss_model_help = "Transformer: i modelli attuali di NVIDIA, più nitidi e stabili, un po' più pesanti; NVIDIA ne sceglie uno per ogni modalità. Transformer K: il primo modello Transformer di NVIDIA (preset di rendering K) in ogni modalità; la scelta di NVIDIA usa modelli più pesanti in Prestazioni e Ultra prestazioni, quindi lì K è più leggero, e uguale in DLAA, Qualità e Bilanciato. CNN: il modello precedente, più leggero; NVIDIA lo indica come obsoleto. Un'impostazione di DLSS forzata nell'app NVIDIA prevale su questa scelta. Si applica all'avvio del gioco.",
+    .dlss_model_transformer_sub = "I modelli attuali di NVIDIA: più nitidi, più stabili",
+    .dlss_model_transformer_k_sub = "Il primo modello Transformer in ogni modalità: più leggero",
     .dlss_model_cnn_sub = "Il modello precedente: più leggero",
 };
 
