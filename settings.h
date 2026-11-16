@@ -162,9 +162,9 @@ struct Options {
   // Settings > Audio (launcher 3.19). The sound through WASAPI in exclusive mode (the SDK's audio_wasapi_exclusive,
   // recomp change 64): less delay, and other programs silent on that device while the game runs.
   bool audio_exclusive = false;
-  // The SDK's change 85: the output device by its name ("" = Windows' default: audio_output_device), the channels
-  // (audio_channels: kAudioAuto, kAudioStereo, kAudioMono), the volume (audio_volume, 0-100) and the silence while the
-  // window is in the background (audio_mute_unfocused).
+  // The SDK's changes 85 and 117: the output device by its name ("" = Windows' default: audio_output_device), the
+  // channels (audio_channels: kAudioAuto, kAudioStereo, kAudioMono), the volume (audio_volume, 0-200; the SDK's 117,
+  // 0-100 before it) and the silence while the window is in the background (audio_mute_unfocused).
   std::string audio_device;
   int audio_channels = 0;
   int audio_volume = 100;

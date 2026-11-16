@@ -536,7 +536,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
     std::string channels = GetString(c, "audio_channels");
     o.audio_channels = channels == "stereo" ? kAudioStereo : channels == "mono" ? kAudioMono : kAudioAuto;
   }
-  o.audio_volume = std::clamp(GetInt(c, "audio_volume", 100), 0, 100);
+  o.audio_volume = std::clamp(GetInt(c, "audio_volume", 100), 0, 200);
   o.audio_mute_unfocused = GetBool(c, "audio_mute_unfocused", false);
   if (game::kHasOnline) {
     // Joining when online_host names a friend; hosting otherwise, the friend's address kept in launcher_online_address.
@@ -1101,7 +1101,7 @@ bool SaveOptions(const Settings& s) {
   f << "audio_output_device = \"" << Escaped(o.audio_device) << "\"\n";
   f << "audio_channels = \"" << kChannelNames[std::clamp(o.audio_channels, 0, int(kAudioChannelsCount) - 1)]
     << "\"\n";
-  f << "audio_volume = " << std::clamp(o.audio_volume, 0, 100) << "\n";
+  f << "audio_volume = " << std::clamp(o.audio_volume, 0, 200) << "\n";
   f << "audio_mute_unfocused = " << boolean(o.audio_mute_unfocused) << "\n";
   if (game::kHasOnline) {
     // Settings > Online (the SDK's online_play, experimental): hosting (online_host "") or joining the friend's game at
