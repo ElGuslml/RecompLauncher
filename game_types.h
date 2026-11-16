@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -147,6 +148,17 @@ inline constexpr bool kHasOnline = false;
 // this PC's addresses and the port. False: through Steam only, which turns on with Online play (Gustavo's choice while
 // online play is tried between homes; the options file then has no online_host and no UPnP).
 inline constexpr bool kOnlineByAddress = false;
+// Drums (launcher 3.19.1; optional since 3.23.1): whether the game plays a drum kit, its functions for a controller or the
+// keyboard playing drums (GameDrumControlsFor, five or four lanes; game.cpp defines it then) and the keyboard's keys
+// for them. False: no drums anywhere (the Instrument row, the Controls and Keyboard pages' drum rows, the microphone's
+// page); the empty list and arrays only let the launcher's code build for a game without them (Kameo, POTCAWE, GRAW).
+inline constexpr bool kHasDrums = false;
+inline constexpr std::array<KeyDefault, 0> kDrumKeyboardDefaults{};
+inline constexpr std::array<KeyDefault, 0> kDrumKeyboardDefaultsFourLanes{};
+inline const std::vector<GameControlGroup>& GameDrumControlsFor(uint32_t, bool) {
+  static const std::vector<GameControlGroup> kNone;
+  return kNone;
+}
 // Drums (game::kHasDrums, launcher 3.19.1): whether the game also plays a Rock Band kit on a four-lane highway (the
 // SDK's change 87, a kit's capability flags with bit 0; the World Tour engine's games and Guitar Hero 5's: GH5, Band
 // Hero and Warriors of Rock all have it). False: the Drum kit row (five or four lanes) is not shown and every kit plays

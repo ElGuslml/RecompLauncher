@@ -2,6 +2,13 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.23.1
+
+- A game without drums builds again (Kameo, the first since 3.19.1 to move): `game::kHasDrums`, the drum keys
+  (`kDrumKeyboardDefaults`, `...FourLanes`) and `GameDrumControlsFor` have defaults in `game_types.h`'s
+  `launcher::game::defaults` (no drums, empty lists), as the profile's other optional settings. A game.h that defines
+  them, as every Guitar Hero's does, hides them: nothing changes there (GH Warriors of Rock's launcher built with it).
+
 ## 3.23.0
 
 Gustavo's request of 2026-11-14 (a player's PDP Riffmaster for Xbox, seen by none of the games):
