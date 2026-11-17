@@ -728,6 +728,8 @@ struct Texts {
   const char* dlss_model;
   const char* dlss_model_help;
   const char* dlss_model_transformer_sub;
+  // Launcher 3.26: Transformer K, the first Transformer model in every mode.
+  const char* dlss_model_transformer_k_sub;
   const char* dlss_model_cnn_sub;
 };
 

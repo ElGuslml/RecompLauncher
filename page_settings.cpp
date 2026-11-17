@@ -731,16 +731,17 @@ void App::SettingsPage(const ImRect& rect) {
       rows.push_back(std::move(row));
     }
     // DLSS's model (launcher 3.24, game::kHasDlssModel; NativeXRenderer's native_x_renderer_dlss_model): Transformer,
-    // NVIDIA's own for each mode (recommended), or CNN, the earlier one.
+    // NVIDIA's own for each mode (recommended), Transformer K, the first Transformer model in every mode (launcher
+    // 3.26), or CNN, the earlier one.
     if (game::kHasDlssModel && o.native && o.upscaler == kUpscaleDlss) {
       OptionRow row;
       row.id = "dlss_model";
       row.title = t_.dlss_model;
       row.help = t_.dlss_model_help;
-      row.values = {"Transformer", "CNN"};
-      row.subs = {t_.dlss_model_transformer_sub, t_.dlss_model_cnn_sub};
-      row.tags = {t_.recommended, ""};
-      row.tag_accent = {true, false};
+      row.values = {"Transformer", "Transformer K", "CNN"};
+      row.subs = {t_.dlss_model_transformer_sub, t_.dlss_model_transformer_k_sub, t_.dlss_model_cnn_sub};
+      row.tags = {t_.recommended, "", ""};
+      row.tag_accent = {true, false, false};
       row.index = std::clamp(o.dlss_model, 0, kDlssModelCount - 1);
       row.apply = [&o](int index) { o.dlss_model = index; };
       rows.push_back(std::move(row));

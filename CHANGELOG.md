@@ -2,6 +2,22 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.26.0
+
+DLSS's Transformer K model in every mode (2026-11-16), for a game that sets `game::kHasDlssModel` (nothing changes for
+a game without it). Relies on NativeXRenderer's D156, the one 3.24.0 already needs: `native_x_renderer_dlss_model`
+also takes a render preset's letter, A to Z, for every mode.
+
+- Settings > Video > **DLSS model** has three choices: Transformer (recommended, as before), **Transformer K** and CNN.
+  Transformer K is NVIDIA's first Transformer model (render preset K) in every mode, written as
+  `native_x_renderer_dlss_model = "k"` and read back from `k` or `K`. Transformer, NVIDIA's own choice (preset 0), is K
+  for DLAA, Quality and Balanced but the heavier M for Performance and L for Ultra Performance: K is lighter there and
+  the same elsewhere, which helps older cards. Another letter or an unknown name still reads as Transformer, and
+  Video's Reset still sets Transformer.
+- The options file's comment above the key lists `k`.
+- Texts: `dlss_model_transformer_k_sub` (five languages). `dlss_model_help` describes the new choice, and it and
+  `dlss_model_transformer_sub` speak of NVIDIA's current models, one for each mode.
+
 ## 3.25.0
 
 The volume up to 200 % (2026-11-15), for games that sound quiet. Needs the SDK's change 117 (`audio_volume` clamped to
