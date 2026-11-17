@@ -49,13 +49,16 @@ void OpenUrl(const char* url);
 void OpenFolder(const std::filesystem::path& folder);
 
 
-// kDlc only when the game takes downloadable content (game::kHasDlcPage). kGame always: the launcher's language is
-// there, with the game's language and switches. kOnline only when the game plays online (game::kHasOnline).
-// kProfiles .. kProfileEdit are not tabs: the header's avatar opens kProfiles, the others follow from it.
+// kDlc only when the game takes downloadable content (game::kHasDlcPage). The Settings tab's categories, kDisplay to
+// kOnline (launcher 3.28): kEffects only when the game has screen effects to turn off, kOnline only when the game plays
+// online (game::kHasOnline); the others always. kProfiles .. kProfileEdit are not tabs: the header's avatar opens
+// kProfiles, the others follow from it.
 enum class Page : int {
-  kPlay, kDlc, kAchievements, kControls, kVideo, kGraphics, kGame, kAudio, kOnline, kUpdates,
+  kPlay, kDlc, kAchievements, kControls, kDisplay, kGraphics, kEffects, kAudio, kGame, kMods, kOnline, kUpdates,
   kProfiles, kProfile, kProfileGame, kProfileEdit, kCount
 };
+// The Settings tab's categories, kDisplay to kOnline.
+inline constexpr bool IsSettingsPage(Page page) { return page >= Page::kDisplay && page <= Page::kOnline; }
 // A page's name, for the log.
 const char* PageName(Page page);
 
@@ -261,8 +264,8 @@ class App {
   const std::string& PadKey(SDL_JoystickID id);
   void UpdateMicMeter();
   void CloseMicMeter();
-  // The Settings tab's categories: Game (page kGame), Video (kVideo), Graphics (kGraphics), Audio (kAudio), Online
-  // (kOnline, game::kHasOnline).
+  // The Settings tab's categories (launcher 3.28): Display, Graphics, Effects, Audio, Game, Mods and Online (pages
+  // kDisplay to kOnline).
   void SettingsPage(const ImRect& rect);
   void UpdatesPage(const ImRect& rect);
   // The release notes (Markdown) at `pos`, `width` wide. Returns the height; draws only when `draw`.
@@ -315,7 +318,7 @@ class App {
   ImGuiID header_focus_ = 0;   // the header's control up from the page reaches: the current tab, or the avatar
   std::vector<ImGuiID> header_items_;  // the header's controls (tabs, Donate, avatar), this frame
   ImGuiID category_focus_ = 0; // the Settings tab's current category button
-  int settings_row_[5] = {};   // the row in focus in each Settings category (its help shows)
+  int settings_row_[7] = {};   // the row in focus in each Settings category (its help shows)
   ImGuiID settings_row_focus_ = 0;  // the Settings row in focus last (right from a category returns to it)
   // Launcher 3.22, the rows as an accordion: how open each row is (0 small, 1 the big row; by its ImGuiID), the rows'
   // rectangles last frame (the mouse's row is found before this frame's layout), whether the mouse is in use (its row

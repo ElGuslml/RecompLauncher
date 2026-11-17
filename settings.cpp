@@ -19,6 +19,7 @@
 #include <cstring>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 
 namespace launcher {
@@ -50,50 +51,63 @@ const BindInfo kBinds[int(Bind::kCount)] = {
     {"keybind_back", "Z,Tab"},
 };
 
-void ResetVideo(Options& o) {
+namespace {
+
+// The game's switches of these groups back to their defaults.
+void ResetToggles(Options& o, std::initializer_list<game::ToggleGroup> groups) {
+  for (size_t i = 0; i < game::kToggles.size(); ++i) {
+    if (std::find(groups.begin(), groups.end(), game::kToggles[i].group) != groups.end()) {
+      o.toggles[i] = game::kToggles[i].default_value;
+    }
+  }
+}
+
+}  // namespace
+
+void ResetDisplay(Options& o) {
   Options defaults;
   o.monitor = defaults.monitor;
   o.display = defaults.display;
   o.window = defaults.window;
   o.native_aspect = defaults.native_aspect;
-  o.native_height = defaults.native_height;
-  o.upscaler = defaults.upscaler;
-  o.upscale_quality = defaults.upscale_quality;
-  o.sharpness = defaults.sharpness;
-  o.dlss_model = defaults.dlss_model;
-  o.frame_generation = defaults.frame_generation;
-  o.scale = defaults.scale;
+  o.frame_rate = defaults.frame_rate;
+  o.vsync = defaults.vsync;
+  ResetToggles(o, {game::ToggleGroup::kSmoothness});
 }
 
 void ResetGraphics(Options& o) {
   Options defaults;
-  o.gpu_adapter = defaults.gpu_adapter;
   o.native = defaults.native;
   o.vulkan = defaults.vulkan;
-  o.vsync = defaults.vsync;
-  o.frame_rate = defaults.frame_rate;
+  o.gpu_adapter = defaults.gpu_adapter;
+  o.upscaler = defaults.upscaler;
+  o.upscale_quality = defaults.upscale_quality;
+  o.dlss_model = defaults.dlss_model;
+  o.frame_generation = defaults.frame_generation;
+  o.native_height = defaults.native_height;
+  o.lower_scene = defaults.lower_scene;
+  o.scale = defaults.scale;
   o.no_msaa = defaults.no_msaa;
   o.native_aa = defaults.native_aa;
+  o.sharpness = defaults.sharpness;
   o.anisotropic = defaults.anisotropic;
   o.shadow_quality = defaults.shadow_quality;
-  // The game's screen effects are in the Graphics category.
-  for (size_t i = 0; i < game::kToggles.size(); ++i) {
-    if (game::kToggles[i].group == game::ToggleGroup::kScreenEffects) {
-      o.toggles[i] = game::kToggles[i].default_value;
-    }
-  }
+  ResetToggles(o, {game::ToggleGroup::kUpscaling});
 }
+
+void ResetEffects(Options& o) { ResetToggles(o, {game::ToggleGroup::kScreenEffects}); }
 
 void ResetGame(Options& o) {
   Options defaults;
   o.launcher_language = defaults.launcher_language;
   o.language = SystemGameLanguage();
+  ResetToggles(o, {game::ToggleGroup::kStart, game::ToggleGroup::kGame});
+}
+
+void ResetMods(Options& o) {
+  Options defaults;
   o.debug_hotkeys = defaults.debug_hotkeys;
-  for (size_t i = 0; i < game::kToggles.size(); ++i) {
-    if (game::kToggles[i].group == game::ToggleGroup::kGame) {
-      o.toggles[i] = game::kToggles[i].default_value;
-    }
-  }
+  ResetToggles(o, {game::ToggleGroup::kModsSound, game::ToggleGroup::kModsTools});
 }
 
 void ResetAudio(Options& o) {
@@ -896,6 +910,25 @@ Size TemporalInputSize(int upscaler, Size output, double image_aspect, int quali
 bool SceneLowerable() { return game::kLowResolutions && game::kHasDlaa; }
 bool LowersScene(const Options& o) { return SceneLowerable() && o.lower_scene; }
 
+double SceneFraction(const Options& o, Size output) {
+  if (!LowersScene(o)) return 0.0;
+  const int upscaler = !game::kHasDlaa && IsTemporal(o.upscaler) ? kUpscaleOff : o.upscaler;
+  const double aspect = ImageAspect(output, o.native_aspect);
+  if (IsSpatial(upscaler)) {
+    const int quality = FitUpscaleQuality(upscaler, o.upscale_quality, output, aspect);
+    return 1.0 / kUpscaleRatios[std::clamp(quality, 0, kUpscaleQualityCount - 1)];
+  }
+  const int full_height = NativeRenderSize(output, aspect, 0).second;
+  if (upscaler == kUpscaleOff && o.native_height > 0 && o.native_height < full_height) {
+    return double(o.native_height) / full_height;
+  }
+  return 0.0;
+}
+
+bool SceneUpscaled(const Options& o, Size output) {
+  return (game::kHasDlaa && IsTemporal(o.upscaler)) || SceneFraction(o, output) > 0.0;
+}
+
 std::vector<int> UpscaleQualities(int upscaler, Size output, double image_aspect) {
   std::vector<int> qualities;
   if (IsSpatial(upscaler) && game::kLowResolutions) {
@@ -1166,13 +1199,7 @@ bool SaveOptions(const Settings& s) {
     int quality = FitUpscaleQuality(upscaler, o.upscale_quality, output, aspect);
     // A lower resolution on the 3D scene only (3.27): FSR 1's or NIS's quality, or a lower internal resolution without
     // them, as the scene's fraction of the screen's.
-    int full_height = NativeRenderSize(output, aspect, 0).second;
-    double scene_fraction = 0.0;
-    if (LowersScene(o) && IsSpatial(upscaler)) {
-      scene_fraction = 1.0 / kUpscaleRatios[std::clamp(quality, 0, kUpscaleQualityCount - 1)];
-    } else if (LowersScene(o) && upscaler == kUpscaleOff && o.native_height > 0 && o.native_height < full_height) {
-      scene_fraction = double(o.native_height) / full_height;
-    }
+    double scene_fraction = SceneFraction(o, output);
     bool scene_scaled = scene_fraction > 0.0;
     int height = IsTemporal(upscaler) || scene_scaled ? 0
                  : IsSpatial(upscaler)               ? SpatialHeight(output, aspect, quality)

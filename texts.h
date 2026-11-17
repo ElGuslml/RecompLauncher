@@ -14,7 +14,7 @@ struct Texts {
   const char* nav_achievements;
   const char* nav_controls;
   const char* nav_settings;
-  const char* nav_video;
+  const char* nav_display;  // the Settings tab's first category (launcher 3.28; Video before it)
   const char* nav_graphics;
   const char* nav_game;
   const char* nav_updates;
@@ -420,7 +420,7 @@ struct Texts {
   const char* no_session;
   // Launcher 3.0: the Settings tab (page_settings.cpp).
   const char* settings_intro_game;
-  const char* settings_intro_video;
+  const char* settings_intro_display;
   const char* settings_intro_graphics;
   const char* settings_controls_note;
   const char* current_value;
@@ -428,7 +428,6 @@ struct Texts {
   const char* on_value;  // a switch's value
   const char* from_monitor;  // %s: the monitor's resolution
   const char* from_monitor_hint;
-  const char* screen_effects;  // the Graphics category's group (launcher 3.18: in sentence case)
   const char* screen_effects_needs;  // %s: the switch it needs
   const char* renderer_title;
   const char* renderer_native_sub;
@@ -741,6 +740,25 @@ struct Texts {
   // Launcher 3.26: Transformer K, the first Transformer model in every mode.
   const char* dlss_model_transformer_k_sub;
   const char* dlss_model_cnn_sub;
+  // Launcher 3.28: the Settings tab by intention (Gustavo's "propuesta A v2"): its Effects and Mods categories and their
+  // intros, the groups' titles (Upscaling's and Renderer's are their rows' own), and the line in Graphics while Xenos
+  // draws: what only NativeXRenderer has (with DLSS where the game offers it; without the antialiasing where Xenos has
+  // the game's own, game::kNoMsaaCvar).
+  const char* nav_effects;
+  const char* nav_mods;
+  const char* settings_intro_effects;
+  const char* settings_intro_mods;
+  const char* group_screen;
+  const char* group_smoothness;
+  const char* group_image;
+  const char* group_language;
+  const char* group_start;
+  const char* group_game_other;  // the Game category's last group (game::ToggleGroup::kGame)
+  const char* group_sound;
+  const char* group_tools;
+  const char* xenos_notice;
+  const char* xenos_notice_dlss;
+  const char* xenos_notice_msaa;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

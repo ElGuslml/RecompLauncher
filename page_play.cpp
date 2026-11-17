@@ -120,7 +120,7 @@ void App::PlayPage(const ImRect& rect) {
         if (rate.value == o.frame_rate) screen += " \xC2\xB7 " + std::to_string(rate.fps) + " FPS";
       }
     }
-    parts.push_back({Icon::kSliders, col::kTextDim, screen, Page::kVideo});
+    parts.push_back({Icon::kSliders, col::kTextDim, screen, Page::kDisplay});
   }
   if (!update_url_.empty()) {
     const Release* newer = NewerRelease();

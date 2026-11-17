@@ -2,6 +2,52 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.28.0
+
+The Settings tab reordered by intention (2026-11-17, Gustavo's "propuesta A v2"; the other tabs unchanged).
+
+- Its categories: **Display, Graphics, Effects, Audio, Game, Mods, Online** (were Game, Video, Graphics, Audio,
+  Online). The tab opens on Display. Effects only where the game has screen effects to turn off; Online only with
+  `game::kHasOnline`.
+  - **Display**: "Screen" (Monitor, Display mode, Resolution under it, Image format) and "Smoothness" (Frame rate,
+    V-Sync, then the game's `kSmoothness` switches).
+  - **Graphics**: "Renderer" (Renderer, Graphics API under it with Xenos, Graphics card); with NativeXRenderer
+    "Upscaling" (Upscaling, then under it Quality, DLSS model, Internal resolution, Lower resolution for and the game's
+    `kUpscaling` switches) and "Image" (Antialiasing, Sharpness, Anisotropic filtering, Shadow quality). With Xenos, a
+    notice under Graphics card says what only NativeXRenderer has, and "Image" holds the internal resolution (the
+    scale), the game's MSAA, Anisotropic filtering and Shadow quality. "Graphics API: ..." is no longer written at the
+    intro's right.
+  - **Effects**: the game's screen effects (`kScreenEffects`), a switch that needs another under it.
+  - **Game**: "Language" (the launcher's, the game's), "Starting the game" (`kStart`), "Other" (`kGame`).
+  - **Mods**: "Sound" (`kModsSound`) and "Tools" (`kModsTools`, then the SDK's Debug keys, moved from Game).
+- The look: rows of 48 dp (were 60), the focused one 86 dp with 4 dp around it and 14 dp corners; its title 19 dp,
+  its line of help 15 dp. Group titles in Oswald 18 dp with a line under them. A row that depends on the one above is
+  indented under it (its text 46 dp in, its focus 38 dp in) with a line at its left. The categories in Oswald 26 dp,
+  46 dp apart, from 112 dp; the title at 12 dp; the intro 17 dp at 28 dp; the Controls note and the foot's note 15 dp.
+- `game::ToggleGroup` gains `kStart`, `kSmoothness`, `kUpscaling`, `kModsSound` and `kModsTools`; `kGame` is now the
+  Game category's "Other" group, so a game that has not moved its switches keeps them in Game. A switch's
+  `game::ToggleShown` (new, after `needs`) shows it always, while something enlarges the 3D scene (FSR 3.1, DLSS, their
+  antialiasing alone, or `SceneFraction`), or while DLSS upscales (not DLAA); hidden, it keeps its value.
+- `Page::kVideo` is `Page::kDisplay`; `Page::kEffects` and `Page::kMods` are new; `IsSettingsPage()`. Each category has
+  its Reset: `ResetDisplay` (was `ResetVideo`, now with the frame rate and V-Sync), `ResetGraphics` (with the upscaling,
+  the internal resolution and, new, Lower resolution for), `ResetEffects`, `ResetGame`, `ResetMods`.
+- `SceneFraction()` and `SceneUpscaled()` in settings.h (`SaveOptions` writes `native_x_renderer_scene_scale` from the
+  first).
+- Not in it yet, from the proposal: a quality preset (Performance / Balanced / Quality / Custom, its values to define),
+  and the Mods that do not exist (the highway's scale and style, the crowd, the whammy's sound, the track's volume on a
+  miss).
+- Texts (five languages):
+  - renamed: `nav_video` -> `nav_display`, `settings_intro_video` -> `settings_intro_display`;
+  - new: `nav_effects`, `nav_mods`, `settings_intro_effects`, `settings_intro_mods`, `group_screen`,
+    `group_smoothness`, `group_image`, `group_language`, `group_start`, `group_game_other`, `group_sound`,
+    `group_tools`, `xenos_notice`, `xenos_notice_dlss`, `xenos_notice_msaa`;
+  - changed: `settings_intro_display`, `settings_intro_graphics`, `settings_intro_game`, `renderer_xenos_sub` ("Try it
+    if the game looks wrong."), `antialiasing_hint` and `antialiasing_by_upscaler` (no "Video"),
+    `frame_generation_help` and `frame_generation_needs_rate` (the frame rate is in Display), `done_text`;
+  - removed: `screen_effects` (the Effects category has no title over its switches).
+- A game moving to 3.28: give its switches their groups in game.h (the intro videos `kStart`, a debug menu
+  `kModsTools`), and check that its own texts and README name the new places.
+
 ## 3.27.0
 
 Resolutions below the game's own (2026-11-17), for a game that sets `game::kLowResolutions`; nothing changes for a

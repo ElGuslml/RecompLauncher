@@ -347,10 +347,11 @@ void App::StartingOverlay(ImVec2 size) {
 }
 
 const char* PageName(Page page) {
-  static const char* const kNames[] = {"Play",           "DLC",          "Achievements",       "Controls",
-                                       "Settings: Video", "Settings: Graphics", "Settings: Game", "Settings: Audio",
-                                       "Settings: Online", "Updates",       "Profiles",           "Profile",
-                                       "Profile: a game", "Profile: edit"};
+  static const char* const kNames[] = {
+      "Play",           "DLC",           "Achievements",      "Controls",        "Settings: Display",
+      "Settings: Graphics", "Settings: Effects", "Settings: Audio", "Settings: Game", "Settings: Mods",
+      "Settings: Online", "Updates",     "Profiles",          "Profile",         "Profile: a game",
+      "Profile: edit"};
   static_assert(std::size(kNames) == size_t(Page::kCount));
   return page < Page::kCount ? kNames[int(page)] : "?";
 }
@@ -488,9 +489,7 @@ void App::FrameContents(ImVec2 size) {
   ImRect main(ImVec2(origin.x, origin.y + header_height), ImVec2(origin.x + size.x, origin.y + size.y - footer_height));
   page_rect_ = main;
   // Another page (the Settings tab's categories count as one): it fades in.
-  if (int key = page_ == Page::kVideo || page_ == Page::kGraphics || page_ == Page::kAudio || page_ == Page::kOnline
-                    ? int(Page::kGame)
-                    : int(page_);
+  if (int key = IsSettingsPage(page_) ? int(Page::kDisplay) : int(page_);
       key != fade_key_) {
     if (fade_key_ >= 0) StartFade();
     fade_key_ = key;
@@ -512,10 +511,12 @@ void App::FrameContents(ImVec2 size) {
     case Page::kControls:
       ControlsPage(main);
       break;
-    case Page::kVideo:
+    case Page::kDisplay:
     case Page::kGraphics:
-    case Page::kGame:
+    case Page::kEffects:
     case Page::kAudio:
+    case Page::kGame:
+    case Page::kMods:
     case Page::kOnline:
       SettingsPage(main);
       break;

@@ -1,8 +1,10 @@
-// The Settings tab (launcher 3.18, Gustavo's 2026-11-11 mockup "Camerino"): the title and its categories on the left
-// (Game, Video, Graphics, Audio since 3.19, Online since 3.20 where the game plays online: a dot marks the current
-// one), the category's options as flat rows on the right, each its value written as text (a switch for what is on or off); the row in focus grows to show its line of
-// help, the arrows and its place among the values ("‹ value ›", the controller's left and right, A the next). Y opens
-// the row's whole help, X resets the category. Every change is saved at once.
+// The Settings tab (launcher 3.18, Gustavo's 2026-11-11 mockup "Camerino"; reordered by intention in 3.28, his
+// "propuesta A v2"): the title and its categories on the left (Display, Graphics, Effects where the game has screen
+// effects, Audio, Game, Mods, and Online where the game plays online: a dot marks the current one), the category's
+// options as rows of 48 dp on the right, in groups under a title, a row that depends on the one above indented under
+// it; each its value written as text (a switch for what is on or off). The row in focus grows to show its line of help,
+// the arrows and its place among the values ("‹ value ›", the controller's left and right, A the next). Y opens the
+// row's whole help, X resets the category. Every change is saved at once.
 
 #include <algorithm>
 #include <cstdio>
@@ -40,7 +42,9 @@ struct OptionRow {
   int index = 0;
   bool locked = false;            // shown with a lock: `locked_value`, no arrows
   std::string locked_value;
-  std::string group;              // a group's title above the row (the screen effects)
+  std::string group;              // a group's title above the row (launcher 3.28: "Screen", "Upscaling", ...)
+  bool child = false;             // it depends on the row above: indented under it, a line at its left (3.28)
+  std::string notice;             // a line in a dashed box under the row (3.28: what Xenos lacks)
   bool is_switch = false;         // on (index 0) or off (index 1): drawn as a switch
   std::function<void(int)> apply;
   // A row that does something when chosen (A, a click) instead of stepping its value (launcher 3.20: a sheet to type the
@@ -59,16 +63,37 @@ struct OptionRow {
   }
 };
 
-// The mockup's ".row": 60 dp, the focused one 88 dp with 4 dp around it.
-constexpr float kRowHeight = 60.0f;
-constexpr float kFocusedRowHeight = 88.0f;
+// The mockup's ".row" (launcher 3.28, "propuesta A v2"): 48 dp, the focused one 86 dp with 4 dp around it; its text
+// 20 dp in, an indented row's 46 dp in (its focus 38 dp in, a line at 27 dp beside it).
+constexpr float kRowHeight = 48.0f;
+constexpr float kFocusedRowHeight = 86.0f;
 constexpr float kFocusedRowMargin = 4.0f;
+constexpr float kRowRounding = 14.0f;
+constexpr float kRowPad = 20.0f;
+constexpr float kChildLeft = 38.0f;
+constexpr float kChildText = 46.0f;
+constexpr float kChildLine = 27.0f;
 constexpr Type kRowLabel{Font::kMedium, 18};
-constexpr Type kRowLabelFocused{Font::kSemiBold, 18};
+constexpr Type kRowLabelFocused{Font::kSemiBold, 19};
 constexpr Type kRowValue{Font::kSemiBold, 18};
 constexpr Type kRowValueFocused{Font::kSemiBold, 20};
-constexpr Type kRowDescription{Font::kRegular, 14};
-constexpr Type kGroupTitle{Font::kSemiBold, 14};
+constexpr Type kRowDescription{Font::kRegular, 15};
+// A group's title (3.28): Oswald, a line 30 dp under its top; 12 dp above it at the top of the list, 23 dp elsewhere.
+constexpr Type kGroupTitle{Font::kDisplayMedium, 18};
+constexpr float kGroupFirstGap = 12.0f;
+constexpr float kGroupGap = 23.0f;
+constexpr float kGroupLine = 30.0f;
+constexpr float kGroupBelowLine = 3.0f;
+// A notice under a row (3.28): a dashed box 52 dp high, 6 dp under the row.
+constexpr float kNoticeHeight = 52.0f;
+constexpr float kNoticeAbove = 6.0f;
+constexpr float kNoticeBelow = 5.0f;
+constexpr Type kNoticeText{Font::kRegular, 15};
+
+// The categories, in the pages' order (Page::kDisplay to Page::kOnline).
+enum Category {
+  kCategoryDisplay, kCategoryGraphics, kCategoryEffects, kCategoryAudio, kCategoryGame, kCategoryMods, kCategoryOnline
+};
 // Launcher 3.22, the rows as an accordion: the mouse's row opens after it rests there this long (crossing the list
 // opens nothing), over this long.
 constexpr double kHoverDelay = 0.08;
@@ -177,30 +202,53 @@ void App::SettingsPage(const ImRect& rect) {
   Options& o = settings_.o;
   const game::GameTexts& own = game::GameTextsFor(language_);
   bool changed = false;
-  int category = page_ == Page::kGame       ? 0
-                 : page_ == Page::kVideo    ? 1
-                 : page_ == Page::kGraphics ? 2
-                 : page_ == Page::kAudio    ? 3
-                                            : 4;
+  // The category: its page's place from Display (launcher 3.28: Display, Graphics, Effects, Audio, Game, Mods, Online).
+  static_assert(int(Page::kOnline) - int(Page::kDisplay) == kCategoryOnline);
+  const int category = std::clamp(int(page_) - int(Page::kDisplay), 0, int(kCategoryOnline));
 
   // --- The rows of the category ---
   std::vector<OptionRow> rows;
-  const char* category_label = category == 0   ? t_.nav_game
-                               : category == 1 ? t_.nav_video
-                               : category == 2 ? t_.nav_graphics
-                               : category == 3 ? t_.nav_audio
-                                               : t_.nav_online;
   const char* online_intro = game::kOnlineByAddress ? t_.settings_intro_online : t_.settings_intro_online_steam;
-  const char* intro = category == 0   ? t_.settings_intro_game
-                      : category == 1 ? t_.settings_intro_video
-                      : category == 2 ? t_.settings_intro_graphics
-                      : category == 3 ? t_.settings_intro_audio
-                                      : online_intro;
-  auto toggle_rows = [&](game::ToggleGroup group, const char* group_title) {
-    bool first = true;
+  const char* const category_labels[] = {t_.nav_display, t_.nav_graphics, t_.nav_effects,
+                                         t_.nav_audio,   t_.nav_game,     t_.nav_mods,
+                                         t_.nav_online};
+  const char* const intros[] = {t_.settings_intro_display, t_.settings_intro_graphics, t_.settings_intro_effects,
+                                t_.settings_intro_audio,   t_.settings_intro_game,     t_.settings_intro_mods,
+                                online_intro};
+  const char* category_label = category_labels[category];
+  const char* intro = intros[category];
+  Size output = settings_.OutputSize();
+  double aspect = ImageAspect(output, o.native_aspect);
+
+  // Rows go in groups (launcher 3.28): group() names the next one, push() adds a row, the first after group() under
+  // its title (a group with no rows shows nothing).
+  std::string next_group;
+  auto group = [&](const char* title) { next_group = title ? title : ""; };
+  auto push = [&](OptionRow&& row) {
+    if (!next_group.empty()) {
+      row.group = std::move(next_group);
+      next_group.clear();
+    }
+    rows.push_back(std::move(row));
+  };
+  // Whether a switch of the game's own is shown (its ToggleShown; one that is not keeps its value).
+  auto toggle_shown = [&](const game::Toggle& toggle) {
+    switch (toggle.shown) {
+      case game::ToggleShown::kSceneUpscaled:
+        return o.native && SceneUpscaled(o, output);
+      case game::ToggleShown::kDlssUpscales:
+        return o.native && game::kHasDlaa && o.upscaler == kUpscaleDlss &&
+               FitUpscaleQuality(o.upscaler, o.upscale_quality, output, aspect) != kQualityNative;
+      default:
+        return true;
+    }
+  };
+  // The game's switches of a group, in game.h's order. `children`: each under the row above, indented (Upscaling's);
+  // a switch that needs another is under that one anyway.
+  auto toggle_rows = [&](game::ToggleGroup toggle_group, bool children = false) {
     for (size_t i = 0; i < game::kToggles.size(); ++i) {
       const game::Toggle& toggle = game::kToggles[i];
-      if (toggle.group != group) continue;
+      if (toggle.group != toggle_group || !toggle_shown(toggle)) continue;
       OptionRow row;
       row.id = toggle.cvar;
       row.title = own.toggles[i * 2];
@@ -209,8 +257,7 @@ void App::SettingsPage(const ImRect& rect) {
       row.values = {t_.on_value, t_.off};
       row.is_switch = true;
       row.index = o.toggles[i] ? 0 : 1;
-      if (first && group_title) row.group = group_title;
-      first = false;
+      row.child = children || toggle.needs;
       // A switch that needs another: off and locked while that one is off.
       if (toggle.needs) {
         for (size_t j = 0; j < game::kToggles.size(); ++j) {
@@ -234,327 +281,13 @@ void App::SettingsPage(const ImRect& rect) {
           }
         }
       };
-      rows.push_back(std::move(row));
+      push(std::move(row));
     }
   };
 
-  Size output = settings_.OutputSize();
-  if (category == 0) {
-    // The launcher's language: automatic (the Windows display language's, named) or one of its own.
-    {
-      OptionRow row;
-      row.id = "launcher_language";
-      row.title = t_.launcher_language;
-      row.sub = t_.launcher_language_hint;
-      row.help = t_.launcher_language_help;
-      char automatic[96];
-      std::snprintf(automatic, sizeof(automatic), t_.launcher_language_automatic,
-                    LauncherLanguageName(SystemLanguage()));
-      row.values.push_back(automatic);
-      for (const LauncherLanguage& l : kLauncherLanguages) {
-        if (l.id == o.launcher_language) row.index = int(row.values.size());
-        row.values.push_back(l.name);
-      }
-      row.apply = [&o](int index) { o.launcher_language = index == 0 ? 0 : kLauncherLanguages[index - 1].id; };
-      rows.push_back(std::move(row));
-    }
-    if (!game::kLanguages.empty()) {
-      OptionRow row;
-      row.id = "language";
-      row.title = t_.game_language;
-      row.sub = t_.game_language_hint;
-      row.help = t_.game_language_hint;
-      for (const game::Language& l : game::kLanguages) row.values.push_back(l.name);
-      row.index = std::clamp(o.language, 0, int(row.values.size()) - 1);
-      row.apply = [&o](int index) { o.language = index; };
-      rows.push_back(std::move(row));
-    }
-    // The SDK's developer keys (debug_hotkeys); on, the ones on the keyboard's controls are named: they play there.
-    {
-      OptionRow row;
-      row.id = "debug_hotkeys";
-      row.title = t_.debug_keys;
-      row.sub = t_.debug_keys_hint;
-      row.help = t_.debug_keys_help;
-      row.values = {t_.on, t_.off};
-      row.is_switch = true;
-      row.index = o.debug_hotkeys ? 0 : 1;
-      if (o.debug_hotkeys) {
-        std::string on_controls = DebugKeysOnControls();
-        if (!on_controls.empty()) {
-          char sub[320];
-          std::snprintf(sub, sizeof(sub), t_.debug_keys_conflict, on_controls.c_str());
-          row.sub = sub;
-        }
-      }
-      row.apply = [&o](int index) { o.debug_hotkeys = index == 0; };
-      rows.push_back(std::move(row));
-    }
-    toggle_rows(game::ToggleGroup::kGame, nullptr);
-  } else if (category == 4) {
-    // Launcher 3.20: online play between friends (the SDK's online_play, experimental). While it is off, the other rows
-    // are locked with their values.
-    auto lock_while_off = [&](OptionRow& row) {
-      if (o.online) return;
-      std::string value = row.Value();
-      row.locked = true;
-      row.locked_value = value;
-      row.sub = t_.online_needs_on;
-      row.activate = nullptr;
-      row.icon = Icon::kNone;
-    };
-    {
-      OptionRow row;
-      row.id = "online_play";
-      row.title = t_.online_play;
-      row.sub = game::kOnlineByAddress ? t_.online_play_hint : t_.online_play_hint_steam;
-      row.help = game::kOnlineByAddress ? t_.online_play_help : t_.online_play_help_steam;
-      row.values = {t_.on, t_.off};
-      row.tags = {t_.experimental, t_.experimental};
-      row.tag_accent = {false, false};
-      row.is_switch = true;
-      row.index = o.online ? 0 : 1;
-      row.apply = [&o](int index) { o.online = index == 0; };
-      rows.push_back(std::move(row));
-    }
-    // Playing by address (game::kOnlineByAddress): hosting, or joining a friend's game at its address.
-    if (game::kOnlineByAddress) {
-      {
-        OptionRow row;
-        row.id = "online_mode";
-        row.title = t_.online_mode;
-        row.help = t_.online_mode_help;
-        row.values = {t_.online_mode_host, t_.online_mode_join};
-        row.subs = {t_.online_mode_host_sub, t_.online_mode_join_sub};
-        row.index = o.online_join ? 1 : 0;
-        row.apply = [&o](int index) { o.online_join = index == 1; };
-        lock_while_off(row);
-        rows.push_back(std::move(row));
-      }
-      if (o.online_join) {
-        // The friend's address, typed in a sheet: "a.b.c.d" or "a.b.c.d:port" (3074 when it names none).
-        OptionRow row;
-        row.id = "online_address";
-        row.title = t_.online_address;
-        row.sub = t_.online_address_hint;
-        row.help = t_.online_address_help;
-        row.values = {o.online_address.empty() ? std::string(t_.online_address_none) : o.online_address};
-        row.icon = Icon::kPencil;
-        row.activate = [this] {
-          OpenTextSheet(t_.nav_online, t_.online_address, t_.online_address_sheet, settings_.o.online_address,
-                        "203.0.113.7:3074", 21, [this](const std::string& text) -> std::string {
-                          std::string endpoint = OnlineEndpoint(text, kOnlinePort);
-                          if (endpoint.empty() && text.find_first_not_of(' ') != std::string::npos) {
-                            return t_.online_address_invalid;
-                          }
-                          settings_.o.online_address = endpoint;
-                          Changed();
-                          return {};
-                        });
-        };
-        lock_while_off(row);
-        rows.push_back(std::move(row));
-      } else {
-        // This PC's address on its network, with the port: chosen, it goes to the clipboard. The help lists them all.
-        const std::vector<net::LocalAddress>& addresses = LocalAddresses();
-        const std::string port = std::to_string(o.online_port);
-        OptionRow row;
-        row.id = "online_your_address";
-        row.title = t_.online_your_address;
-        const bool copied = online_copied_at_ && SDL_GetTicks() - online_copied_at_ < 2000;
-        row.sub = copied ? t_.online_your_address_copied : t_.online_your_address_hint;
-        char help[1024];
-        std::snprintf(help, sizeof(help), t_.online_your_address_help, o.online_port);
-        row.help = help;
-        for (const net::LocalAddress& a : addresses) {
-          row.bullets.push_back(a.address + ":" + port + (a.adapter.empty() ? std::string() : " · " + a.adapter));
-        }
-        if (addresses.empty()) {
-          row.values = {t_.online_your_address_none};
-        } else {
-          std::string address = addresses.front().address + ":" + port;
-          row.values = {address};
-          row.icon = copied ? Icon::kCheck : Icon::kNone;
-          row.activate = [this, address] {
-            SDL_SetClipboardText(address.c_str());
-            online_copied_at_ = SDL_GetTicks();
-          };
-        }
-        lock_while_off(row);
-        rows.push_back(std::move(row));
-
-        // The router's internet address (UPnP): what friends type over the internet, or why there is none.
-        OptionRow internet;
-        internet.id = "online_internet";
-        internet.title = t_.online_internet;
-        std::snprintf(help, sizeof(help), t_.online_internet_help, o.online_port);
-        internet.help = help;
-        const net::RouterAddress* router = o.online ? RouterAnswer() : nullptr;
-        if (!router) {
-          internet.values = {t_.online_internet_asking};
-          internet.sub = t_.online_internet_asking_hint;
-        } else if (router->kind == net::RouterAddress::Kind::kPublic) {
-          const bool internet_copied = online_internet_copied_at_ && SDL_GetTicks() - online_internet_copied_at_ < 2000;
-          std::string address = router->address + ":" + port;
-          internet.values = {address};
-          internet.sub = internet_copied ? t_.online_your_address_copied : t_.online_internet_public_hint;
-          internet.icon = internet_copied ? Icon::kCheck : Icon::kNone;
-          internet.activate = [this, address] {
-            SDL_SetClipboardText(address.c_str());
-            online_internet_copied_at_ = SDL_GetTicks();
-          };
-        } else if (router->kind == net::RouterAddress::Kind::kPrivate) {
-          internet.values = {t_.online_internet_cgnat};
-          internet.tags = {"CGNAT"};
-          internet.tag_accent = {false};
-          internet.sub = t_.online_internet_cgnat_hint;
-        } else {
-          internet.values = {t_.online_internet_unknown};
-          internet.sub = t_.online_internet_unknown_hint;
-        }
-        lock_while_off(internet);
-        rows.push_back(std::move(internet));
-      }
-      // The UDP port, typed in a sheet.
-      {
-        OptionRow row;
-        row.id = "online_port";
-        row.title = t_.online_port;
-        row.sub = t_.online_port_hint;
-        row.help = t_.online_port_help;
-        row.values = {std::to_string(o.online_port)};
-        row.icon = Icon::kPencil;
-        row.activate = [this] {
-          OpenTextSheet(t_.nav_online, t_.online_port, t_.online_port_sheet, std::to_string(settings_.o.online_port),
-                        std::to_string(kOnlinePort), 5, [this](const std::string& text) -> std::string {
-                          int port = OnlinePortOf(text);
-                          if (!port) return t_.online_port_invalid;
-                          settings_.o.online_port = port;
-                          Changed();
-                          return {};
-                        });
-        };
-        lock_while_off(row);
-        rows.push_back(std::move(row));
-      }
-    }
-    // Steam (the SDK's rexsteam.exe, with Valve's steam_api64.dll next to it; experimental): locked off in a build
-    // without them.
-    {
-      OptionRow row;
-      row.id = "online_steam";
-      row.title = t_.online_steam;
-      row.sub = t_.online_steam_hint;
-      row.help = t_.online_steam_help;
-      row.values = {t_.on, t_.off};
-      row.tags = {t_.experimental, t_.experimental};
-      row.tag_accent = {false, false};
-      row.is_switch = true;
-      row.index = o.online_steam ? 0 : 1;
-      row.apply = [&o](int index) { o.online_steam = index == 0; };
-      std::error_code error;
-      const bool has_steam = std::filesystem::exists(exe_dir_ / L"rexsteam.exe", error) &&
-                             std::filesystem::exists(exe_dir_ / L"steam_api64.dll", error);
-      if (o.online && !has_steam) {
-        row.locked = true;
-        row.locked_value = t_.off;
-        row.sub = t_.online_steam_missing;
-      }
-      if (!game::kOnlineByAddress) {
-        // Through Steam only: on with Online play, as it is the only way. Its value written, with the lock (a locked
-        // switch is drawn off whatever its value).
-        row.help = t_.online_steam_help_auto;
-        row.is_switch = false;
-        row.index = o.online && has_steam ? 0 : 1;
-        row.locked_value = row.values[size_t(row.index)];
-        row.locked = true;
-        row.sub = !o.online ? t_.online_needs_on : has_steam ? t_.online_steam_auto : t_.online_steam_missing;
-        row.activate = nullptr;
-        row.icon = Icon::kNone;
-      } else {
-        lock_while_off(row);
-      }
-      rows.push_back(std::move(row));
-    }
-  } else if (category == 3) {
-    // Launcher 3.19, the SDK's change 85. The output device: Windows' default (followed when it changes), or one by
-    // its name; a chosen one not connected now stays chosen, marked.
-    {
-      OptionRow row;
-      row.id = "audio_output";
-      row.title = t_.audio_output;
-      row.sub = t_.audio_output_hint;
-      row.help = t_.audio_output_help;
-      row.values.push_back(t_.audio_output_default);
-      std::vector<std::string> devices = {""};
-      for (const std::string& name : AudioOutputs()) {
-        if (name == o.audio_device) row.index = int(row.values.size());
-        row.values.push_back(name);
-        devices.push_back(name);
-      }
-      if (!o.audio_device.empty() && row.index == 0) {
-        char missing[320];
-        std::snprintf(missing, sizeof(missing), t_.audio_output_missing, o.audio_device.c_str());
-        row.index = int(row.values.size());
-        row.values.push_back(missing);
-        devices.push_back(o.audio_device);
-      }
-      row.apply = [&o, devices](int index) { o.audio_device = devices[size_t(index)]; };
-      rows.push_back(std::move(row));
-    }
-    // The channels: automatic (5.1 where the device has it), stereo, mono.
-    {
-      OptionRow row;
-      row.id = "audio_channels";
-      row.title = t_.audio_channels;
-      row.help = t_.audio_channels_help;
-      row.values = {t_.audio_channels_auto, t_.audio_channels_stereo, t_.audio_channels_mono};
-      row.subs = {t_.audio_channels_auto_sub, t_.audio_channels_stereo_sub, t_.audio_channels_mono_sub};
-      row.index = std::clamp(o.audio_channels, 0, int(kAudioChannelsCount) - 1);
-      row.apply = [&o](int index) { o.audio_channels = index; };
-      rows.push_back(std::move(row));
-    }
-    // The volume, 0-200 % in tens (above 100 a gain above the game's own: its loudest moments can clip).
-    {
-      OptionRow row;
-      row.id = "audio_volume";
-      row.title = t_.audio_volume;
-      row.sub = t_.audio_volume_hint;
-      row.help = t_.audio_volume_help;
-      for (int v = 0; v <= 200; v += 10) row.values.push_back(std::to_string(v) + " %");
-      row.index = std::clamp((o.audio_volume + 5) / 10, 0, 20);
-      row.apply = [&o](int index) { o.audio_volume = index * 10; };
-      rows.push_back(std::move(row));
-    }
-    // Silence while another window is in front.
-    {
-      OptionRow row;
-      row.id = "audio_mute_unfocused";
-      row.title = t_.audio_mute_unfocused;
-      row.sub = t_.audio_mute_unfocused_hint;
-      row.help = t_.audio_mute_unfocused_help;
-      row.values = {t_.on, t_.off};
-      row.is_switch = true;
-      row.index = o.audio_mute_unfocused ? 0 : 1;
-      row.apply = [&o](int index) { o.audio_mute_unfocused = index == 0; };
-      rows.push_back(std::move(row));
-    }
-#ifdef _WIN32
-    // Low latency audio (moved from Game in 3.19).
-    if (game::kHasLowLatencyAudio) {
-      OptionRow row;
-      row.id = "audio_exclusive";
-      row.title = t_.audio_exclusive;
-      row.sub = t_.audio_exclusive_hint;
-      row.help = t_.audio_exclusive_help;
-      row.values = {t_.on, t_.off};
-      row.is_switch = true;
-      row.index = o.audio_exclusive ? 0 : 1;
-      row.apply = [&o](int index) { o.audio_exclusive = index == 0; };
-      rows.push_back(std::move(row));
-    }
-#endif
-  } else if (category == 1) {
+  if (category == kCategoryDisplay) {
+    // Where the game opens and how it fills the screen; then how smooth it is.
+    group(t_.group_screen);
     // Monitor.
     {
       OptionRow row;
@@ -572,7 +305,7 @@ void App::SettingsPage(const ImRect& rect) {
         o.monitor = index + 1;
         settings_.MonitorChanged();
       };
-      rows.push_back(std::move(row));
+      push(std::move(row));
     }
     // Display mode.
     {
@@ -584,7 +317,7 @@ void App::SettingsPage(const ImRect& rect) {
       row.values = {t_.fullscreen, t_.borderless, t_.window};
       row.index = o.display;
       row.apply = [&o](int index) { o.display = index; };
-      rows.push_back(std::move(row));
+      push(std::move(row));
     }
     // Resolution: the window's size; the monitor's in fullscreen and borderless.
     {
@@ -608,7 +341,8 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [this, &o](int index) {
         if (index < int(settings_.window_sizes.size())) o.window = settings_.window_sizes[size_t(index)];
       };
-      rows.push_back(std::move(row));
+      row.child = true;  // under Display mode, which decides it
+      push(std::move(row));
     }
     // Image format, the image's aspect ratio: NativeXRenderer renders the screen's (filling it), 16:9, 21:9 or 32:9, with
     // bars where it differs from the screen's (D104); Xenos the screen's, if the game widens its cameras
@@ -655,11 +389,116 @@ void App::SettingsPage(const ImRect& rect) {
         }
         row.apply = [&o, stored](int index) { o.native_aspect = stored[size_t(index)]; };
       }
-      rows.push_back(std::move(row));
+      push(std::move(row));
     }
+    group(t_.group_smoothness);
+    // The frame rate: the rates the monitor reaches; those above 60 are experimental.
+    if (*game::kFrameRateCvar) {
+      std::vector<game::FrameRate> rates = FrameRates(settings_.CurrentMonitor(), o.any_frame_rate);
+      OptionRow row;
+      row.id = "fps";
+      row.title = t_.framerate;
+      row.sub = settings_.FrameGenerationOn() ? t_.framerate_with_generation : t_.framerate_hint;
+      row.help = row.sub;
+      for (size_t i = 0; i < rates.size(); ++i) {
+        row.values.push_back(std::to_string(rates[i].fps) + " FPS");
+        row.tags.push_back(rates[i].fps > 60 ? t_.experimental : std::string());
+        row.tag_accent.push_back(false);
+        if (rates[i].value == o.frame_rate) row.index = int(i);
+      }
+      row.apply = [&o, rates](int index) { o.frame_rate = rates[size_t(index)].value; };
+      push(std::move(row));
+    }
+    // V-Sync: frames never torn, or each shown as it is ready (settings.h).
+    {
+      OptionRow row;
+      row.id = "vsync";
+      row.title = t_.vsync;
+      row.sub = t_.vsync_hint;
+      row.help = t_.vsync_help;
+      row.values = {t_.on, t_.off};
+      row.is_switch = true;
+      row.index = o.vsync ? 0 : 1;
+      row.apply = [&o](int index) { o.vsync = index == 0; };
+      if (settings_.FrameGenerationOn()) {
+        // Its frames are shown a refresh apart (NativeXRenderer forces FIFO).
+        row.locked = true;
+        row.locked_value = t_.on;
+        row.sub = t_.vsync_by_frame_generation;
+      }
+      push(std::move(row));
+    }
+    toggle_rows(game::ToggleGroup::kSmoothness);
+  } else if (category == kCategoryGraphics) {
+    // What draws the game (it decides what can be chosen below), how its 3D scene is enlarged, and the image's detail.
+    // With Xenos the internal resolution is the scale's, among the image's rows.
+    group(t_.renderer_title);
+    // The renderer: NativeXRenderer (recommended) or Xenos.
+    if (game::kHasNativeXRenderer) {
+      OptionRow row;
+      row.id = "renderer";
+      row.title = t_.renderer_title;
+      row.values = {"NativeXRenderer", "Xenos"};
+      row.subs = {t_.renderer_native_sub, t_.renderer_xenos_sub};
+      row.tags = {t_.recommended, ""};
+      row.tag_accent = {true, false};
+      row.index = o.native ? 0 : 1;
+      row.help = std::string(settings_.has_vulkan ? t_.native_text : t_.native_missing) + " " + t_.xenos_text;
+      if (!settings_.has_vulkan) {
+        row.locked = true;
+        row.locked_value = "Xenos";
+      }
+      row.apply = [&o](int index) { o.native = index == 0; };
+      push(std::move(row));
+    }
+    // Xenos draws through the SDK's Direct3D 12 or Vulkan backend.
+    if (!o.native) {
+      OptionRow row;
+      row.id = "api";
+      row.title = t_.graphics_api;
+      row.sub = t_.api_hint;
+      row.help = t_.api_hint;
+      row.values = {"DirectX 12"};
+      if (settings_.has_vulkan) row.values.push_back("Vulkan");
+      row.index = o.vulkan ? 1 : 0;
+      row.apply = [this, &o](int index) { o.vulkan = settings_.has_vulkan && index == 1; };
+      row.child = game::kHasNativeXRenderer;  // under Renderer, Xenos's
+      push(std::move(row));
+    }
+    // Launcher 3.19, the SDK's change 86: the graphics card, automatic or one by its PCI IDs (a laptop's integrated
+    // and dedicated ones); a chosen one not found now stays chosen, marked.
+    {
+      OptionRow row;
+      row.id = "gpu";
+      row.title = t_.gpu;
+      row.sub = t_.gpu_hint;
+      row.help = t_.gpu_help;
+      row.values.push_back(t_.gpu_automatic);
+      std::vector<std::string> ids = {""};
+      for (const GpuAdapter& gpu : settings_.gpus) {
+        if (gpu.id == o.gpu_adapter) row.index = int(row.values.size());
+        row.values.push_back(gpu.name);
+        ids.push_back(gpu.id);
+      }
+      if (!o.gpu_adapter.empty() && row.index == 0) {
+        char missing[160];
+        std::snprintf(missing, sizeof(missing), t_.audio_output_missing, o.gpu_adapter.c_str());
+        row.index = int(row.values.size());
+        row.values.push_back(missing);
+        ids.push_back(o.gpu_adapter);
+      }
+      row.apply = [&o, ids](int index) { o.gpu_adapter = ids[size_t(index)]; };
+      // Xenos chosen where NativeXRenderer could draw: what only NativeXRenderer has, said under it.
+      if (!o.native && game::kHasNativeXRenderer) {
+        row.notice = *game::kNoMsaaCvar ? t_.xenos_notice_msaa
+                     : game::kHasDlaa && game::kOffersTemporalUpscalers ? t_.xenos_notice_dlss
+                                                                         : t_.xenos_notice;
+      }
+      push(std::move(row));
+    }
+    group(o.native ? t_.scaling : t_.group_image);
     // NativeXRenderer's upscaling (launcher 3.9, settings.h): off, AMD FSR 1, NVIDIA NIS, and AMD FSR 3.1 and NVIDIA DLSS
     // where the game marks its views (game::kHasDlaa); then its quality, which sets the internal resolution.
-    double aspect = ImageAspect(output, o.native_aspect);
     if (o.native) {
       if (!game::kHasDlaa && IsTemporal(o.upscaler)) o.upscaler = kUpscaleOff;
       std::vector<int> upscalers = {kUpscaleOff, kUpscaleFsr1, kUpscaleNis};
@@ -696,7 +535,7 @@ void App::SettingsPage(const ImRect& rect) {
         int quality = IsTemporal(o.upscaler) && !IsTemporal(previous) ? kQualityNative : o.upscale_quality;
         o.upscale_quality = FitUpscaleQuality(o.upscaler, quality, output, aspect);
       };
-      rows.push_back(std::move(row));
+      push(std::move(row));
     }
     if (o.native && o.upscaler != kUpscaleOff) {
       o.upscale_quality = FitUpscaleQuality(o.upscaler, o.upscale_quality, output, aspect);
@@ -730,7 +569,8 @@ void App::SettingsPage(const ImRect& rect) {
         if (quality == o.upscale_quality) row.index = int(row.values.size()) - 1;
       }
       row.apply = [&o, qualities](int index) { o.upscale_quality = qualities[size_t(index)]; };
-      rows.push_back(std::move(row));
+      row.child = true;  // under Upscaling
+      push(std::move(row));
     }
     // DLSS's model (launcher 3.24, game::kHasDlssModel; NativeXRenderer's native_x_renderer_dlss_model): Transformer,
     // NVIDIA's own for each mode (recommended), Transformer K, the first Transformer model in every mode (launcher
@@ -746,7 +586,8 @@ void App::SettingsPage(const ImRect& rect) {
       row.tag_accent = {true, false, false};
       row.index = std::clamp(o.dlss_model, 0, kDlssModelCount - 1);
       row.apply = [&o](int index) { o.dlss_model = index; };
-      rows.push_back(std::move(row));
+      row.child = true;  // under Upscaling
+      push(std::move(row));
     }
     // Frame generation (NativeXRenderer D123): AMD FSR 3.1's, with FSR 3.1 or DLSS (their 3D view and motion vectors),
     // where the game marks its views. With a frame rate row the rate chosen there is the one shown and the game runs at
@@ -778,7 +619,8 @@ void App::SettingsPage(const ImRect& rect) {
         row.index = o.frame_generation ? 1 : 0;
         row.apply = [&o](int index) { o.frame_generation = index == 1; };
       }
-      rows.push_back(std::move(row));
+      row.child = true;  // under Upscaling
+      push(std::move(row));
     }
     // Internal resolution: NativeXRenderer's (automatic, or a lower height; set by the upscaling's quality), or Xenos's
     // scale.
@@ -834,7 +676,8 @@ void App::SettingsPage(const ImRect& rect) {
         row.index = o.scale;
         row.apply = [&o](int index) { o.scale = std::clamp(index, 0, kMaxScale); };
       }
-      rows.push_back(std::move(row));
+      row.child = o.native;  // NativeXRenderer's under Upscaling, which sets it or leaves it to choose
+      push(std::move(row));
     }
     // What a lower resolution lowers (3.27, game::kLowResolutions with the game's views): the 3D scene only
     // (recommended: the HUD, the menus and the game's effects stay sharp) or the whole image (the lightest). Not with
@@ -851,101 +694,14 @@ void App::SettingsPage(const ImRect& rect) {
       row.tag_accent = {true, false};
       row.index = o.lower_scene ? 0 : 1;
       row.apply = [&o](int index) { o.lower_scene = index == 0; };
-      rows.push_back(std::move(row));
+      row.child = true;  // under Upscaling
+      push(std::move(row));
     }
-    // The sharpening after the HUD (D115): the upscaler's own with FSR 1 and NIS, AMD CAS otherwise.
     if (o.native) {
-      OptionRow row;
-      row.id = "sharpness";
-      row.title = t_.sharpness;
-      row.sub = t_.sharpness_hint;
-      row.help = t_.sharpness_help;
-      row.values = {t_.sharpness_off, t_.sharpness_low, t_.sharpness_medium, t_.sharpness_high};
-      row.index = std::clamp(o.sharpness, 0, kSharpnessCount - 1);
-      row.apply = [&o](int index) { o.sharpness = index; };
-      rows.push_back(std::move(row));
+      toggle_rows(game::ToggleGroup::kUpscaling, true);
+      group(t_.group_image);
     }
-  } else {
-    // The renderer: NativeXRenderer (recommended) or Xenos.
-    if (game::kHasNativeXRenderer) {
-      OptionRow row;
-      row.id = "renderer";
-      row.title = t_.renderer_title;
-      row.values = {"NativeXRenderer", "Xenos"};
-      row.subs = {t_.renderer_native_sub, t_.renderer_xenos_sub};
-      row.tags = {t_.recommended, ""};
-      row.tag_accent = {true, false};
-      row.index = o.native ? 0 : 1;
-      row.help = std::string(settings_.has_vulkan ? t_.native_text : t_.native_missing) + " " + t_.xenos_text;
-      if (!settings_.has_vulkan) {
-        row.locked = true;
-        row.locked_value = "Xenos";
-      }
-      row.apply = [&o](int index) { o.native = index == 0; };
-      rows.push_back(std::move(row));
-    }
-    // Launcher 3.19, the SDK's change 86: the graphics card, automatic or one by its PCI IDs (a laptop's integrated
-    // and dedicated ones); a chosen one not found now stays chosen, marked.
-    {
-      OptionRow row;
-      row.id = "gpu";
-      row.title = t_.gpu;
-      row.sub = t_.gpu_hint;
-      row.help = t_.gpu_help;
-      row.values.push_back(t_.gpu_automatic);
-      std::vector<std::string> ids = {""};
-      for (const GpuAdapter& gpu : settings_.gpus) {
-        if (gpu.id == o.gpu_adapter) row.index = int(row.values.size());
-        row.values.push_back(gpu.name);
-        ids.push_back(gpu.id);
-      }
-      if (!o.gpu_adapter.empty() && row.index == 0) {
-        char missing[160];
-        std::snprintf(missing, sizeof(missing), t_.audio_output_missing, o.gpu_adapter.c_str());
-        row.index = int(row.values.size());
-        row.values.push_back(missing);
-        ids.push_back(o.gpu_adapter);
-      }
-      row.apply = [&o, ids](int index) { o.gpu_adapter = ids[size_t(index)]; };
-      rows.push_back(std::move(row));
-    }
-    // The frame rate: the rates the monitor reaches; those above 60 are experimental.
-    if (*game::kFrameRateCvar) {
-      std::vector<game::FrameRate> rates = FrameRates(settings_.CurrentMonitor(), o.any_frame_rate);
-      OptionRow row;
-      row.id = "fps";
-      row.title = t_.framerate;
-      row.sub = settings_.FrameGenerationOn() ? t_.framerate_with_generation : t_.framerate_hint;
-      row.help = row.sub;
-      for (size_t i = 0; i < rates.size(); ++i) {
-        row.values.push_back(std::to_string(rates[i].fps) + " FPS");
-        row.tags.push_back(rates[i].fps > 60 ? t_.experimental : std::string());
-        row.tag_accent.push_back(false);
-        if (rates[i].value == o.frame_rate) row.index = int(i);
-      }
-      row.apply = [&o, rates](int index) { o.frame_rate = rates[size_t(index)].value; };
-      rows.push_back(std::move(row));
-    }
-    // V-Sync: frames never torn, or each shown as it is ready (settings.h).
-    {
-      OptionRow row;
-      row.id = "vsync";
-      row.title = t_.vsync;
-      row.sub = t_.vsync_hint;
-      row.help = t_.vsync_help;
-      row.values = {t_.on, t_.off};
-      row.is_switch = true;
-      row.index = o.vsync ? 0 : 1;
-      row.apply = [&o](int index) { o.vsync = index == 0; };
-      if (settings_.FrameGenerationOn()) {
-        // Its frames are shown a refresh apart (NativeXRenderer forces FIFO).
-        row.locked = true;
-        row.locked_value = t_.on;
-        row.sub = t_.vsync_by_frame_generation;
-      }
-      rows.push_back(std::move(row));
-    }
-    // Antialiasing: NativeXRenderer's SMAA or FXAA (FSR 3.1 and DLSS, Video > Upscaling, do their own), or the game's
+    // Antialiasing: NativeXRenderer's SMAA or FXAA (FSR 3.1 and DLSS, under Upscaling, do their own), or the game's
     // MSAA.
     if (o.native) {
       OptionRow row;
@@ -961,7 +717,7 @@ void App::SettingsPage(const ImRect& rect) {
         row.sub = t_.antialiasing_by_upscaler;
       }
       row.apply = [&o](int index) { o.native_aa = index; };
-      rows.push_back(std::move(row));
+      push(std::move(row));
     } else if (*game::kNoMsaaCvar) {
       OptionRow row;
       row.id = "msaa";
@@ -971,7 +727,19 @@ void App::SettingsPage(const ImRect& rect) {
       row.values = {game::kMsaaLabel, t_.none};
       row.index = o.no_msaa ? 1 : 0;
       row.apply = [&o](int index) { o.no_msaa = index == 1; };
-      rows.push_back(std::move(row));
+      push(std::move(row));
+    }
+    // The sharpening after the HUD (D115): the upscaler's own with FSR 1 and NIS, AMD CAS otherwise.
+    if (o.native) {
+      OptionRow row;
+      row.id = "sharpness";
+      row.title = t_.sharpness;
+      row.sub = t_.sharpness_hint;
+      row.help = t_.sharpness_help;
+      row.values = {t_.sharpness_off, t_.sharpness_low, t_.sharpness_medium, t_.sharpness_high};
+      row.index = std::clamp(o.sharpness, 0, kSharpnessCount - 1);
+      row.apply = [&o](int index) { o.sharpness = index; };
+      push(std::move(row));
     }
     // Anisotropic filtering.
     {
@@ -984,7 +752,7 @@ void App::SettingsPage(const ImRect& rect) {
       row.values = {t_.off, "2×", "4×", "8×", "16×"};
       row.index = int(std::find(std::begin(kValues), std::end(kValues), o.anisotropic) - std::begin(kValues));
       row.apply = [&o](int index) { o.anisotropic = kValues[index]; };
-      rows.push_back(std::move(row));
+      push(std::move(row));
     }
     // The shadow maps' resolution (NativeXRenderer's D92), locked with Xenos.
     if (game::kShadowQuality) {
@@ -1000,27 +768,340 @@ void App::SettingsPage(const ImRect& rect) {
         row.locked_value = "Original";
       }
       row.apply = [&o](int index) { o.shadow_quality = index; };
-      rows.push_back(std::move(row));
+      push(std::move(row));
     }
-    // Xenos draws through the SDK's Direct3D 12 or Vulkan backend.
-    if (!o.native) {
+  } else if (category == kCategoryEffects) {
+    toggle_rows(game::ToggleGroup::kScreenEffects);
+  } else if (category == kCategoryAudio) {
+    // Launcher 3.19, the SDK's change 85. The output device: Windows' default (followed when it changes), or one by
+    // its name; a chosen one not connected now stays chosen, marked.
+    {
       OptionRow row;
-      row.id = "api";
-      row.title = t_.graphics_api;
-      row.sub = t_.api_hint;
-      row.help = t_.api_hint;
-      row.values = {"DirectX 12"};
-      if (settings_.has_vulkan) row.values.push_back("Vulkan");
-      row.index = o.vulkan ? 1 : 0;
-      row.apply = [this, &o](int index) { o.vulkan = settings_.has_vulkan && index == 1; };
-      rows.push_back(std::move(row));
+      row.id = "audio_output";
+      row.title = t_.audio_output;
+      row.sub = t_.audio_output_hint;
+      row.help = t_.audio_output_help;
+      row.values.push_back(t_.audio_output_default);
+      std::vector<std::string> devices = {""};
+      for (const std::string& name : AudioOutputs()) {
+        if (name == o.audio_device) row.index = int(row.values.size());
+        row.values.push_back(name);
+        devices.push_back(name);
+      }
+      if (!o.audio_device.empty() && row.index == 0) {
+        char missing[320];
+        std::snprintf(missing, sizeof(missing), t_.audio_output_missing, o.audio_device.c_str());
+        row.index = int(row.values.size());
+        row.values.push_back(missing);
+        devices.push_back(o.audio_device);
+      }
+      row.apply = [&o, devices](int index) { o.audio_device = devices[size_t(index)]; };
+      push(std::move(row));
     }
-    toggle_rows(game::ToggleGroup::kScreenEffects, t_.screen_effects);
+    // The channels: automatic (5.1 where the device has it), stereo, mono.
+    {
+      OptionRow row;
+      row.id = "audio_channels";
+      row.title = t_.audio_channels;
+      row.help = t_.audio_channels_help;
+      row.values = {t_.audio_channels_auto, t_.audio_channels_stereo, t_.audio_channels_mono};
+      row.subs = {t_.audio_channels_auto_sub, t_.audio_channels_stereo_sub, t_.audio_channels_mono_sub};
+      row.index = std::clamp(o.audio_channels, 0, int(kAudioChannelsCount) - 1);
+      row.apply = [&o](int index) { o.audio_channels = index; };
+      push(std::move(row));
+    }
+    // The volume, 0-200 % in tens (above 100 a gain above the game's own: its loudest moments can clip).
+    {
+      OptionRow row;
+      row.id = "audio_volume";
+      row.title = t_.audio_volume;
+      row.sub = t_.audio_volume_hint;
+      row.help = t_.audio_volume_help;
+      for (int v = 0; v <= 200; v += 10) row.values.push_back(std::to_string(v) + " %");
+      row.index = std::clamp((o.audio_volume + 5) / 10, 0, 20);
+      row.apply = [&o](int index) { o.audio_volume = index * 10; };
+      push(std::move(row));
+    }
+    // Silence while another window is in front.
+    {
+      OptionRow row;
+      row.id = "audio_mute_unfocused";
+      row.title = t_.audio_mute_unfocused;
+      row.sub = t_.audio_mute_unfocused_hint;
+      row.help = t_.audio_mute_unfocused_help;
+      row.values = {t_.on, t_.off};
+      row.is_switch = true;
+      row.index = o.audio_mute_unfocused ? 0 : 1;
+      row.apply = [&o](int index) { o.audio_mute_unfocused = index == 0; };
+      push(std::move(row));
+    }
+#ifdef _WIN32
+    // Low latency audio (moved from Game in 3.19).
+    if (game::kHasLowLatencyAudio) {
+      OptionRow row;
+      row.id = "audio_exclusive";
+      row.title = t_.audio_exclusive;
+      row.sub = t_.audio_exclusive_hint;
+      row.help = t_.audio_exclusive_help;
+      row.values = {t_.on, t_.off};
+      row.is_switch = true;
+      row.index = o.audio_exclusive ? 0 : 1;
+      row.apply = [&o](int index) { o.audio_exclusive = index == 0; };
+      push(std::move(row));
+    }
+#endif
+  } else if (category == kCategoryGame) {
+    group(t_.group_language);
+    // The launcher's language: automatic (the Windows display language's, named) or one of its own.
+    {
+      OptionRow row;
+      row.id = "launcher_language";
+      row.title = t_.launcher_language;
+      row.sub = t_.launcher_language_hint;
+      row.help = t_.launcher_language_help;
+      char automatic[96];
+      std::snprintf(automatic, sizeof(automatic), t_.launcher_language_automatic,
+                    LauncherLanguageName(SystemLanguage()));
+      row.values.push_back(automatic);
+      for (const LauncherLanguage& l : kLauncherLanguages) {
+        if (l.id == o.launcher_language) row.index = int(row.values.size());
+        row.values.push_back(l.name);
+      }
+      row.apply = [&o](int index) { o.launcher_language = index == 0 ? 0 : kLauncherLanguages[index - 1].id; };
+      push(std::move(row));
+    }
+    if (!game::kLanguages.empty()) {
+      OptionRow row;
+      row.id = "language";
+      row.title = t_.game_language;
+      row.sub = t_.game_language_hint;
+      row.help = t_.game_language_hint;
+      for (const game::Language& l : game::kLanguages) row.values.push_back(l.name);
+      row.index = std::clamp(o.language, 0, int(row.values.size()) - 1);
+      row.apply = [&o](int index) { o.language = index; };
+      push(std::move(row));
+    }
+    group(t_.group_start);
+    toggle_rows(game::ToggleGroup::kStart);
+    group(t_.group_game_other);
+    toggle_rows(game::ToggleGroup::kGame);
+  } else if (category == kCategoryMods) {
+    // What changes the game itself (launcher 3.28): its sound, and the developers' tools.
+    group(t_.group_sound);
+    toggle_rows(game::ToggleGroup::kModsSound);
+    group(t_.group_tools);
+    toggle_rows(game::ToggleGroup::kModsTools);
+    // The SDK's developer keys (debug_hotkeys); on, the ones on the keyboard's controls are named: they play there.
+    {
+      OptionRow row;
+      row.id = "debug_hotkeys";
+      row.title = t_.debug_keys;
+      row.sub = t_.debug_keys_hint;
+      row.help = t_.debug_keys_help;
+      row.values = {t_.on, t_.off};
+      row.is_switch = true;
+      row.index = o.debug_hotkeys ? 0 : 1;
+      if (o.debug_hotkeys) {
+        std::string on_controls = DebugKeysOnControls();
+        if (!on_controls.empty()) {
+          char sub[320];
+          std::snprintf(sub, sizeof(sub), t_.debug_keys_conflict, on_controls.c_str());
+          row.sub = sub;
+        }
+      }
+      row.apply = [&o](int index) { o.debug_hotkeys = index == 0; };
+      push(std::move(row));
+    }
+  } else {
+    // Launcher 3.20: online play between friends (the SDK's online_play, experimental). While it is off, the other rows
+    // are locked with their values.
+    auto lock_while_off = [&](OptionRow& row) {
+      if (o.online) return;
+      std::string value = row.Value();
+      row.locked = true;
+      row.locked_value = value;
+      row.sub = t_.online_needs_on;
+      row.activate = nullptr;
+      row.icon = Icon::kNone;
+    };
+    {
+      OptionRow row;
+      row.id = "online_play";
+      row.title = t_.online_play;
+      row.sub = game::kOnlineByAddress ? t_.online_play_hint : t_.online_play_hint_steam;
+      row.help = game::kOnlineByAddress ? t_.online_play_help : t_.online_play_help_steam;
+      row.values = {t_.on, t_.off};
+      row.tags = {t_.experimental, t_.experimental};
+      row.tag_accent = {false, false};
+      row.is_switch = true;
+      row.index = o.online ? 0 : 1;
+      row.apply = [&o](int index) { o.online = index == 0; };
+      push(std::move(row));
+    }
+    // Playing by address (game::kOnlineByAddress): hosting, or joining a friend's game at its address.
+    if (game::kOnlineByAddress) {
+      {
+        OptionRow row;
+        row.id = "online_mode";
+        row.title = t_.online_mode;
+        row.help = t_.online_mode_help;
+        row.values = {t_.online_mode_host, t_.online_mode_join};
+        row.subs = {t_.online_mode_host_sub, t_.online_mode_join_sub};
+        row.index = o.online_join ? 1 : 0;
+        row.apply = [&o](int index) { o.online_join = index == 1; };
+        lock_while_off(row);
+        push(std::move(row));
+      }
+      if (o.online_join) {
+        // The friend's address, typed in a sheet: "a.b.c.d" or "a.b.c.d:port" (3074 when it names none).
+        OptionRow row;
+        row.id = "online_address";
+        row.title = t_.online_address;
+        row.sub = t_.online_address_hint;
+        row.help = t_.online_address_help;
+        row.values = {o.online_address.empty() ? std::string(t_.online_address_none) : o.online_address};
+        row.icon = Icon::kPencil;
+        row.activate = [this] {
+          OpenTextSheet(t_.nav_online, t_.online_address, t_.online_address_sheet, settings_.o.online_address,
+                        "203.0.113.7:3074", 21, [this](const std::string& text) -> std::string {
+                          std::string endpoint = OnlineEndpoint(text, kOnlinePort);
+                          if (endpoint.empty() && text.find_first_not_of(' ') != std::string::npos) {
+                            return t_.online_address_invalid;
+                          }
+                          settings_.o.online_address = endpoint;
+                          Changed();
+                          return {};
+                        });
+        };
+        lock_while_off(row);
+        push(std::move(row));
+      } else {
+        // This PC's address on its network, with the port: chosen, it goes to the clipboard. The help lists them all.
+        const std::vector<net::LocalAddress>& addresses = LocalAddresses();
+        const std::string port = std::to_string(o.online_port);
+        OptionRow row;
+        row.id = "online_your_address";
+        row.title = t_.online_your_address;
+        const bool copied = online_copied_at_ && SDL_GetTicks() - online_copied_at_ < 2000;
+        row.sub = copied ? t_.online_your_address_copied : t_.online_your_address_hint;
+        char help[1024];
+        std::snprintf(help, sizeof(help), t_.online_your_address_help, o.online_port);
+        row.help = help;
+        for (const net::LocalAddress& a : addresses) {
+          row.bullets.push_back(a.address + ":" + port + (a.adapter.empty() ? std::string() : " · " + a.adapter));
+        }
+        if (addresses.empty()) {
+          row.values = {t_.online_your_address_none};
+        } else {
+          std::string address = addresses.front().address + ":" + port;
+          row.values = {address};
+          row.icon = copied ? Icon::kCheck : Icon::kNone;
+          row.activate = [this, address] {
+            SDL_SetClipboardText(address.c_str());
+            online_copied_at_ = SDL_GetTicks();
+          };
+        }
+        lock_while_off(row);
+        push(std::move(row));
+
+        // The router's internet address (UPnP): what friends type over the internet, or why there is none.
+        OptionRow internet;
+        internet.id = "online_internet";
+        internet.title = t_.online_internet;
+        std::snprintf(help, sizeof(help), t_.online_internet_help, o.online_port);
+        internet.help = help;
+        const net::RouterAddress* router = o.online ? RouterAnswer() : nullptr;
+        if (!router) {
+          internet.values = {t_.online_internet_asking};
+          internet.sub = t_.online_internet_asking_hint;
+        } else if (router->kind == net::RouterAddress::Kind::kPublic) {
+          const bool internet_copied = online_internet_copied_at_ && SDL_GetTicks() - online_internet_copied_at_ < 2000;
+          std::string address = router->address + ":" + port;
+          internet.values = {address};
+          internet.sub = internet_copied ? t_.online_your_address_copied : t_.online_internet_public_hint;
+          internet.icon = internet_copied ? Icon::kCheck : Icon::kNone;
+          internet.activate = [this, address] {
+            SDL_SetClipboardText(address.c_str());
+            online_internet_copied_at_ = SDL_GetTicks();
+          };
+        } else if (router->kind == net::RouterAddress::Kind::kPrivate) {
+          internet.values = {t_.online_internet_cgnat};
+          internet.tags = {"CGNAT"};
+          internet.tag_accent = {false};
+          internet.sub = t_.online_internet_cgnat_hint;
+        } else {
+          internet.values = {t_.online_internet_unknown};
+          internet.sub = t_.online_internet_unknown_hint;
+        }
+        lock_while_off(internet);
+        push(std::move(internet));
+      }
+      // The UDP port, typed in a sheet.
+      {
+        OptionRow row;
+        row.id = "online_port";
+        row.title = t_.online_port;
+        row.sub = t_.online_port_hint;
+        row.help = t_.online_port_help;
+        row.values = {std::to_string(o.online_port)};
+        row.icon = Icon::kPencil;
+        row.activate = [this] {
+          OpenTextSheet(t_.nav_online, t_.online_port, t_.online_port_sheet, std::to_string(settings_.o.online_port),
+                        std::to_string(kOnlinePort), 5, [this](const std::string& text) -> std::string {
+                          int port = OnlinePortOf(text);
+                          if (!port) return t_.online_port_invalid;
+                          settings_.o.online_port = port;
+                          Changed();
+                          return {};
+                        });
+        };
+        lock_while_off(row);
+        push(std::move(row));
+      }
+    }
+    // Steam (the SDK's rexsteam.exe, with Valve's steam_api64.dll next to it; experimental): locked off in a build
+    // without them.
+    {
+      OptionRow row;
+      row.id = "online_steam";
+      row.title = t_.online_steam;
+      row.sub = t_.online_steam_hint;
+      row.help = t_.online_steam_help;
+      row.values = {t_.on, t_.off};
+      row.tags = {t_.experimental, t_.experimental};
+      row.tag_accent = {false, false};
+      row.is_switch = true;
+      row.index = o.online_steam ? 0 : 1;
+      row.apply = [&o](int index) { o.online_steam = index == 0; };
+      std::error_code error;
+      const bool has_steam = std::filesystem::exists(exe_dir_ / L"rexsteam.exe", error) &&
+                             std::filesystem::exists(exe_dir_ / L"steam_api64.dll", error);
+      if (o.online && !has_steam) {
+        row.locked = true;
+        row.locked_value = t_.off;
+        row.sub = t_.online_steam_missing;
+      }
+      if (!game::kOnlineByAddress) {
+        // Through Steam only: on with Online play, as it is the only way. Its value written, with the lock (a locked
+        // switch is drawn off whatever its value).
+        row.help = t_.online_steam_help_auto;
+        row.is_switch = false;
+        row.index = o.online && has_steam ? 0 : 1;
+        row.locked_value = row.values[size_t(row.index)];
+        row.locked = true;
+        row.sub = !o.online ? t_.online_needs_on : has_steam ? t_.online_steam_auto : t_.online_steam_missing;
+        row.activate = nullptr;
+        row.icon = Icon::kNone;
+      } else {
+        lock_while_off(row);
+      }
+      push(std::move(row));
+    }
   }
 
-  // --- The layout (dp from the page's top left; the mockup's 1280 x 760 board): the title at 56, 20; the categories
-  // at 40, 110, 200 wide; the intro at 300, 26; the rows from 300, 68 to 56 from the right edge; the foot 52 high at
-  // 576 ---
+  // --- The layout (dp from the page's top left; the mockup's 1280 x 760 board, "propuesta A v2"): the title at 56,
+  // 12; the categories at 40, 112, 46 apart; the intro at 300, 28; the rows from 300, 68 to 56 from the right edge; the
+  // foot 52 high at 576 ---
   ImGuiContext& g = *GImGui;
   const float page_left = rect.Min.x;
   const float page_top = rect.Min.y;
@@ -1036,25 +1117,29 @@ void App::SettingsPage(const ImRect& rect) {
     // No wider than the column, clear of the intro at 300 (German's EINSTELLUNGEN).
     float width = MeasureText(title, label).x;
     if (width > Px(216.0f)) title.size *= Px(216.0f) / width;
-    DrawLabel(title, ImVec2(page_left + Px(56.0f), page_top + Px(20.0f)), col::kText, label, Px(44.0f * 1.1f));
-    constexpr Type kCategory{Font::kDisplayMedium, 22, 0.015f};
-    std::vector<std::pair<Page, const char*>> categories = {
-        {Page::kGame, t_.nav_game},
-        {Page::kVideo, t_.nav_video},
-        {Page::kGraphics, t_.nav_graphics},
-        {Page::kAudio, t_.nav_audio}};
-    if (game::kHasOnline) categories.push_back({Page::kOnline, t_.nav_online});
+    DrawLabel(title, ImVec2(page_left + Px(56.0f), page_top + Px(12.0f)), col::kText, label, Px(44.0f * 1.1f));
+    constexpr Type kCategory{Font::kDisplayMedium, 26};
+    constexpr float kCategoryStep = 46.0f;
+    // Effects where the game has screen effects to turn off, Online where it plays online.
+    const bool has_effects = std::any_of(game::kToggles.begin(), game::kToggles.end(), [](const game::Toggle& toggle) {
+      return toggle.group == game::ToggleGroup::kScreenEffects;
+    });
+    std::vector<std::pair<Page, const char*>> categories;
+    for (int c = kCategoryDisplay; c <= kCategoryOnline; ++c) {
+      if ((c == kCategoryEffects && !has_effects) || (c == kCategoryOnline && !game::kHasOnline)) continue;
+      categories.push_back({Page(int(Page::kDisplay) + c), category_labels[c]});
+    }
     std::vector<std::array<ImGuiID, 2>> category_ids;
-    float y = page_top + Px(110.0f);
+    float y = page_top + Px(112.0f);
     for (const auto& [category_page, category_name] : categories) {
-      ImRect item(ImVec2(page_left + Px(40.0f), y), ImVec2(page_left + Px(240.0f), y + Px(48.0f)));
+      ImRect item(ImVec2(page_left + Px(40.0f), y), ImVec2(page_left + Px(240.0f), y + Px(kCategoryStep)));
       ImGui::PushID(int(category_page));
       ItemState state = Item("##category", item);
       ImGui::PopID();
       ImGuiID id = ImGui::GetItemID();
       bool on = page_ == category_page;
       if (on) category_focus_ = id;
-      ImU32 color = on ? col::kText : state.hovered ? col::kTextSoft : col::kTextMuted;
+      ImU32 color = on ? col::kText : state.hovered ? col::kTextSoft : col::kLabel;
       DrawLabel(kCategory, ImVec2(item.Min.x + Px(18.0f), item.Min.y), color, category_name, item.GetHeight());
       if (on) {
         // Left of the item, clear of the focus's outline (drawn 4 dp outside the ring's box, which starts 10 dp in).
@@ -1080,30 +1165,20 @@ void App::SettingsPage(const ImRect& rect) {
         if (g.NavMoveSubmitted) ImGui::NavMoveRequestCancel();
       }
       category_ids.push_back({id, id});
-      y += Px(48.0f);
+      y += Px(kCategoryStep);
     }
     ColumnNav(category_ids);
-    constexpr Type kNote{Font::kRegular, 14};
-    float note_width = Px(200.0f);
-    float note_height = DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, t_.settings_controls_note, false);
-    DrawParagraph(kNote, ImVec2(page_left + Px(56.0f), rect.Max.y - Px(48.0f) - note_height), note_width, 1.4f,
-                  col::kTextDim, t_.settings_controls_note);
+    constexpr Type kNote{Font::kRegular, 15};
+    float note_width = Px(236.0f);
+    float note_height = DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.5f, 0, t_.settings_controls_note, false);
+    DrawParagraph(kNote, ImVec2(page_left + Px(56.0f), rect.Max.y - Px(65.0f) - note_height), note_width, 1.5f,
+                  col::kTextMuted, t_.settings_controls_note);
   }
 
-  // The intro over the rows; on Graphics, the graphics API in use at its right.
-  constexpr Type kIntro{Font::kRegular, 16};
-  float intro_y = page_top + Px(26.0f);
+  // The intro over the rows (launcher 3.28: the graphics API is a row of Xenos's, no longer written at its right).
+  constexpr Type kIntro{Font::kRegular, 17};
+  float intro_y = page_top + Px(28.0f);
   DrawLabel(kIntro, ImVec2(rows_left, intro_y), col::kTextMuted, intro);
-  if (category == 2) {
-    constexpr Type kApi{Font::kRegular, 13};
-    constexpr Type kApiValue{Font::kBold, 13};
-    std::string label = std::string(t_.graphics_api) + ": ";
-    const char* api = o.native || o.vulkan ? "Vulkan" : "DirectX 12";
-    float api_x = rows_right - MeasureText(kApiValue, api).x;
-    float api_y = intro_y + (LineHeight(kIntro) - LineHeight(kApi)) * 0.5f;
-    DrawLabel(kApiValue, ImVec2(api_x, api_y), col::kTextSoft, api);
-    DrawLabel(kApi, ImVec2(api_x - MeasureText(kApi, label).x, api_y), col::kTextMuted, label);
-  }
 
   // The rows, scrolling when they do not fit; the scroll bar 16 dp right of them.
   int& selected = settings_row_[category];
@@ -1175,11 +1250,16 @@ void App::SettingsPage(const ImRect& rect) {
   std::vector<std::array<ImGuiID, 2>> row_ids;
   for (int i = 0; i < int(rows.size()); ++i) {
     OptionRow& row = rows[size_t(i)];
+    // A group's title (launcher 3.28): Oswald, a line under it from the text to the scroll bar's side.
     if (!row.group.empty()) {
-      y += Px(18.0f);
-      DrawLabel(kGroupTitle, ImVec2(row_left + Px(20.0f), y), col::kTextMuted, row.group);
-      y += LineHeight(kGroupTitle) + Px(8.0f);
+      y += Px(i == 0 ? kGroupFirstGap : kGroupGap);
+      DrawLabel(kGroupTitle, ImVec2(row_left + Px(kRowPad), y), col::kTextMuted, row.group);
+      const float line_y = Snap(y + Px(kGroupLine));
+      FillRect(ImRect(ImVec2(row_left + Px(kRowPad), line_y), ImVec2(row_right - Px(kRowPad), line_y + Snap(Px(1.0f)))),
+               Fade(col::kFocus, 0.14f));
+      y = line_y + Snap(Px(1.0f)) + Px(kGroupBelowLine) - Px(1.0f);
     }
+    const float slot_top = y;
     // The current row grows to show its line of help and its arrows: the one in focus, the mouse's, or the last one
     // chosen. Launcher 3.22: it opens (and the one before closes) over kOpenSeconds, eased in and out: the two rows
     // change by the same height at every moment, so the rows under the mouse stay where they are.
@@ -1196,7 +1276,10 @@ void App::SettingsPage(const ImRect& rect) {
     if (open > 0.0f && open < 1.0f) moving = true;
     const float e = EaseInOut(open);
     y += Px(kFocusedRowMargin) * e;
-    ImRect r(ImVec2(row_left, y), ImVec2(row_right, y + Px(kRowHeight + (kFocusedRowHeight - kRowHeight) * e)));
+    // An indented row (3.28): its focus from kChildLeft, its text at kChildText; the others' text kRowPad in.
+    const float r_left = row.child ? row_left + Px(kChildLeft) : row_left;
+    ImRect r(ImVec2(r_left, y), ImVec2(row_right, y + Px(kRowHeight + (kFocusedRowHeight - kRowHeight) * e)));
+    const float text_left = row.child ? row_left + Px(kChildText) : r.Min.x + Px(kRowPad);
     settings_row_rects_[size_t(i)] = r;
     // The arrows are drawn over the row: a click on one steps the value at once.
     ImGui::SetNextItemAllowOverlap();
@@ -1253,15 +1336,16 @@ void App::SettingsPage(const ImRect& rect) {
       selected = i;
     }
 
-    // The row: a hairline under it, or the focus's fill and outline when it is the big one (both through its opening).
+    // The row: a hairline under it from its text, or the focus's fill and outline when it is the big one (both through
+    // its opening).
     if (big && state.focused) {
-      FocusRow(r, 12.0f);
+      FocusRow(r, kRowRounding);
     } else if (e > 0.0f) {
-      FillRect(r, Fade(col::kFocus, 0.06f * e), 12.0f);
+      FillRect(r, Fade(col::kFocus, 0.06f * e), kRowRounding);
     }
     if (e < 1.0f) {
       if (state.hovered && !big) FillRect(r, Fade(col::kFocus, 0.03f * (1.0f - e)), 8.0f);
-      FillRect(ImRect(ImVec2(r.Min.x, r.Max.y - Snap(Px(1.0f))), r.Max), Fade(col::kHairline, 1.0f - e));
+      FillRect(ImRect(ImVec2(text_left, r.Max.y - Snap(Px(1.0f))), r.Max), Fade(col::kHairline, 1.0f - e));
     }
 
     // The value at the right: a switch, or its text (with a lock when it cannot change) and its chip; in the big row
@@ -1364,7 +1448,6 @@ void App::SettingsPage(const ImRect& rect) {
 
     // The label at the left; in the big row its line of help under it. Both cut to what the value leaves. Launcher
     // 3.22: the label moves up as the row opens, and its line of help fades in under it, inside the row.
-    float text_left = r.Min.x + pad;
     float text_width = std::max(Px(60.0f), value_left - Px(24.0f) - text_left);
     const float small_y = r.GetCenter().y - LineHeight(kRowLabel) * 0.5f;
     const float big_y =
@@ -1383,6 +1466,23 @@ void App::SettingsPage(const ImRect& rect) {
     }
     ImGui::PopID();
     y = r.Max.y + Px(kFocusedRowMargin) * e;
+    // An indented row's line at its left, through its whole height: the rows under one row draw one line.
+    if (row.child) {
+      const float line_x = Snap(row_left + Px(kChildLine));
+      FillRect(ImRect(ImVec2(line_x, slot_top), ImVec2(line_x + Snap(Px(1.0f)), y)), Fade(col::kFocus, 0.16f));
+    }
+    // A notice under the row (3.28: what Xenos lacks), in a dashed box; not a row of its own (no focus, no help).
+    if (!row.notice.empty()) {
+      y += Px(kNoticeAbove);
+      const ImRect box(ImVec2(row_left, y), ImVec2(row_right, y + Px(kNoticeHeight)));
+      DashedRect(box, Fade(col::kFocus, 0.16f), 12.0f);
+      const float icon_x = box.Min.x + Px(kRowPad);
+      DrawIcon(Icon::kInfo, ImVec2(icon_x, box.GetCenter().y - Px(9.0f)), 18.0f, col::kTextMuted, 1.75f);
+      const float notice_x = icon_x + Px(18.0f) + Px(10.0f);
+      DrawLabel(kNoticeText, ImVec2(notice_x, box.GetCenter().y - LineHeight(kNoticeText) * 0.5f), col::kTextSoft,
+                Ellipsize(kNoticeText, row.notice, box.Max.x - Px(kRowPad) - notice_x));
+      y = box.Max.y + Px(kNoticeBelow);
+    }
   }
   if (moving) {
     settings_moving_until_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
@@ -1402,7 +1502,7 @@ void App::SettingsPage(const ImRect& rect) {
   {
     ImRect foot(ImVec2(rows_left, foot_top), ImVec2(rows_right, foot_top + Px(52.0f)));
     FillRect(ImRect(foot.Min, ImVec2(foot.Max.x, foot.Min.y + Snap(Px(1.0f)))), col::kHairline);
-    // "Reset video": the category's name in lower case inside the sentence, but in German, whose nouns keep their
+    // "Reset display": the category's name in lower case inside the sentence, but in German, whose nouns keep their
     // capital (the five languages' names start with an ASCII letter).
     std::string category_word = category_label;
     if (language_ != 3 && !category_word.empty() && category_word[0] >= 'A' && category_word[0] <= 'Z') {
@@ -1412,7 +1512,7 @@ void App::SettingsPage(const ImRect& rect) {
     std::snprintf(reset, sizeof(reset), t_.reset_category, category_word.c_str());
     ButtonSpec spec{ButtonKind::kGhost, Type{Font::kSemiBold, 14}, 34, 16, 10};
     float button_width = ButtonWidth(spec, reset);
-    constexpr Type kNote{Font::kRegular, 14};
+    constexpr Type kNote{Font::kRegular, 15};
     DrawIcon(Icon::kCheck, ImVec2(foot.Min.x, foot.GetCenter().y - Px(9.0f)), 18.0f, col::kTextDim, 1.9f);
     float note_x = foot.Min.x + Px(18.0f) + Px(10.0f);
     DrawLabel(kNote, ImVec2(note_x, foot.GetCenter().y - LineHeight(kNote) * 0.5f), col::kTextMuted,
@@ -1421,18 +1521,30 @@ void App::SettingsPage(const ImRect& rect) {
     bool reset_pressed = Button("##reset", ImVec2(foot.Max.x - button_width, foot.GetCenter().y - Px(17.0f)), spec, reset);
     ImGui::PopItemFlag();
     if (reset_pressed || (!popup && ButtonPressed(PadButton::kX))) {
-      if (category == 0) {
-        ResetGame(o);
-      } else if (category == 1) {
-        ResetVideo(o);
-        settings_.MonitorChanged();
-      } else if (category == 2) {
-        ResetGraphics(o);
-        o.native = o.native && settings_.has_vulkan && game::kHasNativeXRenderer;
-      } else if (category == 3) {
-        ResetAudio(o);
-      } else {
-        ResetOnline(o);
+      switch (category) {
+        case kCategoryDisplay:
+          ResetDisplay(o);
+          settings_.MonitorChanged();
+          break;
+        case kCategoryGraphics:
+          ResetGraphics(o);
+          o.native = o.native && settings_.has_vulkan && game::kHasNativeXRenderer;
+          break;
+        case kCategoryEffects:
+          ResetEffects(o);
+          break;
+        case kCategoryAudio:
+          ResetAudio(o);
+          break;
+        case kCategoryGame:
+          ResetGame(o);
+          break;
+        case kCategoryMods:
+          ResetMods(o);
+          break;
+        default:
+          ResetOnline(o);
+          break;
       }
       changed = true;
     }

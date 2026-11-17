@@ -32,19 +32,32 @@ struct Language {
   const char* locales;       // null: any locale of the language
 };
 
-// Where a switch of the game's own is shown in the Settings tab: the Game category, or the Graphics category's screen
-// effects (the game's post-processing, each turned off by a cvar of its src/).
-enum class ToggleGroup { kGame, kScreenEffects };
+// Where a switch of the game's own is shown in the Settings tab (launcher 3.28, Gustavo's "propuesta A v2": Display,
+// Graphics, Effects, Audio, Game, Mods, Online):
+// - kGame: the Game category, under "Other" (before 3.28 the Game category's only place; a game that has not chosen
+//   another keeps its switches there);
+// - kScreenEffects: the Effects category, the game's post-processing (each turned off by a cvar of its src/);
+// - kStart: the Game category, "Starting the game" (the intro videos);
+// - kSmoothness: the Display category, "Smoothness", after the frame rate and V-Sync;
+// - kUpscaling: the Graphics category, under Upscaling (NativeXRenderer only; `shown` says with which upscaling);
+// - kModsSound, kModsTools: the Mods category's "Sound" and "Tools" (Tools: before the launcher's Debug keys).
+enum class ToggleGroup { kGame, kScreenEffects, kStart, kSmoothness, kUpscaling, kModsSound, kModsTools };
+
+// When a switch under Upscaling is shown (it is ignored otherwise; its value is kept): always, while something enlarges
+// the 3D scene (AMD FSR 3.1 or NVIDIA DLSS, their antialiasing alone included, or a lower resolution on the 3D scene
+// only), or while NVIDIA DLSS upscales (not DLAA).
+enum class ToggleShown { kAlways, kSceneUpscaled, kDlssUpscales };
 
 // A switch of the game's own (game.h's kToggles): a boolean cvar with a row in the Settings tab; its title, hint and help
 // are game.cpp's (GameTexts::toggles and toggle_help, in the same order). `needs`: another switch's cvar that must
 // be on for this one to be (GH Metallica's grain needs its color correction); while that one is off, this one is off
-// and cannot be changed.
+// and cannot be changed, and its row is drawn under that one's, indented.
 struct Toggle {
   const char* cvar;
   bool default_value;
   ToggleGroup group = ToggleGroup::kGame;
   const char* needs = nullptr;
+  ToggleShown shown = ToggleShown::kAlways;
 };
 
 // A control's keys by default where they are not the SDK's (game.h's kKeyboardDefaults: the Keyboard page's "Reset to
@@ -130,8 +143,8 @@ inline constexpr DlcRule kDlcRule{};
 // The DLC page's mode: extracting the packages, as before 3.16 (kFolder where the game has been tried reading them in
 // place).
 inline constexpr DlcMode kDlcMode = DlcMode::kInstall;
-// The Video page's AMD FSR 3.1 and NVIDIA DLSS, in a game that has them (kHasDlaa). False: the Upscaling row offers Off,
-// FSR 1 and NIS only, and FSR 3.1 or DLSS stays an option of the options file (native_x_renderer_antialiasing =
+// Settings > Graphics' AMD FSR 3.1 and NVIDIA DLSS, in a game that has them (kHasDlaa). False: the Upscaling row offers
+// Off, FSR 1 and NIS only, and FSR 3.1 or DLSS stays an option of the options file (native_x_renderer_antialiasing =
 // fsr_native, dlaa, fsr_quality, dlss_quality...): the row shows it while it is the one in use, the launcher writes it
 // back as it is, and it goes once the player chooses another.
 inline constexpr bool kOffersTemporalUpscalers = true;
@@ -177,7 +190,7 @@ inline constexpr bool kGuitarControlsApart = false;
 // buttons in a song apart from the menus' (the SDK's gamepad_song_binds, recomp change 113: "In a song" and
 // "Navigation"), and the options file's gamepad_guitar_layout. False: none of them.
 inline constexpr bool kHasGh3PadLayout = false;
-// The Video page's DLSS model row (launcher 3.24), with NVIDIA DLSS: Transformer or CNN (NativeXRenderer's
+// Settings > Graphics' DLSS model row (launcher 3.24), with NVIDIA DLSS: Transformer or CNN (NativeXRenderer's
 // native_x_renderer_dlss_model). False: no row, and the options file gains no key.
 inline constexpr bool kHasDlssModel = false;
 // Resolutions below the game's own (launcher 3.27, NativeXRenderer's D174 and D175): the internal resolution also

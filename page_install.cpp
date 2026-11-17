@@ -449,7 +449,7 @@ void App::InstallScreen(ImVec2 size) {
               .pressed ||
           x_pressed) {
         installing_ = false;
-        Navigate(Page::kVideo, false);
+        Navigate(Page::kDisplay, false);
       }
       break;
     }

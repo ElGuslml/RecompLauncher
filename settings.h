@@ -33,7 +33,8 @@ enum Display : int { kFullscreen, kBorderless, kWindow };
 enum NativeAntialiasing : int { kSmaa, kFxaa, kAaOff, kNativeAntialiasingCount };
 inline constexpr const char* kNativeAntialiasingNames[] = {"smaa", "fxaa", "off"};
 
-// NativeXRenderer's upscaling (Settings > Video > Upscaling, launcher 3.9), the choices other PC games give:
+// NativeXRenderer's upscaling (Settings > Graphics > Upscaling since 3.28; Video before, launcher 3.9), the choices
+// other PC games give:
 // - off: the image at the internal resolution, stretched bilinearly into the window (native_x_renderer_scaling bilinear);
 // - AMD FSR 1, NVIDIA Image Scaling: the finished image enlarged into the window (D115: fsr, nis), from an internal
 //   resolution the quality sets (native_x_renderer_resolution_scale);
@@ -47,7 +48,7 @@ enum Upscaler : int { kUpscaleOff, kUpscaleFsr1, kUpscaleNis, kUpscaleFsr3, kUps
 // native_x_renderer_frame_generation is then kept as it is, for tests by hand.
 inline constexpr bool kFrameGenerationRow = false;
 
-// DLSS's model (Settings > Video > DLSS model, launcher 3.24, game::kHasDlssModel; NativeXRenderer's
+// DLSS's model (Settings > Graphics > Upscaling > DLSS model, launcher 3.24, game::kHasDlssModel; NativeXRenderer's
 // native_x_renderer_dlss_model, D156): Transformer, NVIDIA's own choice for each mode (render preset 0), Transformer K,
 // the first Transformer model in every mode (preset K, launcher 3.26: NVIDIA's own choice is K for DLAA, Quality and
 // Balanced, the heavier M and L for Performance and Ultra Performance), or CNN, the earlier model (preset F, which
@@ -275,10 +276,13 @@ std::string WithPart(std::string_view list, std::string_view key, Part part, boo
 bool KeyboardDrums(const Options& o);
 bool KeyboardFourLanes(const Options& o);
 
-// The defaults of each page's "Reset" (the game's own, src/startup.cpp; the SDK's for the keyboard).
-void ResetVideo(Options& o);
+// The defaults of each page's "Reset" (the game's own, src/startup.cpp; the SDK's for the keyboard). The Settings tab's
+// categories (launcher 3.28) take their rows' options, the game's switches by their ToggleGroup.
+void ResetDisplay(Options& o);
 void ResetGraphics(Options& o);
+void ResetEffects(Options& o);
 void ResetGame(Options& o);
+void ResetMods(Options& o);
 void ResetAudio(Options& o);
 void ResetOnline(Options& o);
 void ResetKeyboard(Options& o);
@@ -357,6 +361,12 @@ std::vector<int> NativeHeights(Size output, double image_aspect, int keep);
 // internal resolution without them, sets native_x_renderer_scene_scale, and the internal resolution is the screen's.
 bool SceneLowerable();
 bool LowersScene(const Options& o);
+// The fraction of the internal resolution the 3D scene is drawn at on each axis (native_x_renderer_scene_scale), 0 for
+// the whole of it: FSR 1's or NIS's quality, or a lower internal resolution without them, with LowersScene.
+double SceneFraction(const Options& o, Size output);
+// Something enlarges the 3D scene before the HUD: FSR 3.1 or DLSS (their antialiasing alone included), or SceneFraction
+// (launcher 3.28: game::ToggleShown::kSceneUpscaled).
+bool SceneUpscaled(const Options& o, Size output);
 // The lowest internal resolution offered with game::kLowResolutions, and the lowest FSR 1 or NIS draws the whole image
 // at (NativeXRenderer's D175 takes a quarter of the game's lines).
 inline constexpr int kLowestHeight = 360;

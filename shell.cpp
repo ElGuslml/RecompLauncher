@@ -25,19 +25,22 @@ namespace {
 constexpr const char* kDonateUrl = "https://ko-fi.com/elguslml";
 
 // The tabs, in the header's order (game.h decides whether the game has a DLC page). The Settings tab opens on its first
-// category, Game (launcher 3.18's order: Game, Video, Graphics).
-constexpr Page kTabs[] = {Page::kPlay, Page::kDlc, Page::kAchievements, Page::kControls, Page::kGame, Page::kUpdates};
+// category, Display (launcher 3.28's order: Display, Graphics, Effects, Audio, Game, Mods, Online).
+constexpr Page kTabs[] = {Page::kPlay,     Page::kDlc,     Page::kAchievements,
+                          Page::kControls, Page::kDisplay, Page::kUpdates};
 
 bool HasPage(Page page) { return page != Page::kDlc || game::kHasDlcPage; }
 
 // The tab a page is under: the settings' categories are one tab; the profile's pages none.
 Page TabOf(Page page) {
   switch (page) {
-    case Page::kVideo:
     case Page::kGraphics:
+    case Page::kEffects:
     case Page::kAudio:
+    case Page::kGame:
+    case Page::kMods:
     case Page::kOnline:
-      return Page::kGame;
+      return Page::kDisplay;
     case Page::kProfiles:
     case Page::kProfile:
     case Page::kProfileGame:
@@ -498,10 +501,12 @@ std::vector<App::Hint> App::PageHints() const {
   switch (page_) {
     case Page::kPlay:
       return {{HintKey::kA, t_.hint_play}, {HintKey::kView, t_.hint_profile}, {HintKey::kB, t_.quit}};
-    case Page::kVideo:
+    case Page::kDisplay:
     case Page::kGraphics:
-    case Page::kGame:
+    case Page::kEffects:
     case Page::kAudio:
+    case Page::kGame:
+    case Page::kMods:
     case Page::kOnline:
       // A row being changed: left and right step it, A (or B) ends it.
       if (AnyRowEditing()) return {{HintKey::kArrows, t_.hint_change}, {HintKey::kA, t_.hint_done}};
