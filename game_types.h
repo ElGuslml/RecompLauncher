@@ -180,6 +180,14 @@ inline constexpr bool kHasGh3PadLayout = false;
 // The Video page's DLSS model row (launcher 3.24), with NVIDIA DLSS: Transformer or CNN (NativeXRenderer's
 // native_x_renderer_dlss_model). False: no row, and the options file gains no key.
 inline constexpr bool kHasDlssModel = false;
+// Resolutions below the game's own (launcher 3.27, NativeXRenderer's D174 and D175): the internal resolution also
+// offers 540, 480 and 360 lines, and FSR 1's and NIS's Quality goes below the game's lines too (on a 1080p screen
+// Performance draws 540 lines, Ultra Performance 360). A row chooses what a lower resolution lowers: the 3D scene only
+// (D174, native_x_renderer_scene_scale; the HUD, the menus and the game's effects stay at the screen's resolution, as
+// with FSR 3.1 and DLSS; only where NativeXRenderer finds the game's views, game::kHasDlaa) or the whole image (D175,
+// native_x_renderer_resolution_scale below 1). False: the internal resolution and FSR 1 / NIS lower the whole image,
+// at least to the game's own lines.
+inline constexpr bool kLowResolutions = false;
 }  // namespace defaults
 using namespace defaults;
 

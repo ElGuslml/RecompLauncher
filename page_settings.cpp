@@ -667,7 +667,7 @@ void App::SettingsPage(const ImRect& rect) {
       row.id = "scaling";
       row.title = t_.scaling;
       row.sub = t_.scaling_hint;
-      row.help = t_.scaling_help;
+      row.help = game::kLowResolutions ? t_.scaling_help_low : t_.scaling_help;
       row.values = {t_.scaling_off, "AMD FSR 1", "NVIDIA NIS"};
       row.subs = {t_.scaling_off_sub, t_.scaling_fsr_sub, t_.scaling_nis_sub};
       // A game that does not offer them (game::kOffersTemporalUpscalers) shows the one its options file chose, while it
@@ -706,7 +706,7 @@ void App::SettingsPage(const ImRect& rect) {
       OptionRow row;
       row.id = "quality";
       row.title = t_.quality;
-      row.help = t_.quality_help;
+      row.help = game::kLowResolutions ? t_.quality_help_low : t_.quality_help;
       for (int quality : qualities) {
         char from[128];
         if (IsTemporal(o.upscaler)) {
@@ -719,7 +719,9 @@ void App::SettingsPage(const ImRect& rect) {
           row.tags.push_back(quality == kQualityNative ? std::string() : std::string(t_.experimental));
         } else {
           row.values.push_back(names[quality]);
-          Size size = NativeRenderSize(output, aspect, SpatialHeight(output, aspect, quality));
+          // On the 3D scene only (3.27): the scene's size; otherwise the whole image's internal resolution.
+          Size size = LowersScene(o) ? TemporalInputSize(o.upscaler, output, aspect, quality)
+                                     : NativeRenderSize(output, aspect, SpatialHeight(output, aspect, quality));
           std::snprintf(from, sizeof(from), t_.quality_from, SizeText(size).c_str());
           row.subs.push_back(from);
           row.tags.push_back("");
@@ -788,13 +790,14 @@ void App::SettingsPage(const ImRect& rect) {
       std::snprintf(xenos_hint, sizeof(xenos_hint), t_.internal_hint_xenos, game::kFrameWidth, game::kFrameHeight);
       row.sub = o.native ? t_.internal_hint : xenos_hint;
       row.help = row.sub;
-      if (o.native && IsSpatial(o.upscaler)) {
+      if (o.native && IsSpatial(o.upscaler) && !LowersScene(o)) {
         row.locked = true;
         row.locked_value = SizeText(NativeRenderSize(output, aspect, SpatialHeight(output, aspect, o.upscale_quality)));
         row.sub = t_.internal_by_quality;
-      } else if (o.native && IsTemporal(o.upscaler)) {
+      } else if (o.native && (IsTemporal(o.upscaler) || IsSpatial(o.upscaler))) {
         // FSR 3.1 and DLSS draw only the 3D scene at the quality's size; the HUD and the game's effects are drawn at
         // the screen's, which the upscaler rebuilds the scene at (launcher 3.9.1: 3.9 showed the screen's size here).
+        // FSR 1 and NIS too where they take the 3D scene only (3.27, LowersScene).
         row.locked = true;
         row.locked_value = SizeText(TemporalInputSize(o.upscaler, output, aspect, o.upscale_quality));
         row.sub = t_.internal_scene_only;
@@ -816,6 +819,8 @@ void App::SettingsPage(const ImRect& rect) {
           if (heights[i] == o.native_height) row.index = int(i);
         }
         row.apply = [&o, heights](int index) { o.native_height = heights[size_t(index)]; };
+        // A lower one on the 3D scene only (3.27): said under it.
+        if (LowersScene(o) && o.native_height > 0) row.sub = t_.internal_scene_only;
       } else {
         auto render = [&](Size scale) {
           std::string text = SizeText({kGuestWidth * scale.first, kGuestHeight * scale.second});
@@ -829,6 +834,23 @@ void App::SettingsPage(const ImRect& rect) {
         row.index = o.scale;
         row.apply = [&o](int index) { o.scale = std::clamp(index, 0, kMaxScale); };
       }
+      rows.push_back(std::move(row));
+    }
+    // What a lower resolution lowers (3.27, game::kLowResolutions with the game's views): the 3D scene only
+    // (recommended: the HUD, the menus and the game's effects stay sharp) or the whole image (the lightest). Not with
+    // FSR 3.1 and DLSS, which draw the 3D scene only.
+    if (o.native && SceneLowerable() && !IsTemporal(o.upscaler)) {
+      OptionRow row;
+      row.id = "lower";
+      row.title = t_.lower_for;
+      row.sub = t_.lower_for_hint;
+      row.help = t_.lower_for_help;
+      row.values = {t_.lower_scene, t_.lower_image};
+      row.subs = {t_.lower_scene_sub, t_.lower_image_sub};
+      row.tags = {t_.recommended, ""};
+      row.tag_accent = {true, false};
+      row.index = o.lower_scene ? 0 : 1;
+      row.apply = [&o](int index) { o.lower_scene = index == 0; };
       rows.push_back(std::move(row));
     }
     // The sharpening after the HUD (D115): the upscaler's own with FSR 1 and NIS, AMD CAS otherwise.

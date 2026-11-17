@@ -112,6 +112,7 @@ struct Texts {
   const char* scaling;
   const char* scaling_hint;
   const char* scaling_help;
+  const char* scaling_help_low;  // with game::kLowResolutions (3.27): below the game's lines, scene or image
   const char* scaling_off;
   const char* scaling_off_sub;
   const char* scaling_fsr_sub;
@@ -120,6 +121,7 @@ struct Texts {
   const char* scaling_dlss_sub;
   const char* quality;
   const char* quality_help;
+  const char* quality_help_low;  // the same (3.27)
   const char* quality_native;
   const char* quality_ultra;
   const char* quality_quality;
@@ -129,8 +131,16 @@ struct Texts {
   const char* quality_from;        // %s: the size the image is drawn at ("Drawn at 2293 × 960")
   const char* quality_native_sub;  // FSR 3.1's and DLSS's native: their antialiasing alone
   const char* internal_by_quality;       // the internal resolution's line when the upscaling sets it
-  const char* internal_scene_only;       // the same with FSR 3.1 or DLSS, which draw only the 3D scene smaller (3.9.1)
+  const char* internal_scene_only;       // the same with an upscaler that draws only the 3D scene smaller (3.9.1)
   const char* internal_scene_help;
+  // What a lower resolution lowers (3.27, game::kLowResolutions): the 3D scene only or the whole image.
+  const char* lower_for;
+  const char* lower_for_hint;
+  const char* lower_for_help;
+  const char* lower_scene;
+  const char* lower_scene_sub;
+  const char* lower_image;
+  const char* lower_image_sub;
   const char* antialiasing_by_upscaler;  // the antialiasing row's line while FSR 3.1 or DLSS does it
   const char* sharpness;
   const char* sharpness_hint;

@@ -2,6 +2,35 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.27.0
+
+Resolutions below the game's own (2026-11-17), for a game that sets `game::kLowResolutions`; nothing changes for a
+game without it. Needs NativeXRenderer's D174 (`native_x_renderer_scene_scale`) and D175
+(`native_x_renderer_resolution_scale` below 1). With an older NativeXRenderer the game ignores the first key and draws
+at least its own lines.
+
+- Settings > Video > **Internal resolution** also offers 540, 480 and 360 lines, below the screen's.
+- FSR 1's and NIS's **Quality** offers its five steps below the game's 720 lines too. On a 1080p screen: Ultra Quality
+  831 lines, Quality 720, Balanced 635, Performance 540, Ultra Performance 360. Each step shows its size.
+- **Lower resolution for**, a new row after Internal resolution, chooses what a lower internal resolution or FSR 1 /
+  NIS lowers. It is shown with NativeXRenderer, without FSR 3.1 or DLSS, in a game whose views NativeXRenderer finds
+  (`game::kHasDlaa`).
+  - **The 3D scene only** (recommended). The scene is drawn smaller and enlarged before the HUD and the game's effects,
+    which stay at the screen's resolution, as FSR 3.1 and DLSS do. Written as `native_x_renderer_scene_scale` (the
+    scene's fraction of the screen's lines; FSR 1 / NIS: 1 / the step's ratio) with
+    `native_x_renderer_resolution_scale = 0`. The internal resolution's row says "The 3D scene only" under it. Without
+    FSR 1 or NIS the image is enlarged bilinearly, sharpened by AMD CAS when a sharpness is chosen.
+  - **The whole image**, the lightest. Everything is drawn smaller, the HUD and the text too. Written as
+    `native_x_renderer_resolution_scale` below 1, as before 3.27 above it.
+  - Kept as `launcher_lower_resolution` (`scene` or `image`), with `launcher_internal_height`, the height chosen for
+    the scene without FSR 1 or NIS (the internal resolution is the screen's then).
+- `SceneLowerable()`, `LowersScene()`, `kLowestHeight` (360), `kLowestSpatialHeight` (180; NativeXRenderer's D175 takes
+  a quarter of the game's lines) in settings.h. `NativeRenderSize` lets a chosen height go below the game's.
+- Texts (five languages):
+  - new: `lower_for`, `lower_for_hint`, `lower_for_help`, `lower_scene`, `lower_scene_sub`, `lower_image`,
+    `lower_image_sub`, `scaling_help_low`, `quality_help_low`;
+  - changed: `internal_scene_help` no longer names FSR 3.1 and DLSS.
+
 ## 3.26.0
 
 DLSS's Transformer K model in every mode (2026-11-16), for a game that sets `game::kHasDlssModel` (nothing changes for

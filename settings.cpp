@@ -586,6 +586,12 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
       }
       // FSR 1 and NIS set the internal resolution: the one chosen without them is the automatic one.
       if (IsSpatial(o.upscaler)) o.native_height = 0;
+      // A lower resolution on the 3D scene only (launcher 3.27): the internal resolution is the screen's, the height
+      // chosen kept apart.
+      if (game::kLowResolutions) {
+        o.lower_scene = GetString(c, "launcher_lower_resolution") != "image";
+        if (LowersScene(o) && !IsSpatial(o.upscaler)) o.native_height = std::max(GetInt(c, "launcher_internal_height", 0), 0);
+      }
     }
     o.sharpness = SharpnessFromValue(o.upscaler, GetDouble(c, "native_x_renderer_sharpness", -1.0));
     // DLSS's model (game::kHasDlssModel): CNN, Transformer K ("k" in either case), or Transformer for anything else
@@ -848,18 +854,20 @@ Size NativeRenderSize(Size output, double image_aspect, int height) {
   double factor = fill ? image_aspect / guest_aspect : 1.0;
   double fit = fill ? std::min(double(output.second) / kGuestHeight, double(output.first) / (kGuestWidth * factor))
                     : std::min(double(output.first) / kGuestWidth, double(output.second) / kGuestHeight);
-  double scale = std::max(height > 0 ? double(height) / kGuestHeight : fit, 1.0 / std::min(factor, 1.0));
+  // A chosen height below the game's (game::kLowResolutions, NativeXRenderer's D175) down to a quarter of its lines.
+  double lowest = height > 0 && game::kLowResolutions ? 0.25 : 1.0;
+  double scale = std::max(height > 0 ? double(height) / kGuestHeight : fit, lowest / std::min(factor, 1.0));
   return {int(std::floor(kGuestWidth * scale * factor + 0.5)), int(std::floor(kGuestHeight * scale + 0.5))};
 }
 
 // 0 (automatic: the output's), then the usual heights below it, down to the lowest the image allows (720
-// lines; more for an output narrower than 16:9). `keep` (a height the options file named) is offered too if it
-// is in that range. Nothing above the output's: no supersampling.
+// lines, or 360 with game::kLowResolutions; more for an output narrower than 16:9). `keep` (a height the options file
+// named) is offered too if it is in that range. Nothing above the output's: no supersampling.
 std::vector<int> NativeHeights(Size output, double image_aspect, int keep) {
   int highest = NativeRenderSize(output, image_aspect, 0).second;
-  int lowest = NativeRenderSize(output, image_aspect, kGuestHeight).second;
+  int lowest = NativeRenderSize(output, image_aspect, game::kLowResolutions ? kLowestHeight : kGuestHeight).second;
   std::vector<int> heights;
-  for (int height : {2160, 1800, 1440, 1080, 900, 720, lowest, keep}) {
+  for (int height : {2160, 1800, 1440, 1080, 900, 720, 540, 480, 360, lowest, keep}) {
     if (height >= lowest && height < highest && std::find(heights.begin(), heights.end(), height) == heights.end()) {
       heights.push_back(height);
     }
@@ -871,7 +879,8 @@ std::vector<int> NativeHeights(Size output, double image_aspect, int keep) {
 
 int SpatialHeight(Size output, double image_aspect, int quality) {
   int highest = NativeRenderSize(output, image_aspect, 0).second;
-  int lowest = NativeRenderSize(output, image_aspect, kGuestHeight).second;
+  int lowest =
+      NativeRenderSize(output, image_aspect, game::kLowResolutions ? kLowestSpatialHeight : kGuestHeight).second;
   double ratio = kUpscaleRatios[std::clamp(quality, 0, kUpscaleQualityCount - 1)];
   return std::max(int(std::lround(highest / ratio)), lowest);
 }
@@ -884,9 +893,15 @@ Size TemporalInputSize(int upscaler, Size output, double image_aspect, int quali
   return {int(std::lround(size.first * scale)), int(std::lround(size.second * scale))};
 }
 
+bool SceneLowerable() { return game::kLowResolutions && game::kHasDlaa; }
+bool LowersScene(const Options& o) { return SceneLowerable() && o.lower_scene; }
+
 std::vector<int> UpscaleQualities(int upscaler, Size output, double image_aspect) {
   std::vector<int> qualities;
-  if (IsTemporal(upscaler)) {
+  if (IsSpatial(upscaler) && game::kLowResolutions) {
+    // Every step, below the game's own lines too.
+    for (int q = kQualityUltra; q < kUpscaleQualityCount; ++q) qualities.push_back(q);
+  } else if (IsTemporal(upscaler)) {
     for (int q : {kQualityNative, kQualityQuality, kQualityBalanced, kQualityPerformance, kQualityUltraPerformance}) {
       qualities.push_back(q);
     }
@@ -1143,12 +1158,25 @@ bool SaveOptions(const Settings& s) {
       f << "native_x_renderer_aspect = " << text << "\n";
     }
     // The upscaling (launcher 3.9): FSR 1 and NIS from the internal resolution their quality sets, FSR 3.1 and DLSS at
-    // the screen's (they draw the 3D view smaller themselves).
+    // the screen's (they draw the 3D view smaller themselves); FSR 1 and NIS on the 3D scene only (3.27) at the screen's
+    // too, the scene drawn smaller (native_x_renderer_scene_scale below).
     int upscaler = !game::kHasDlaa && IsTemporal(o.upscaler) ? kUpscaleOff : o.upscaler;
     Size output = s.OutputSize();
     double aspect = ImageAspect(output, o.native_aspect);
     int quality = FitUpscaleQuality(upscaler, o.upscale_quality, output, aspect);
-    int height = IsSpatial(upscaler) ? SpatialHeight(output, aspect, quality) : IsTemporal(upscaler) ? 0 : o.native_height;
+    // A lower resolution on the 3D scene only (3.27): FSR 1's or NIS's quality, or a lower internal resolution without
+    // them, as the scene's fraction of the screen's.
+    int full_height = NativeRenderSize(output, aspect, 0).second;
+    double scene_fraction = 0.0;
+    if (LowersScene(o) && IsSpatial(upscaler)) {
+      scene_fraction = 1.0 / kUpscaleRatios[std::clamp(quality, 0, kUpscaleQualityCount - 1)];
+    } else if (LowersScene(o) && upscaler == kUpscaleOff && o.native_height > 0 && o.native_height < full_height) {
+      scene_fraction = double(o.native_height) / full_height;
+    }
+    bool scene_scaled = scene_fraction > 0.0;
+    int height = IsTemporal(upscaler) || scene_scaled ? 0
+                 : IsSpatial(upscaler)               ? SpatialHeight(output, aspect, quality)
+                                                     : o.native_height;
     {
       char text[32];
       std::snprintf(text, sizeof(text), "%.6f", height > 0 ? double(height) / kGuestHeight : 0.0);
@@ -1156,6 +1184,24 @@ bool SaveOptions(const Settings& s) {
       value.erase(value.find_last_not_of('0') + 1);
       if (value.back() == '.') value.pop_back();
       f << "native_x_renderer_resolution_scale = " << value << "\n";
+    }
+    // A lower resolution on the 3D scene only (launcher 3.27, NativeXRenderer's D174): the scene's fraction of the
+    // internal resolution on each axis, 0 for the whole of it; what a lower resolution lowers, and the height chosen
+    // without FSR 1 or NIS (the internal resolution is then the screen's).
+    if (game::kLowResolutions) {
+      f << "# native_x_renderer_scene_scale: the 3D scene drawn at this fraction of the internal resolution on each\n"
+           "# axis (0.125 to 1; FSR 1's and NIS's qualities: 0.769, 0.667, 0.588, 0.5, 0.333) and enlarged by\n"
+           "# native_x_renderer_scaling before the HUD and the game's effects; 0 = the whole internal resolution.\n"
+           "# launcher_lower_resolution: what the launcher's lower resolutions lower: scene (the 3D scene only) or\n"
+           "# image (the whole image). launcher_internal_height: the internal resolution chosen for the scene.\n";
+      char text[32];
+      std::snprintf(text, sizeof(text), "%.6f", scene_fraction);
+      std::string value = text;
+      value.erase(value.find_last_not_of('0') + 1);
+      if (value.back() == '.') value.pop_back();
+      f << "native_x_renderer_scene_scale = " << value << "\n";
+      f << "launcher_lower_resolution = \"" << (o.lower_scene ? "scene" : "image") << "\"\n";
+      f << "launcher_internal_height = " << (scene_scaled && upscaler == kUpscaleOff ? o.native_height : 0) << "\n";
     }
     // How the image is scaled into the window, and sharpened (D115).
     f << "# native_x_renderer_scaling: bilinear, fsr (AMD FSR 1) or nis (NVIDIA Image Scaling), when the internal\n"

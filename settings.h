@@ -145,7 +145,10 @@ struct Options {
   // kAspect32x9) with NativeXRenderer only, with bars where the screen is narrower or wider.
   double native_aspect = 0.0;
   int native_height = 0;    // native_x_renderer_resolution_scale × the frame's height without upscaling: the internal
-                            // resolution's height; 0 = automatic
+                            // resolution's height; 0 = automatic (with LowersScene, launcher_internal_height)
+  // What a lower internal resolution or FSR 1 / NIS lowers (game::kLowResolutions, launcher_lower_resolution): the 3D
+  // scene only (true, NativeXRenderer's D174) or the whole image (false).
+  bool lower_scene = true;
   int upscaler = kUpscaleOff;              // an Upscaler
   int upscale_quality = kQualityQuality;   // an UpscaleQuality (launcher_upscaling_quality)
   int sharpness = kSharpnessOff;           // a Sharpness
@@ -349,15 +352,25 @@ Size NativeRenderSize(Size output, double image_aspect, int height);
 // The internal resolutions NativeXRenderer offers, as heights (D54): 0 (automatic), then lower ones.
 std::vector<int> NativeHeights(Size output, double image_aspect, int keep);
 
+// A lower resolution on the 3D scene only (launcher 3.27: game::kLowResolutions, in a game whose views NativeXRenderer
+// finds, game::kHasDlaa, and Options::lower_scene; NativeXRenderer's D174): FSR 1's and NIS's quality, or a lower
+// internal resolution without them, sets native_x_renderer_scene_scale, and the internal resolution is the screen's.
+bool SceneLowerable();
+bool LowersScene(const Options& o);
+// The lowest internal resolution offered with game::kLowResolutions, and the lowest FSR 1 or NIS draws the whole image
+// at (NativeXRenderer's D175 takes a quarter of the game's lines).
+inline constexpr int kLowestHeight = 360;
+inline constexpr int kLowestSpatialHeight = 180;
 // The qualities an upscaler offers (UpscaleQuality values): FSR 3.1 and DLSS native and their four modes; FSR 1 and NIS
-// those whose internal resolution differs, down to the lowest NativeXRenderer draws (the game's 720 lines).
+// those whose internal resolution differs, down to the lowest NativeXRenderer draws (the game's 720 lines), or their
+// five with game::kLowResolutions.
 std::vector<int> UpscaleQualities(int upscaler, Size output, double image_aspect);
 // A quality the upscaler offers: the given one, or the nearest (native <-> ultra quality, the lowest offered).
 int FitUpscaleQuality(int upscaler, int quality, Size output, double image_aspect);
 // The internal resolution's height FSR 1 and NIS draw at for a quality (native_x_renderer_resolution_scale × 720).
 int SpatialHeight(Size output, double image_aspect, int quality);
 // The size FSR 3.1 or DLSS draw the 3D view at for a quality, from the screen's internal resolution (NGX's Balanced is
-// 58 % per axis, AMD's 1 / 1.7).
+// 58 % per axis, AMD's 1 / 1.7); also FSR 1's and NIS's on the 3D scene only (LowersScene, AMD's ratios).
 Size TemporalInputSize(int upscaler, Size output, double image_aspect, int quality);
 // The sharpening's native_x_renderer_sharpness for an upscaler, and back (the nearest step; a negative value, the
 // filter's own default, is medium for FSR 1 and NIS and off otherwise).
