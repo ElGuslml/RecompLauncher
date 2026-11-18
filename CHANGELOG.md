@@ -2,6 +2,14 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.31.1
+
+The Mods tab's highway preview reads the highway's texture from another pak where a game keeps it apart from the
+gems (2026-11-18, GH5's port of GH Warriors of Rock's mods): `game::HighwayAssets` gains `highway_pak` and
+`highway_dictionary` (nullptr / 0 by default: the highway from `pak` and `dictionary`, as before). GH5 keeps its
+highway, `Highway_Judy_fm_01`, in `data/compressed/ZONES/global.pak.xen`'s `judy_1_highway.tex` and the gems in
+`z_in_game.pak.xen`'s `basic_gems.tex`. No game needs a change to build.
+
 ## 3.31.0
 
 GH Warriors of Rock's ambient occlusion, texture detail, speakers and frame rates above 240 (2026-11-18).

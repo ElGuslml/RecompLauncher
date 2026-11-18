@@ -246,7 +246,10 @@ void App::HighwayPanel(const ImRect& rect) {
   if (!highway_game_) {
     highway_game_ = std::make_unique<highway::GameTextures>();
     const std::filesystem::path files = GameFilesFolder(exe_dir_);
-    if (!files.empty()) highway_game_->Load(files / game::kHighwayAssets.pak);
+    if (!files.empty()) {
+      const game::HighwayAssets& a = game::kHighwayAssets;
+      highway_game_->Load(files / a.pak, a.highway_pak ? files / a.highway_pak : std::filesystem::path{});
+    }
   }
   if (!highway_pictures_) highway_pictures_ = std::make_unique<highway::Pictures>();
   PollHighwayFolder();
