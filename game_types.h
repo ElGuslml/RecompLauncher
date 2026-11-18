@@ -16,7 +16,7 @@ namespace launcher::game {
 // it, and marked experimental.
 struct FrameRate {
   int value;
-  int fps;
+  int fps;  // 0: "Unlimited" (launcher 3.31), the game's own ceiling
 };
 
 // A language of the game (game.h's kLanguages, the Game page's language row): an XLanguage id (user_language:
@@ -270,6 +270,12 @@ inline constexpr bool kAmbientOcclusion = false;
 // main 3D view's textures as the resolution gives them, a half or a whole mip level sharper. Only where NativeXRenderer
 // finds the game's views. False: no row, and the options file gains no key.
 inline constexpr bool kTextureDetail = false;
+// Settings > Audio's Channels row with 5.1 (launcher 3.31, the SDK's audio_speaker_config_from_output, which the game
+// sets): Automatic, 5.1, Stereo, Mono, the game told the speakers it plays on (its Dolby Digital setting only with 5.1),
+// written as audio_channels auto, surround, stereo, mono; the row's help says the notes' timing stays the same (the
+// game keeps it, as GH Warriors of Rock's ghwor_dolby_timing). False:
+// Automatic, Stereo, Mono, as before.
+inline constexpr bool kSpeakerChoice = false;
 }  // namespace defaults
 using namespace defaults;
 

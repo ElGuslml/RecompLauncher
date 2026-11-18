@@ -14,6 +14,16 @@ Settings > Graphics' Image group gains two rows, each behind a flag of `game_typ
 - **Extra texture detail** (under Upscaling, with DLSS or FSR 3.1; `game::kTextureDetail`): Off, On, written as
   `native_x_renderer_upscaler_lod_bias` (0, -1), the upscalers' vendors' one more level.
 
+Settings > Audio's Channels row offers 5.1 where the game has `game::kSpeakerChoice` (the SDK's
+`audio_speaker_config_from_output`, which the game sets): Automatic, 5.1, Stereo, Mono, written as `audio_channels`
+auto, surround, stereo, mono (a game that keeps its timing whatever it is told, as GH Warriors of Rock's
+`ghwor_dolby_timing`, says so in the row's help).
+
+Frame rates above the monitor's: the Frame rate row offers every rate of `game::kFrameRates` whatever the monitor
+(before, only with `launcher_any_frame_rate`), and a rate with `fps` 0 is "Unlimited". With V-Sync on a rate above the
+monitor's runs at the monitor's (the game's side; Gustavo: "V-Sync manda"), as the row says; above 240 the row says it
+is experimental.
+
 Texts in the five languages; the Low / Medium / High labels are the sharpness row's.
 
 ## 3.30.1

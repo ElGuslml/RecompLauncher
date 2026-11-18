@@ -309,7 +309,8 @@ std::string OnlineEndpoint(std::string_view text, int default_port);
 int OnlinePortOf(std::string_view text);
 
 // audio_channels' values (Options::audio_channels), in the row's order.
-enum AudioChannels { kAudioAuto, kAudioStereo, kAudioMono, kAudioChannelsCount };
+// kAudioSurround (launcher 3.31): "surround", the game told it plays 5.1 whatever the device (game::kSpeakerChoice).
+enum AudioChannels { kAudioAuto, kAudioStereo, kAudioMono, kAudioSurround, kAudioChannelsCount };
 
 // What a controller (its serial number or GUID, as the SDK's) or the keyboard ("keyboard") plays, in the SDK's
 // gamepad_device_subtypes (changes 56 and 87): the game's instrument when the list does not name it (gamepad_subtype,
@@ -373,6 +374,8 @@ std::vector<Monitor> EnumerateMonitors();
 
 // The frame rates the monitor reaches (game::kFrameRates, those above 60 only up to its refresh rate), or with `any`
 // all of them (the options file's launcher_any_frame_rate: with V-Sync off a game can run above its monitor).
+// Every rate of game::kFrameRates (launcher 3.31: those above the monitor too; with V-Sync on the game runs at the
+// monitor's refresh rate then, its own src/options.cpp; before, the monitor's only unless `any`).
 std::vector<game::FrameRate> FrameRates(const Monitor& monitor, bool any = false);
 // The Windows display language's entry of game::kLanguages, or 0.
 int SystemGameLanguage();

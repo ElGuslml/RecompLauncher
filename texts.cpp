@@ -791,6 +791,13 @@ const Texts kEnglish = {
     .upscaler_texture_detail = "Extra texture detail",
     .upscaler_texture_detail_hint = "One more texture level, which DLSS and FSR 3.1 smooth.",
     .upscaler_texture_detail_help = "NVIDIA's and AMD's advice for their upscalers: the 3D scene's textures one level sharper than its resolution gives, a detail the upscaler resolves by adding up several frames. Sharper surfaces on the stage, the band and the crowd; a fine pattern may shimmer for a moment after a cut. Adds to Texture detail.",
+    .audio_channels_auto_speakers_sub = "5.1 on surround speakers, stereo on the rest.",
+    .audio_channels_surround_sub = "The game plays its 5.1 (its Dolby Digital) whatever the device.",
+    .audio_channels_stereo_speakers_sub = "The game told it has two speakers.",
+    .audio_channels_speakers_help = "The game is told the speakers it plays on. Automatic: 5.1 on a device with surround speakers, stereo on the others. 5.1: always, as before this option (a stereo device gets it mixed into two channels). Stereo and Mono: two speakers (Mono the same sound on both sides). The notes' timing stays the same whatever you choose.",
+    .framerate_unlimited = "Unlimited",
+    .framerate_above_240 = "Experimental above 240: V-Sync off, the game's timing still being checked.",
+    .framerate_vsync_caps = "With V-Sync on, the monitor's %d Hz. Turn V-Sync off for this rate.",
 };
 
 const Texts kGerman = {
@@ -1575,6 +1582,13 @@ const Texts kGerman = {
     .upscaler_texture_detail = "Zusätzliche Texturdetails",
     .upscaler_texture_detail_hint = "Eine Texturstufe mehr, die DLSS und FSR 3.1 glätten.",
     .upscaler_texture_detail_help = "Der Rat von NVIDIA und AMD für ihre Upscaler: die Texturen der 3D-Szene eine Stufe schärfer, als ihre Auflösung ergibt, ein Detail, das der Upscaler aus mehreren Bildern zusammensetzt. Schärfere Oberflächen auf Bühne, Band und Publikum; ein feines Muster kann nach einem Schnitt kurz flimmern. Kommt zu Texturdetails hinzu.",
+    .audio_channels_auto_speakers_sub = "5.1 auf Surround-Lautsprechern, sonst Stereo.",
+    .audio_channels_surround_sub = "Das Spiel spielt sein 5.1 (sein Dolby Digital) auf jedem Gerät.",
+    .audio_channels_stereo_speakers_sub = "Dem Spiel werden zwei Lautsprecher gemeldet.",
+    .audio_channels_speakers_help = "Dem Spiel wird gemeldet, auf welchen Lautsprechern es spielt. Automatisch: 5.1 auf Geräten mit Surround-Lautsprechern, sonst Stereo. 5.1: immer, wie vor dieser Option (ein Stereogerät bekommt es auf zwei Kanäle gemischt). Stereo und Mono: zwei Lautsprecher (Mono auf beiden Seiten derselbe Ton). Das Timing der Noten bleibt bei jeder Wahl gleich.",
+    .framerate_unlimited = "Unbegrenzt",
+    .framerate_above_240 = "Experimentell über 240: V-Sync aus, das Timing des Spiels wird noch geprüft.",
+    .framerate_vsync_caps = "Mit V-Sync die %d Hz des Monitors. Für diese Bildrate V-Sync ausschalten.",
 };
 
 const Texts kFrench = {
@@ -2359,6 +2373,13 @@ const Texts kFrench = {
     .upscaler_texture_detail = "Détail des textures en plus",
     .upscaler_texture_detail_hint = "Un niveau de texture de plus, que DLSS et FSR 3.1 lissent.",
     .upscaler_texture_detail_help = "Le conseil de NVIDIA et d'AMD pour leurs upscalers : les textures de la scène 3D un niveau plus nettes que ne le donne sa résolution, un détail que l'upscaler reconstitue en additionnant plusieurs images. Des surfaces plus nettes sur la scène, le groupe et le public ; un motif fin peut scintiller un instant après un changement de plan. S'ajoute au Détail des textures.",
+    .audio_channels_auto_speakers_sub = "5.1 sur des enceintes surround, stéréo sur les autres.",
+    .audio_channels_surround_sub = "Le jeu joue son 5.1 (son Dolby Digital) sur tout périphérique.",
+    .audio_channels_stereo_speakers_sub = "Le jeu est informé qu'il a deux enceintes.",
+    .audio_channels_speakers_help = "Le jeu est informé des enceintes sur lesquelles il joue. Automatique : 5.1 sur un périphérique avec des enceintes surround, stéréo sur les autres. 5.1 : toujours, comme avant cette option (un périphérique stéréo le reçoit mixé sur deux canaux). Stéréo et Mono : deux enceintes (Mono le même son des deux côtés). Le timing des notes reste le même quel que soit le choix.",
+    .framerate_unlimited = "Illimitée",
+    .framerate_above_240 = "Expérimental au-delà de 240 : V-Sync désactivée, le timing du jeu encore en vérification.",
+    .framerate_vsync_caps = "Avec la V-Sync, les %d Hz du moniteur. Désactivez la V-Sync pour ce taux.",
 };
 
 const Texts kSpanish = {
@@ -3142,6 +3163,13 @@ const Texts kSpanish = {
     .upscaler_texture_detail = "Detalle extra de texturas",
     .upscaler_texture_detail_hint = "Un nivel más de textura, que DLSS y FSR 3.1 suavizan.",
     .upscaler_texture_detail_help = "El consejo de NVIDIA y AMD para sus upscalers: las texturas de la escena 3D un nivel más nítidas de lo que da su resolución, un detalle que el upscaler reconstruye sumando varias imágenes. Superficies más nítidas en el escenario, la banda y el público; un dibujo fino puede parpadear un momento tras un corte de cámara. Se suma al Detalle de texturas.",
+    .audio_channels_auto_speakers_sub = "5.1 en altavoces envolventes, estéreo en el resto.",
+    .audio_channels_surround_sub = "El juego toca en 5.1 (su Dolby Digital) en cualquier dispositivo.",
+    .audio_channels_stereo_speakers_sub = "Al juego se le dice que tiene dos altavoces.",
+    .audio_channels_speakers_help = "Al juego se le dice en qué altavoces suena. Automático: 5.1 en un dispositivo con altavoces envolventes, estéreo en los demás. 5.1: siempre, como antes de esta opción (un dispositivo estéreo lo recibe mezclado en dos canales). Estéreo y Mono: dos altavoces (Mono el mismo sonido en los dos lados). La sincronía de las notas es la misma elijas lo que elijas.",
+    .framerate_unlimited = "Ilimitado",
+    .framerate_above_240 = "Experimental por encima de 240: V-Sync apagado, la sincronía del juego aún en revisión.",
+    .framerate_vsync_caps = "Con V-Sync, los %d Hz del monitor. Apaga V-Sync para esta tasa.",
 };
 
 const Texts kItalian = {
@@ -3925,6 +3953,13 @@ const Texts kItalian = {
     .upscaler_texture_detail = "Dettaglio extra delle texture",
     .upscaler_texture_detail_hint = "Un livello di texture in più, che DLSS e FSR 3.1 ammorbidiscono.",
     .upscaler_texture_detail_help = "Il consiglio di NVIDIA e AMD per i loro upscaler: le texture della scena 3D un livello più nitide di quanto dia la sua risoluzione, un dettaglio che l'upscaler ricostruisce sommando più fotogrammi. Superfici più nitide su palco, band e pubblico; un motivo fine può sfarfallare un istante dopo un cambio d'inquadratura. Si aggiunge al Dettaglio delle texture.",
+    .audio_channels_auto_speakers_sub = "5.1 sugli altoparlanti surround, stereo sugli altri.",
+    .audio_channels_surround_sub = "Il gioco suona in 5.1 (il suo Dolby Digital) su qualunque dispositivo.",
+    .audio_channels_stereo_speakers_sub = "Al gioco viene detto che ha due altoparlanti.",
+    .audio_channels_speakers_help = "Al gioco viene detto su quali altoparlanti suona. Automatico: 5.1 su un dispositivo con altoparlanti surround, stereo sugli altri. 5.1: sempre, come prima di questa opzione (un dispositivo stereo lo riceve mixato su due canali). Stereo e Mono: due altoparlanti (Mono lo stesso suono su entrambi i lati). Il tempo delle note resta lo stesso qualunque sia la scelta.",
+    .framerate_unlimited = "Illimitato",
+    .framerate_above_240 = "Sperimentale oltre 240: V-Sync disattivato, il tempo del gioco ancora in verifica.",
+    .framerate_vsync_caps = "Con il V-Sync, i %d Hz del monitor. Disattiva il V-Sync per questa frequenza.",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.

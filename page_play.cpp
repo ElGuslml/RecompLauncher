@@ -117,7 +117,9 @@ void App::PlayPage(const ImRect& rect) {
     std::string screen = SizeText(settings_.OutputSize());
     if (*game::kFrameRateCvar) {
       for (const game::FrameRate& rate : game::kFrameRates) {
-        if (rate.value == o.frame_rate) screen += " \xC2\xB7 " + std::to_string(rate.fps) + " FPS";
+        if (rate.value == o.frame_rate) {
+          screen += " \xC2\xB7 " + (rate.fps == 0 ? std::string(t_.framerate_unlimited) : std::to_string(rate.fps) + " FPS");
+        }
       }
     }
     parts.push_back({Icon::kSliders, col::kTextDim, screen, Page::kDisplay});

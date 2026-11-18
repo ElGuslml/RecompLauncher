@@ -473,18 +473,31 @@ void App::SettingsPage(const ImRect& rect) {
     group(t_.group_smoothness);
     // The frame rate: the rates the monitor reaches; those above 60 are experimental.
     if (*game::kFrameRateCvar) {
-      std::vector<game::FrameRate> rates = FrameRates(settings_.CurrentMonitor(), o.any_frame_rate);
+      const Monitor& monitor = settings_.CurrentMonitor();
+      std::vector<game::FrameRate> rates = FrameRates(monitor, o.any_frame_rate);
       OptionRow row;
       row.id = "fps";
       row.title = t_.framerate;
       row.sub = settings_.FrameGenerationOn() ? t_.framerate_with_generation : t_.framerate_hint;
       row.help = row.sub;
       for (size_t i = 0; i < rates.size(); ++i) {
-        row.values.push_back(std::to_string(rates[i].fps) + " FPS");
+        row.values.push_back(rates[i].fps == 0 ? std::string(t_.framerate_unlimited)
+                                               : std::to_string(rates[i].fps) + " FPS");
         row.tags.push_back(rates[i].fps > 60 ? t_.experimental : std::string());
         row.tag_accent.push_back(false);
         if (rates[i].value == o.frame_rate) row.index = int(i);
       }
+      // 3.31: every rate is offered. Above the monitor's with V-Sync on the game runs at the monitor's (Gustavo:
+      // "V-Sync manda"); above 240 its timing is still being checked.
+      const bool above_monitor = o.frame_rate > monitor.refresh + 1;
+      if (!settings_.FrameGenerationOn() && o.vsync && above_monitor) {
+        static char capped[256];
+        std::snprintf(capped, sizeof(capped), t_.framerate_vsync_caps, monitor.refresh);
+        row.sub = capped;
+      } else if (!settings_.FrameGenerationOn() && o.frame_rate > 240) {
+        row.sub = t_.framerate_above_240;
+      }
+      row.help = row.sub;
       row.apply = [&o, rates](int index) { o.frame_rate = rates[size_t(index)].value; };
       push(std::move(row));
     }
@@ -929,10 +942,22 @@ void App::SettingsPage(const ImRect& rect) {
       row.id = "audio_channels";
       row.title = t_.audio_channels;
       row.help = t_.audio_channels_help;
-      row.values = {t_.audio_channels_auto, t_.audio_channels_stereo, t_.audio_channels_mono};
-      row.subs = {t_.audio_channels_auto_sub, t_.audio_channels_stereo_sub, t_.audio_channels_mono_sub};
-      row.index = std::clamp(o.audio_channels, 0, int(kAudioChannelsCount) - 1);
-      row.apply = [&o](int index) { o.audio_channels = index; };
+      if (game::kSpeakerChoice) {
+        // 3.31: 5.1 too, the game told the speakers it plays on; in this order.
+        static constexpr int kOrder[] = {kAudioAuto, kAudioSurround, kAudioStereo, kAudioMono};
+        row.help = t_.audio_channels_speakers_help;
+        row.values = {t_.audio_channels_auto, "5.1", t_.audio_channels_stereo, t_.audio_channels_mono};
+        row.subs = {t_.audio_channels_auto_speakers_sub, t_.audio_channels_surround_sub,
+                    t_.audio_channels_stereo_speakers_sub, t_.audio_channels_mono_sub};
+        row.index = int(std::find(std::begin(kOrder), std::end(kOrder), o.audio_channels) - std::begin(kOrder));
+        if (row.index >= int(std::size(kOrder))) row.index = 0;
+        row.apply = [&o](int index) { o.audio_channels = kOrder[index]; };
+      } else {
+        row.values = {t_.audio_channels_auto, t_.audio_channels_stereo, t_.audio_channels_mono};
+        row.subs = {t_.audio_channels_auto_sub, t_.audio_channels_stereo_sub, t_.audio_channels_mono_sub};
+        row.index = std::clamp(o.audio_channels, 0, int(kAudioMono));
+        row.apply = [&o](int index) { o.audio_channels = index; };
+      }
       push(std::move(row));
     }
     // The volume, 0-200 % in tens (above 100 a gain above the game's own: its loudest moments can clip).
