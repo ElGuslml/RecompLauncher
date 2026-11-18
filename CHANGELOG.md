@@ -2,7 +2,9 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
-## Unreleased
+## 3.31.0
+
+GH Warriors of Rock's ambient occlusion, texture detail, speakers and frame rates above 240 (2026-11-18).
 
 Settings > Graphics' Image group gains two rows, each behind a flag of `game_types.h` (off by default, so a game's
 `game.h` turns it on), locked to their first value with Xenos:
