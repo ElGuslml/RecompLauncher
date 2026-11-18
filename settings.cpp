@@ -297,14 +297,8 @@ std::vector<GpuAdapter> EnumerateGpus() {
   return gpus;
 }
 
-std::vector<game::FrameRate> FrameRates(const Monitor& monitor, bool any) {
-  std::vector<game::FrameRate> rates;
-  for (const game::FrameRate& rate : game::kFrameRates) {
-    if (any || rate.fps <= 60 || rate.fps <= monitor.refresh + 1) {
-      rates.push_back(rate);
-    }
-  }
-  return rates;
+std::vector<game::FrameRate> FrameRates([[maybe_unused]] const Monitor& monitor, [[maybe_unused]] bool any) {
+  return std::vector<game::FrameRate>(game::kFrameRates.begin(), game::kFrameRates.end());
 }
 
 int SystemGameLanguage() {
@@ -678,7 +672,10 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   if (o.audio_device == "default") o.audio_device.clear();
   {
     std::string channels = GetString(c, "audio_channels");
-    o.audio_channels = channels == "stereo" ? kAudioStereo : channels == "mono" ? kAudioMono : kAudioAuto;
+    o.audio_channels = channels == "stereo"                                ? kAudioStereo
+                       : channels == "mono"                                ? kAudioMono
+                       : channels == "surround" && game::kSpeakerChoice ? kAudioSurround
+                                                                           : kAudioAuto;
   }
   o.audio_volume = std::clamp(GetInt(c, "audio_volume", 100), 0, 200);
   o.audio_mute_unfocused = GetBool(c, "audio_mute_unfocused", false);
@@ -1147,7 +1144,12 @@ bool Settings::FrameGenerationPossible() const {
 void Settings::FitFrameRate() {
   std::vector<game::FrameRate> rates = FrameRates(CurrentMonitor(), o.any_frame_rate);
   if (std::none_of(rates.begin(), rates.end(), [this](const game::FrameRate& r) { return r.value == o.frame_rate; })) {
-    o.frame_rate = game::kFrameRateDefault;
+    // The highest rate offered below the one chosen (V-Sync turned on under 480: the monitor's), else the default.
+    int fit = game::kFrameRateDefault;
+    for (const game::FrameRate& rate : rates) {
+      if (rate.value <= o.frame_rate && rate.value > fit) fit = rate.value;
+    }
+    o.frame_rate = fit;
   }
 }
 
@@ -1320,7 +1322,7 @@ bool SaveOptions(const Settings& s) {
   f << "audio_wasapi_exclusive = " << boolean(o.audio_exclusive) << "\n";
   // Settings > Audio (the SDK's change 85): the output device by name ("" = Windows' default), the channels (auto,
   // stereo, mono), the volume (0-100) and the silence while the window is in the background.
-  static const char* const kChannelNames[] = {"auto", "stereo", "mono"};
+  static const char* const kChannelNames[] = {"auto", "stereo", "mono", "surround"};
   f << "audio_output_device = \"" << Escaped(o.audio_device) << "\"\n";
   f << "audio_channels = \"" << kChannelNames[std::clamp(o.audio_channels, 0, int(kAudioChannelsCount) - 1)]
     << "\"\n";

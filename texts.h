@@ -849,6 +849,15 @@ struct Texts {
   const char* upscaler_texture_detail;
   const char* upscaler_texture_detail_hint;
   const char* upscaler_texture_detail_help;
+  // Launcher 3.31: Settings > Audio's Channels with 5.1 (game::kSpeakerChoice).
+  const char* audio_channels_auto_speakers_sub;
+  const char* audio_channels_surround_sub;
+  const char* audio_channels_stereo_speakers_sub;
+  const char* audio_channels_speakers_help;
+  // Launcher 3.31: frame rates above 240 (V-Sync off).
+  const char* framerate_unlimited;
+  const char* framerate_above_240;
+  const char* framerate_vsync_caps;  // %d: the monitor's refresh rate
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,
