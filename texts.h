@@ -835,6 +835,20 @@ struct Texts {
   const char* update_button;
   const char* play_update;
   const char* hint_update;
+  // Launcher 3.31: Settings > Graphics' ambient occlusion and texture detail (game::kAmbientOcclusion,
+  // game::kTextureDetail).
+  const char* ambient_occlusion;
+  const char* ambient_occlusion_hint;
+  const char* ambient_occlusion_help;
+  const char* texture_detail;
+  const char* texture_detail_hint;
+  const char* texture_detail_help;
+  const char* texture_detail_normal;
+  const char* texture_detail_sharper;
+  const char* texture_detail_sharpest;
+  const char* upscaler_texture_detail;
+  const char* upscaler_texture_detail_hint;
+  const char* upscaler_texture_detail_help;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

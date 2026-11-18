@@ -779,6 +779,18 @@ const Texts kEnglish = {
     .update_button = "Update",
     .play_update = "Update %s",
     .hint_update = "Update",
+    .ambient_occlusion = "Ambient occlusion",
+    .ambient_occlusion_hint = "Soft shadows in corners, folds and where things touch.",
+    .ambient_occlusion_help = "Original keeps the game's own, a light shading of the stage drawn before the band. Low to Ultra replace it with a finer one over the whole scene, the band included (XeGTAO), which costs the graphics card some work: High takes about 0.25 ms a frame at 1280x720 and about 1.3 ms at 3440x1440 on an RTX 4070 Ti; Low costs the least.",
+    .texture_detail = "Texture detail",
+    .texture_detail_hint = "Sharper textures on the stage, the band and the crowd.",
+    .texture_detail_help = "Normal picks each texture's detail for the image's resolution. Sharper and Sharpest pick a finer level (half a step or a whole one): more detail on the stage, the band and the crowd, at the cost of some shimmer on fine patterns in motion. The note highway and the HUD do not change.",
+    .texture_detail_normal = "Normal",
+    .texture_detail_sharper = "Sharper",
+    .texture_detail_sharpest = "Sharpest",
+    .upscaler_texture_detail = "Extra texture detail",
+    .upscaler_texture_detail_hint = "One more texture level, which DLSS and FSR 3.1 smooth.",
+    .upscaler_texture_detail_help = "NVIDIA's and AMD's advice for their upscalers: the 3D scene's textures one level sharper than its resolution gives, a detail the upscaler resolves by adding up several frames. Sharper surfaces on the stage, the band and the crowd; a fine pattern may shimmer for a moment after a cut. Adds to Texture detail.",
 };
 
 const Texts kGerman = {
@@ -1551,6 +1563,18 @@ const Texts kGerman = {
     .update_button = "Aktualisieren",
     .play_update = "Update %s",
     .hint_update = "Update",
+    .ambient_occlusion = "Umgebungsverdeckung",
+    .ambient_occlusion_hint = "Weiche Schatten in Ecken, Falten und wo sich Dinge berühren.",
+    .ambient_occlusion_help = "Original behält die des Spiels, eine leichte Schattierung der Bühne, gezeichnet vor der Band. Niedrig bis Ultra ersetzen sie durch eine feinere über die ganze Szene, die Band eingeschlossen (XeGTAO), was die Grafikkarte etwas Arbeit kostet: Hoch braucht auf einer RTX 4070 Ti etwa 0,25 ms pro Bild bei 1280x720 und etwa 1,3 ms bei 3440x1440; Niedrig kostet am wenigsten.",
+    .texture_detail = "Texturdetails",
+    .texture_detail_hint = "Schärfere Texturen auf Bühne, Band und Publikum.",
+    .texture_detail_help = "Normal wählt die Detailstufe jeder Textur für die Auflösung des Bildes. Schärfer und Am schärfsten wählen eine feinere Stufe (eine halbe oder eine ganze): mehr Details auf Bühne, Band und Publikum, dafür etwas Flimmern feiner Muster in Bewegung. Notenbahn und HUD bleiben, wie sie sind.",
+    .texture_detail_normal = "Normal",
+    .texture_detail_sharper = "Schärfer",
+    .texture_detail_sharpest = "Am schärfsten",
+    .upscaler_texture_detail = "Zusätzliche Texturdetails",
+    .upscaler_texture_detail_hint = "Eine Texturstufe mehr, die DLSS und FSR 3.1 glätten.",
+    .upscaler_texture_detail_help = "Der Rat von NVIDIA und AMD für ihre Upscaler: die Texturen der 3D-Szene eine Stufe schärfer, als ihre Auflösung ergibt, ein Detail, das der Upscaler aus mehreren Bildern zusammensetzt. Schärfere Oberflächen auf Bühne, Band und Publikum; ein feines Muster kann nach einem Schnitt kurz flimmern. Kommt zu Texturdetails hinzu.",
 };
 
 const Texts kFrench = {
@@ -2323,6 +2347,18 @@ const Texts kFrench = {
     .update_button = "Mettre à jour",
     .play_update = "Mise à jour %s",
     .hint_update = "Mise à jour",
+    .ambient_occlusion = "Occlusion ambiante",
+    .ambient_occlusion_hint = "Des ombres douces dans les coins, les plis et là où les choses se touchent.",
+    .ambient_occlusion_help = "Original garde celle du jeu, un léger ombrage de la scène dessiné avant le groupe. De Faible à Ultra, une plus fine la remplace sur toute la scène, groupe compris (XeGTAO), au prix d'un peu de travail pour la carte graphique : Élevée prend environ 0,25 ms par image en 1280x720 et environ 1,3 ms en 3440x1440 sur une RTX 4070 Ti ; Faible coûte le moins.",
+    .texture_detail = "Détail des textures",
+    .texture_detail_hint = "Des textures plus nettes sur la scène, le groupe et le public.",
+    .texture_detail_help = "Normal choisit le niveau de détail de chaque texture selon la résolution de l'image. Plus net et Le plus net choisissent un niveau plus fin (un demi ou un entier) : plus de détails sur la scène, le groupe et le public, au prix d'un peu de scintillement des motifs fins en mouvement. La piste de notes et l'interface ne changent pas.",
+    .texture_detail_normal = "Normal",
+    .texture_detail_sharper = "Plus net",
+    .texture_detail_sharpest = "Le plus net",
+    .upscaler_texture_detail = "Détail des textures en plus",
+    .upscaler_texture_detail_hint = "Un niveau de texture de plus, que DLSS et FSR 3.1 lissent.",
+    .upscaler_texture_detail_help = "Le conseil de NVIDIA et d'AMD pour leurs upscalers : les textures de la scène 3D un niveau plus nettes que ne le donne sa résolution, un détail que l'upscaler reconstitue en additionnant plusieurs images. Des surfaces plus nettes sur la scène, le groupe et le public ; un motif fin peut scintiller un instant après un changement de plan. S'ajoute au Détail des textures.",
 };
 
 const Texts kSpanish = {
@@ -3094,6 +3130,18 @@ const Texts kSpanish = {
     .update_button = "Actualizar",
     .play_update = "Actualización %s",
     .hint_update = "Actualización",
+    .ambient_occlusion = "Oclusión ambiental",
+    .ambient_occlusion_hint = "Sombras suaves en rincones, pliegues y donde las cosas se tocan.",
+    .ambient_occlusion_help = "Original deja la del juego, un sombreado ligero del escenario hecho antes de dibujar la banda. De Baja a Ultra la sustituye una más fina en toda la escena, banda incluida (XeGTAO), con un coste para la tarjeta gráfica: Alta lleva unos 0,25 ms por imagen a 1280x720 y unos 1,3 ms a 3440x1440 en una RTX 4070 Ti; Baja es la que menos cuesta.",
+    .texture_detail = "Detalle de texturas",
+    .texture_detail_hint = "Texturas más nítidas en el escenario, la banda y el público.",
+    .texture_detail_help = "Normal elige el detalle de cada textura según la resolución de la imagen. Más nítido y Máximo eligen un nivel más fino (medio o uno entero): más detalle en el escenario, la banda y el público, a cambio de algo de parpadeo en los dibujos finos en movimiento. El highway de notas y la interfaz no cambian.",
+    .texture_detail_normal = "Normal",
+    .texture_detail_sharper = "Más nítido",
+    .texture_detail_sharpest = "Máximo",
+    .upscaler_texture_detail = "Detalle extra de texturas",
+    .upscaler_texture_detail_hint = "Un nivel más de textura, que DLSS y FSR 3.1 suavizan.",
+    .upscaler_texture_detail_help = "El consejo de NVIDIA y AMD para sus upscalers: las texturas de la escena 3D un nivel más nítidas de lo que da su resolución, un detalle que el upscaler reconstruye sumando varias imágenes. Superficies más nítidas en el escenario, la banda y el público; un dibujo fino puede parpadear un momento tras un corte de cámara. Se suma al Detalle de texturas.",
 };
 
 const Texts kItalian = {
@@ -3865,6 +3913,18 @@ const Texts kItalian = {
     .update_button = "Aggiorna",
     .play_update = "Aggiornamento %s",
     .hint_update = "Aggiornamento",
+    .ambient_occlusion = "Occlusione ambientale",
+    .ambient_occlusion_hint = "Ombre morbide negli angoli, nelle pieghe e dove le cose si toccano.",
+    .ambient_occlusion_help = "Original mantiene quella del gioco, una leggera ombreggiatura del palco disegnata prima della band. Da Bassa a Ultra la sostituisce una più fine su tutta la scena, band compresa (XeGTAO), con un costo per la scheda grafica: Alta richiede circa 0,25 ms per fotogramma a 1280x720 e circa 1,3 ms a 3440x1440 su una RTX 4070 Ti; Bassa costa meno di tutte.",
+    .texture_detail = "Dettaglio delle texture",
+    .texture_detail_hint = "Texture più nitide su palco, band e pubblico.",
+    .texture_detail_help = "Normale sceglie il dettaglio di ogni texture in base alla risoluzione dell'immagine. Più nitido e Massimo scelgono un livello più fine (mezzo o uno intero): più dettagli su palco, band e pubblico, al prezzo di un po' di sfarfallio dei motivi fini in movimento. La pista delle note e l'interfaccia non cambiano.",
+    .texture_detail_normal = "Normale",
+    .texture_detail_sharper = "Più nitido",
+    .texture_detail_sharpest = "Massimo",
+    .upscaler_texture_detail = "Dettaglio extra delle texture",
+    .upscaler_texture_detail_hint = "Un livello di texture in più, che DLSS e FSR 3.1 ammorbidiscono.",
+    .upscaler_texture_detail_help = "Il consiglio di NVIDIA e AMD per i loro upscaler: le texture della scena 3D un livello più nitide di quanto dia la sua risoluzione, un dettaglio che l'upscaler ricostruisce sommando più fotogrammi. Superfici più nitide su palco, band e pubblico; un motivo fine può sfarfallare un istante dopo un cambio d'inquadratura. Si aggiunge al Dettaglio delle texture.",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.

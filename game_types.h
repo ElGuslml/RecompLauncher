@@ -262,6 +262,14 @@ inline constexpr bool kHasDlssModel = false;
 // native_x_renderer_resolution_scale below 1). False: the internal resolution and FSR 1 / NIS lower the whole image,
 // at least to the game's own lines.
 inline constexpr bool kLowResolutions = false;
+// Settings > Graphics' Ambient occlusion row (launcher 3.31, NativeXRenderer's native_x_renderer_ao): Original (the
+// game's own, or none) or XeGTAO's Low, Medium, High and Ultra on the main 3D view. Only where NativeXRenderer finds the
+// game's views and the game's profile gives the occlusion's radius. False: no row, and the options file gains no key.
+inline constexpr bool kAmbientOcclusion = false;
+// Settings > Graphics' Texture detail row (launcher 3.31, NativeXRenderer's native_x_renderer_texture_lod_bias): the
+// main 3D view's textures as the resolution gives them, a half or a whole mip level sharper. Only where NativeXRenderer
+// finds the game's views. False: no row, and the options file gains no key.
+inline constexpr bool kTextureDetail = false;
 }  // namespace defaults
 using namespace defaults;
 

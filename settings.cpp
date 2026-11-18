@@ -99,6 +99,9 @@ void ResetGraphics(Options& o) {
   o.sharpness = defaults.sharpness;
   o.anisotropic = defaults.anisotropic;
   o.shadow_quality = defaults.shadow_quality;
+  o.ambient_occlusion = defaults.ambient_occlusion;
+  o.texture_detail = defaults.texture_detail;
+  o.upscaler_texture_detail = defaults.upscaler_texture_detail;
   ResetToggles(o, {game::ToggleGroup::kUpscaling});
 }
 
@@ -694,6 +697,15 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   if (game::kShadowQuality) {
     double shadow_scale = std::strtod(GetString(c, "native_x_renderer_shadow_scale").c_str(), nullptr);
     o.shadow_quality = shadow_scale >= 4.0 ? 2 : shadow_scale >= 2.0 ? 1 : 0;
+  }
+  if (game::kAmbientOcclusion) {
+    const std::string ao = GetString(c, "native_x_renderer_ao");
+    o.ambient_occlusion = ao == "low" ? 1 : ao == "medium" ? 2 : ao == "high" ? 3 : ao == "ultra" ? 4 : 0;
+  }
+  if (game::kTextureDetail) {
+    double bias = std::strtod(GetString(c, "native_x_renderer_texture_lod_bias").c_str(), nullptr);
+    o.texture_detail = bias <= -0.75 ? 2 : bias <= -0.25 ? 1 : 0;
+    o.upscaler_texture_detail = GetDouble(c, "native_x_renderer_upscaler_lod_bias", 0.0) <= -0.5;
   }
   {
     // The image format: 16:9 when the screen is not filled, else the ratio asked (0: the screen's).
@@ -1441,6 +1453,18 @@ bool SaveOptions(const Settings& s) {
     // or four times the game's.
     if (game::kShadowQuality) {
       f << "native_x_renderer_shadow_scale = " << (o.shadow_quality == 2 ? 4 : o.shadow_quality == 1 ? 2 : 0) << "\n";
+    }
+    // Ambient occlusion of NativeXRenderer's own (launcher 3.31): off leaves the game's own.
+    if (game::kAmbientOcclusion) {
+      static constexpr const char* kQualities[] = {"off", "low", "medium", "high", "ultra"};
+      f << "native_x_renderer_ao = \"" << kQualities[std::clamp(o.ambient_occlusion, 0, 4)] << "\"\n";
+    }
+    // The main 3D view's textures sharper (launcher 3.31), in mip levels.
+    if (game::kTextureDetail) {
+      f << "native_x_renderer_texture_lod_bias = "
+        << (o.texture_detail == 2 ? "-1.0" : o.texture_detail == 1 ? "-0.5" : "0.0") << "\n";
+      // With DLSS or FSR 3.1 only (NativeXRenderer reads it with them), kept whatever the upscaler.
+      f << "native_x_renderer_upscaler_lod_bias = " << (o.upscaler_texture_detail ? "-1.0" : "0.0") << "\n";
     }
   }
   // The keyboard and the mouse as the player's controller (the SDK's mnk driver): its keys are lists of
