@@ -668,6 +668,20 @@ void App::SettingsPage(const ImRect& rect) {
       row.child = true;  // under Upscaling
       push(std::move(row));
     }
+    // One more texture level with DLSS or FSR 3.1 (3.31, game::kTextureDetail; NativeXRenderer's
+    // native_x_renderer_upscaler_lod_bias = -1): the vendors' advice, which their accumulation over frames smooths.
+    if (game::kTextureDetail && o.native && IsTemporal(o.upscaler)) {
+      OptionRow row;
+      row.id = "upscaler_texture_detail";
+      row.title = t_.upscaler_texture_detail;
+      row.sub = t_.upscaler_texture_detail_hint;
+      row.help = t_.upscaler_texture_detail_help;
+      row.values = {t_.off, t_.on};
+      row.index = o.upscaler_texture_detail ? 1 : 0;
+      row.apply = [&o](int index) { o.upscaler_texture_detail = index == 1; };
+      row.child = true;  // under Upscaling
+      push(std::move(row));
+    }
     // Frame generation (NativeXRenderer D123): AMD FSR 3.1's, with FSR 3.1 or DLSS (their 3D view and motion vectors),
     // where the game marks its views. With a frame rate row the rate chosen there is the one shown and the game runs at
     // half (the game's src/options.cpp): 120 FPS or more.
@@ -847,6 +861,38 @@ void App::SettingsPage(const ImRect& rect) {
         row.locked_value = "Original";
       }
       row.apply = [&o](int index) { o.shadow_quality = index; };
+      push(std::move(row));
+    }
+    // Ambient occlusion of NativeXRenderer's own (3.31, native_x_renderer_ao), locked with Xenos.
+    if (game::kAmbientOcclusion) {
+      OptionRow row;
+      row.id = "ambient_occlusion";
+      row.title = t_.ambient_occlusion;
+      row.sub = o.native ? t_.ambient_occlusion_hint : t_.shadows_hint_xenos;
+      row.help = o.native ? t_.ambient_occlusion_help : t_.shadows_hint_xenos;
+      row.values = {"Original", t_.sharpness_low, t_.sharpness_medium, t_.sharpness_high, "Ultra"};
+      row.index = o.native ? std::clamp(o.ambient_occlusion, 0, 4) : 0;
+      if (!o.native) {
+        row.locked = true;
+        row.locked_value = "Original";
+      }
+      row.apply = [&o](int index) { o.ambient_occlusion = index; };
+      push(std::move(row));
+    }
+    // The main 3D view's textures sharper (3.31, native_x_renderer_texture_lod_bias), locked with Xenos.
+    if (game::kTextureDetail) {
+      OptionRow row;
+      row.id = "texture_detail";
+      row.title = t_.texture_detail;
+      row.sub = o.native ? t_.texture_detail_hint : t_.shadows_hint_xenos;
+      row.help = o.native ? t_.texture_detail_help : t_.shadows_hint_xenos;
+      row.values = {t_.texture_detail_normal, t_.texture_detail_sharper, t_.texture_detail_sharpest};
+      row.index = o.native ? std::clamp(o.texture_detail, 0, 2) : 0;
+      if (!o.native) {
+        row.locked = true;
+        row.locked_value = t_.texture_detail_normal;
+      }
+      row.apply = [&o](int index) { o.texture_detail = index; };
       push(std::move(row));
     }
   } else if (category == kCategoryEffects) {

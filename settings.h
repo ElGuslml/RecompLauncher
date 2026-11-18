@@ -173,6 +173,14 @@ struct Options {
   // native_x_renderer_shadow_scale (NativeXRenderer's D92): 0 = the shadow maps like everything else, 1 = at least
   // twice the game's resolution (2), 2 = at least four times (4).
   int shadow_quality = 0;
+  // native_x_renderer_ao (launcher 3.31, game::kAmbientOcclusion): 0 = off (the game's own), 1-4 = low, medium, high,
+  // ultra.
+  int ambient_occlusion = 0;
+  // native_x_renderer_texture_lod_bias (launcher 3.31, game::kTextureDetail): 0 = 0, 1 = -0.5, 2 = -1.
+  int texture_detail = 0;
+  // native_x_renderer_upscaler_lod_bias (launcher 3.31, game::kTextureDetail): with DLSS or FSR 3.1, one more texture
+  // level (-1), the upscalers' vendors' advice.
+  bool upscaler_texture_detail = false;
   // The game's own options (game.h): its language (an index of game::kLanguages: user_language and its variant
   // cvar) and its switches. game::kUltrawideCvar follows native_aspect (the image format).
   int language = 0;

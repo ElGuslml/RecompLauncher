@@ -2,6 +2,20 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## Unreleased
+
+Settings > Graphics' Image group gains two rows, each behind a flag of `game_types.h` (off by default, so a game's
+`game.h` turns it on), locked to their first value with Xenos:
+- **Ambient occlusion** (`game::kAmbientOcclusion`): Original, Low, Medium, High, Ultra, written as NativeXRenderer's
+  `native_x_renderer_ao` (`off`, `low`, `medium`, `high`, `ultra`). Original leaves the game's own.
+- **Texture detail** (`game::kTextureDetail`): Normal, Sharper, Sharpest, written as
+  `native_x_renderer_texture_lod_bias` (0, -0.5, -1): the main 3D view's textures half a mip level or a whole one
+  sharper.
+- **Extra texture detail** (under Upscaling, with DLSS or FSR 3.1; `game::kTextureDetail`): Off, On, written as
+  `native_x_renderer_upscaler_lod_bias` (0, -1), the upscalers' vendors' one more level.
+
+Texts in the five languages; the Low / Medium / High labels are the sharpness row's.
+
 ## 3.30.1
 
 The Highway section's folder and preview (2026-11-17, Gustavo's look at 3.30.0).
