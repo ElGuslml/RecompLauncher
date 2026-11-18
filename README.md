@@ -61,6 +61,16 @@ copy of this repository in a game, configure the game with `-DRECOMP_LAUNCHER_DI
 page beside the game's own. `CHANGELOG.md` lists what each version brought. A change here is committed and pushed
 first, then each game moves its submodule to it and is checked (recomp-tools' `Test-Games.ps1`).
 
+## Contributing
+
+- Pull requests target `ghmetal`, the branch the games' submodules follow.
+- A pull request adds its `CHANGELOG.md` entry under `## Unreleased` and leaves `launcher_version.h` as it is: the
+  version is given at merge, in the order merged.
+- A row only some games can use is behind a flag in `game_types.h` (off where a game does not set it); every new
+  text comes in the five languages.
+- How the games and their submodules move together (feature branches, merges into `dev`): GHWoRRecomp's
+  [`docs/development.md`](https://github.com/ElGuslml/GHWoRRecomp/blob/dev/docs/development.md#contributing-branches-and-pull-requests).
+
 ## License
 
 MIT (`LICENSE`). The fonts and nanosvg have their own licenses: `THIRD_PARTY_NOTICES.md`.
