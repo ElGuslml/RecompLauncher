@@ -24,10 +24,11 @@ namespace {
 // Where Donate leads (the header's button and Y on the Play page), the same for every game.
 constexpr const char* kDonateUrl = "https://ko-fi.com/elguslml";
 
-// The tabs, in the header's order (game.h decides whether the game has a DLC page). The Settings tab opens on its first
-// category, Display (launcher 3.28's order: Display, Graphics, Effects, Audio, Game, Mods, Online).
-constexpr Page kTabs[] = {Page::kPlay,     Page::kDlc,     Page::kAchievements,
-                          Page::kControls, Page::kDisplay, Page::kUpdates};
+// The tabs, in the header's order (game.h decides whether the game has a DLC page). Launcher 3.30: Play, DLC,
+// Achievements, Mods (opening on its first section with rows), Controls, Settings (opening on Display; Updates its
+// last category).
+constexpr Page kTabs[] = {Page::kPlay,        Page::kDlc,      Page::kAchievements,
+                          Page::kModsHighway, Page::kControls, Page::kDisplay};
 
 bool HasPage(Page page) { return page != Page::kDlc || game::kHasDlcPage; }
 
@@ -38,9 +39,13 @@ Page TabOf(Page page) {
     case Page::kEffects:
     case Page::kAudio:
     case Page::kGame:
-    case Page::kMods:
     case Page::kOnline:
+    case Page::kUpdates:
       return Page::kDisplay;
+    case Page::kModsStage:
+    case Page::kModsSound:
+    case Page::kModsTools:
+      return Page::kModsHighway;
     case Page::kProfiles:
     case Page::kProfile:
     case Page::kProfileGame:
@@ -254,7 +259,7 @@ void App::Header(const ImRect& rect) {
 
   // The tabs, in the window's middle (not left of the brand's block), between LB and RB; the profile's pages have no
   // bumpers (LB and RB change their sections there).
-  const char* labels[] = {t_.nav_play, t_.nav_dlc, t_.nav_achievements, t_.nav_controls, t_.nav_settings, t_.nav_updates};
+  const char* labels[] = {t_.nav_play, t_.nav_dlc, t_.nav_achievements, t_.nav_mods, t_.nav_controls, t_.nav_settings};
   constexpr Type kTab{Font::kDisplayMedium, 18, 0.02f};
   constexpr float kPill = 22.0f;
   constexpr float kGap = 6.0f;
@@ -297,8 +302,8 @@ void App::Header(const ImRect& rect) {
       FillRect(ImRect(ImVec2(tab.Min.x + Px(16.0f), tab.Max.y - Px(3.0f)), ImVec2(tab.Max.x - Px(16.0f), tab.Max.y)),
                col::kAccent, 3.0f, ImDrawFlags_RoundCornersTop);
     }
-    // A new version: a dot on Updates.
-    if (kTabs[i] == Page::kUpdates && NewerRelease()) {
+    // A new version: a dot on Settings, where Updates is (launcher 3.30).
+    if (kTabs[i] == Page::kDisplay && NewerRelease()) {
       float dot = Px(7.0f);
       ImVec2 c(tab.Max.x - Px(10.0f), rect.GetCenter().y - Px(11.0f));
       FillRect(ImRect(ImVec2(c.x - dot * 0.5f, c.y - dot * 0.5f), ImVec2(c.x + dot * 0.5f, c.y + dot * 0.5f)),
@@ -455,6 +460,11 @@ std::vector<App::Hint> App::PageHints() const {
   if (info_.open) {
     return {{HintKey::kB, t_.close}};
   }
+  // Launcher 3.30: the Highway gallery's (Mods > Highway): five, its own list on LB / RB.
+  if (gallery_.open) {
+    return {{HintKey::kA, t_.hint_use}, {HintKey::kX, t_.hint_favorite}, {HintKey::kY, t_.hint_dim},
+            {HintKey::kBumpers, t_.hint_filter}, {HintKey::kB, t_.cancel}};
+  }
   if (text_sheet_.open) {
     return {{HintKey::kA, t_.save}, {HintKey::kB, t_.cancel}};
   }
@@ -500,17 +510,30 @@ std::vector<App::Hint> App::PageHints() const {
   }
   switch (page_) {
     case Page::kPlay:
+      // Launcher 3.30: Y to the new version's page while there is one.
+      if (!update_url_.empty() && NewerRelease()) {
+        return {{HintKey::kA, t_.hint_play}, {HintKey::kView, t_.hint_profile}, {HintKey::kY, t_.hint_update},
+                {HintKey::kB, t_.quit}};
+      }
       return {{HintKey::kA, t_.hint_play}, {HintKey::kView, t_.hint_profile}, {HintKey::kB, t_.quit}};
+    case Page::kModsHighway:
+    case Page::kModsStage:
+    case Page::kModsSound:
+    case Page::kModsTools:
     case Page::kDisplay:
     case Page::kGraphics:
     case Page::kEffects:
     case Page::kAudio:
     case Page::kGame:
-    case Page::kMods:
     case Page::kOnline:
       // A row being changed: left and right step it, A (or B) ends it.
       if (AnyRowEditing()) return {{HintKey::kArrows, t_.hint_change}, {HintKey::kA, t_.hint_done}};
-      return {{HintKey::kA, t_.hint_edit}, {HintKey::kX, t_.hint_reset}, {HintKey::kY, t_.more_info},
+      // Launcher 3.30: the Highway section's folder and image rows open something.
+      return {{HintKey::kA, settings_row_id_ == "highway_image"    ? t_.hint_choose_image
+                            : settings_row_id_ == "highway_folder" ? t_.hint_choose_folder
+                                                                   : t_.hint_edit},
+              {HintKey::kX, t_.hint_reset},
+              {HintKey::kY, t_.more_info},
               {HintKey::kB, t_.hint_back}};
     case Page::kProfiles:
       return {{HintKey::kA, t_.hint_use_profile}, {HintKey::kX, t_.edit}, {HintKey::kY, t_.create_profile},
@@ -554,10 +577,11 @@ std::vector<App::Hint> App::PageHints() const {
       }
     }
     case Page::kUpdates: {
-      // The main button's own words.
+      // Settings > Updates (launcher 3.30): the card's button's own words, the release notes on Y.
       const Release* newer = NewerRelease();
-      if (update_url_.empty()) return {{HintKey::kB, t_.hint_back}};
-      return {{HintKey::kA, newer ? t_.update_now : updates_ ? t_.check_again : t_.check_updates},
+      if (update_url_.empty()) return {{HintKey::kY, t_.release_notes_title}, {HintKey::kB, t_.hint_back}};
+      return {{HintKey::kA, newer ? t_.update_button : updates_ ? t_.check_again : t_.check_updates},
+              {HintKey::kY, t_.release_notes_title},
               {HintKey::kB, t_.hint_back}};
     }
     case Page::kAchievements:
@@ -606,8 +630,9 @@ void App::InfoPanelWindow(ImVec2 size) {
     // The veil: flat, over the header and the page (the footer stays, with the panel's own hints).
     ImRect above(origin, ImVec2(origin.x + size.x, origin.y + size.y - footer_height));
     FillRect(above, Hex(0x000000, 158));  // rgba(0, 0, 0, 0.62)
-    // The sheet: 400 dp wide at the right, 12 dp under the header, 12 dp over the footer.
-    ImRect sheet(ImVec2(above.Max.x - Px(56.0f) - Px(400.0f), origin.y + Px(84.0f)),
+    // The sheet: 400 dp wide at the right (the release notes 600), 12 dp under the header, 12 dp over the footer.
+    const float sheet_width = Px(info_.release_notes ? 600.0f : 400.0f);
+    ImRect sheet(ImVec2(above.Max.x - Px(56.0f) - sheet_width, origin.y + Px(84.0f)),
                  ImVec2(above.Max.x - Px(56.0f), above.Max.y - Px(12.0f)));
     FillRect(sheet, col::kCardRaised, 18.0f);
     StrokeRect(sheet, col::kHairline, 18.0f);
@@ -635,6 +660,9 @@ void App::InfoPanelWindow(ImVec2 size) {
     BeginScroll("##info_body", body);
     ImVec2 at = ImGui::GetCursorScreenPos();
     float by = at.y;
+    if (info_.release_notes) {
+      by += ReleaseNotesSheet(ImVec2(at.x, by), width, true);
+    }
     if (!info_.text.empty()) {
       by += DrawParagraph(kText, ImVec2(at.x, by), width, 1.5f, col::kTextSoft, info_.text) + Px(18.0f);
     }

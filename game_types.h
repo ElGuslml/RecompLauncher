@@ -40,8 +40,12 @@ struct Language {
 // - kStart: the Game category, "Starting the game" (the intro videos);
 // - kSmoothness: the Display category, "Smoothness", after the frame rate and V-Sync;
 // - kUpscaling: the Graphics category, under Upscaling (NativeXRenderer only; `shown` says with which upscaling);
-// - kModsSound, kModsTools: the Mods category's "Sound" and "Tools" (Tools: before the launcher's Debug keys).
-enum class ToggleGroup { kGame, kScreenEffects, kStart, kSmoothness, kUpscaling, kModsSound, kModsTools };
+// - kModsHighway, kModsHighwayLook, kModsStage, kModsSound, kModsTools: the Mods tab's sections (launcher 3.30): the
+//   Highway section's "Shape" and "Look" groups, Stage, Sound, and Tools (before the launcher's Debug keys).
+enum class ToggleGroup {
+  kGame, kScreenEffects, kStart, kSmoothness, kUpscaling, kModsSound, kModsTools, kModsHighway, kModsStage,
+  kModsHighwayLook
+};
 
 // When a switch under Upscaling is shown (it is ignored otherwise; its value is kept): always, while something enlarges
 // the 3D scene (AMD FSR 3.1 or NVIDIA DLSS, their antialiasing alone included, or a lower resolution on the 3D scene
@@ -58,6 +62,63 @@ struct Toggle {
   ToggleGroup group = ToggleGroup::kGame;
   const char* needs = nullptr;
   ToggleShown shown = ToggleShown::kAlways;
+};
+
+// A row of the game's own with several values (game.h's kChoices, launcher 3.29): a cvar written as one of `values`
+// (as they go into the options file: a number, or with `quoted` a string in quotes), `default_value` one of them. Its
+// title, hint and help are game.cpp's (GameTexts::choices and choice_help, in kChoices' order); each value is shown
+// by its label in GameTexts::choice_values, or where that has none by the value itself followed by `suffix` (" %").
+// In its group the rows come after the group's switches. A value in the file that is none of them reads as the
+// default.
+struct Choice {
+  const char* cvar;
+  std::span<const char* const> values;
+  const char* default_value;
+  ToggleGroup group = ToggleGroup::kGame;
+  const char* suffix = "";
+  bool quoted = false;
+  // Launcher 3.30: a switch's cvar this row is under (indented); while that switch is off the row is locked.
+  const char* needs = nullptr;
+};
+
+// Launcher 3.30: the Mods tab's Highway section (game.h's kHighwayPreview): a gallery of the player's pictures for the
+// note highway (a folder, one picture or a random one at each song, favorites, bright ones darkened toward black) and a
+// preview drawn from the installed game's own files. The cvars the game reads (its src/), and where its files are.
+struct HighwayGallery {
+  const char* folder_cvar;      // the pictures' folder
+  const char* image_cvar;       // a picture of it, "<random>", or "" for the game's own
+  const char* random_from_cvar; // "all" or "favorites"
+  const char* favorites_cvar;   // names separated by |
+  const char* dim_cvar;         // "off", "auto" or a percent, for every picture
+  const char* image_dims_cvar;  // name:value separated by |
+  const wchar_t* folder;        // the default folder's name in the game's user data folder
+  // The rows the preview follows (game::kChoices' cvars, percentages): the scale, the length, the perspective, the
+  // opacity; the style's and its value for the black highway.
+  const char* scale_cvar;
+  const char* length_cvar;
+  const char* perspective_cvar;
+  const char* opacity_cvar;
+  const char* style_cvar;
+  const char* dark_style;
+};
+
+// The preview's assets in the installed game (launcher 3.30): a Neversoft pak (CHNK-compressed), the texture
+// dictionary in it, and the textures by their keys (QBKeys of their names); and the highway's shape, the game's own
+// values (in the game's 1280 x 720; its src/mods.cpp changes them the same way).
+struct HighwayAssets {
+  const wchar_t* pak;           // relative to the game's files, e.g. data/compressed/ZONES/z_in_game.pak.xen
+  uint32_t dictionary;          // the .tex entry's full name key
+  // The highway, a sidebar, a string, a beat line, the strike line's ring, a gem's rim, its colored body and its cap,
+  // a sustain.
+  uint32_t highway, sidebar, string, fretbar, collar, gem_base, gem_color, gem_cap, sustain;
+  float playline;               // the strike line's y
+  float height;                 // from the far end to it
+  float top_width, bottom_width;
+  double perspective_fact, perspective_exp;  // GeneratePosTable's f and e
+  int rows;                     // its rows (real_highway_lines)
+  float crossing_time;          // seconds a note takes over the highway (Expert)
+  float highest_top;            // the far end no higher than this y (the game's length limit)
+  float tiling;                 // the texture's repeats over the highway (ghighwaytiling)
 };
 
 // A control's keys by default where they are not the SDK's (game.h's kKeyboardDefaults: the Keyboard page's "Reset to

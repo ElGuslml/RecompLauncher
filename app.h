@@ -27,6 +27,7 @@
 
 #include "achievements.h"
 #include "dlc.h"
+#include "highway.h"
 #include "install.h"
 #include "picture.h"
 #include "pipelines.h"
@@ -53,12 +54,17 @@ void OpenFolder(const std::filesystem::path& folder);
 // kOnline (launcher 3.28): kEffects only when the game has screen effects to turn off, kOnline only when the game plays
 // online (game::kHasOnline); the others always. kProfiles .. kProfileEdit are not tabs: the header's avatar opens
 // kProfiles, the others follow from it.
+// Launcher 3.30 (Gustavo's "mods-galeria" mockup): Mods is a tab of its own, its sections kModsHighway to kModsTools,
+// and Updates the Settings tab's last category.
 enum class Page : int {
-  kPlay, kDlc, kAchievements, kControls, kDisplay, kGraphics, kEffects, kAudio, kGame, kMods, kOnline, kUpdates,
+  kPlay, kDlc, kAchievements, kModsHighway, kModsStage, kModsSound, kModsTools, kControls,
+  kDisplay, kGraphics, kEffects, kAudio, kGame, kOnline, kUpdates,
   kProfiles, kProfile, kProfileGame, kProfileEdit, kCount
 };
-// The Settings tab's categories, kDisplay to kOnline.
-inline constexpr bool IsSettingsPage(Page page) { return page >= Page::kDisplay && page <= Page::kOnline; }
+// The Settings tab's categories, kDisplay to kUpdates.
+inline constexpr bool IsSettingsPage(Page page) { return page >= Page::kDisplay && page <= Page::kUpdates; }
+// The Mods tab's sections, kModsHighway to kModsTools.
+inline constexpr bool IsModsPage(Page page) { return page >= Page::kModsHighway && page <= Page::kModsTools; }
 // A page's name, for the log.
 const char* PageName(Page page);
 
@@ -142,6 +148,7 @@ class App {
     std::string title;
     std::string text;
     std::vector<std::string> bullets;
+    bool release_notes = false;  // launcher 3.30: the release notes (ReleaseNotesSheet) instead of the text, wider
   };
   void OpenInfo(std::string kicker, std::string title, std::string text, std::vector<std::string> bullets = {});
   void InfoPanelWindow(ImVec2 size);
@@ -267,7 +274,36 @@ class App {
   // The Settings tab's categories (launcher 3.28): Display, Graphics, Effects, Audio, Game, Mods and Online (pages
   // kDisplay to kOnline).
   void SettingsPage(const ImRect& rect);
-  void UpdatesPage(const ImRect& rect);
+  // Settings > Updates (launcher 3.30, page_updates.cpp): the version, the card that checks or updates, its switches and
+  // the release notes' row, in the category's place; the release notes in the info sheet.
+  void UpdatesCategory(const ImRect& rect);
+  float ReleaseNotesSheet(ImVec2 pos, float width, bool draw);
+  // The Mods tab's Highway section (launcher 3.30, page_highway.cpp; game::kHighwayPreview): the preview at the rows'
+  // right, or the gallery of the player's pictures over it (a popup: its own focus and buttons), the folder's dialog.
+  void HighwayPanel(const ImRect& rect);
+  void HighwayGalleryWindow();
+  void OpenHighwayGallery();
+  void ChooseHighwayFolder();
+  void PollHighwayFolder();
+  highway::Look HighwayLook(std::string_view picture) const;
+  // The Image row's value: Original, Random or the picture's name.
+  std::string HighwayImageLabel() const;
+  std::unique_ptr<highway::GameTextures> highway_game_;
+  std::unique_ptr<highway::Pictures> highway_pictures_;
+  struct HighwayGalleryState {
+    bool open = false;
+    bool opened = false;
+    int filter = 0;        // 0 all, 1 favorites, 2 recent
+    std::string focus;     // the tile in focus: a picture's name, "" Original, kHighwayRandom Random
+    bool focus_valid = false;
+    std::string hovered;   // the mouse's tile (the preview follows it)
+    bool hovered_valid = false;
+    ImRect rect;           // where the preview's card is (the gallery opens over it)
+    int position = 0;      // the focus's place among the tiles, and how many
+    int count = 0;
+    bool refocus = false;  // the focus given again (the filter changed)
+  };
+  HighwayGalleryState gallery_;
   // The release notes (Markdown) at `pos`, `width` wide. Returns the height; draws only when `draw`.
   float ReleaseNotes(const std::string& markdown, ImVec2 pos, float width, bool draw);
   // A notice across the top of the Play page's art (an error exit code, an update installed).
@@ -318,7 +354,8 @@ class App {
   ImGuiID header_focus_ = 0;   // the header's control up from the page reaches: the current tab, or the avatar
   std::vector<ImGuiID> header_items_;  // the header's controls (tabs, Donate, avatar), this frame
   ImGuiID category_focus_ = 0; // the Settings tab's current category button
-  int settings_row_[7] = {};   // the row in focus in each Settings category (its help shows)
+  int settings_row_[11] = {};  // the row in focus in each Mods section and Settings category (its help shows)
+  std::string settings_row_id_;  // the id of that row on the page shown (the footer's hints)
   ImGuiID settings_row_focus_ = 0;  // the Settings row in focus last (right from a category returns to it)
   // Launcher 3.22, the rows as an accordion: how open each row is (0 small, 1 the big row; by its ImGuiID), the rows'
   // rectangles last frame (the mouse's row is found before this frame's layout), whether the mouse is in use (its row
@@ -497,6 +534,7 @@ class App {
   // "Remove copies": the extracted copies of the folder's packages, deleted once the player confirms (its dialog).
   void DlcFreeDialog();
   std::shared_ptr<DialogResult> dlc_dialog_ = std::make_shared<DialogResult>();
+  std::shared_ptr<DialogResult> highway_dialog_ = std::make_shared<DialogResult>();  // the Highway section's folder
   std::future<DlcLibrary> dlc_scan_;
   std::optional<DlcLibrary> dlc_library_;
   bool dlc_rescan_ = false;  // a change while the folder was read: read it again

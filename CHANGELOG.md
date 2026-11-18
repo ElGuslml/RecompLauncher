@@ -2,6 +2,71 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.30.0
+
+Mods as a tab of its own, Updates in Settings, and the note highway's gallery and preview (2026-11-17, Gustavo's
+"mods-galeria" mockup; GH Warriors of Rock's highway pictures).
+
+- The header's tabs: **Play · DLC · Achievements · Mods · Controls · Settings**. Mods leaves Settings: its sections
+  **Highway, Stage, Sound, Tools** (`Page::kModsHighway` to `kModsTools`), each with its intro, its Reset and the note
+  "Mods change the game itself. Some are experimental."; a section without rows in a game is left out (Tools always:
+  the Debug keys). The Updates tab becomes Settings' last category, **Updates**: the version with the launcher's and
+  the last check, a card with the state and its button (Update, Check again), Check when the launcher opens, Get beta
+  versions, and Release notes (A or Y: the info sheet, 600 dp, with every version's notes and the full history link).
+- Play: a new version is a button of its own at the strip's right ("Update 1.0.0-beta.3 →", Y too), which opens
+  Settings > Updates; the strip no longer says "All up to date".
+- `game::kHighwayPreview` (game.h): the Highway section's gallery and preview, with `game::kHighwayGallery` (the
+  game's cvars: the pictures' folder, the picture, Random among, the favorites, the darkenings; the default folder's
+  name in the game's user data folder; the choices the preview follows) and `game::kHighwayAssets` (the game's pak,
+  its texture dictionary and the textures' keys, the highway's shape). Its rows:
+  - Background: **Folder** (A: a folder dialog; the default `Highways` in the game's user data folder, written
+    whole), **Image** (A: the gallery; its line counts the pictures and favorites), **Random among** (All,
+    Favorites);
+  - Look, after the game's choices: **Dim bright pictures** (Off, Automatic, 90-40 %).
+- The preview (highway.cpp): the installed game's own textures, read from its pak (CHNK chunks of raw deflate), its
+  `.tex` dictionary (Xenos fetch constants; mip 0 untiled, DXT1/3/5, 8888, 8_8, swizzled) on a thread, and drawn
+  animated with the game's projection (rows linear in time, the length and perspective as the game changes them, the
+  scale at the strike line): the highway with the picture (stretched; darkened, black with the dark style, the
+  opacity's venue behind), its strings, sidebars, beat lines, the strike line's rings and notes with a sustain. No file
+  of the game ships with the launcher. Without the game's files it says so.
+- The gallery (over the preview, a popup): All (Original, Random, the folder's pictures by name), Favorites (Random
+  among them, the favorites) and Recent (the last 12 used, `launcher_highway_recent`), on LB / RB or the chips; a tall
+  preview of the tile in focus (Random: each picture of its pool for 3 s); A or a click uses it, X marks a favorite
+  (a star), Y gives it its own darkening (as every picture's, Off, Automatic, 90-40 %: a half disc), B closes it
+  unchanged. Thumbnails decoded on a thread (WIC, `LoadStretchedPicture`); a file that cannot be read has a red
+  border and cannot be used; a TGA (which the game reads and Windows does not) shows no thumbnail. The line under
+  them: the name, the file's size, favorite, the darkening. Five footer hints there.
+- `game::Choice::needs`: a row under a switch, locked with its value while it is off (GH Warriors of Rock: the miss
+  volume under "Lower the track on a miss").
+- `ToggleGroup::kModsHighwayLook`: the Highway section's "Look" group.
+- Texts (five languages): the Mods sections' intros and note, Updates' intro, the Highway rows, the preview, the
+  gallery, its hints, Updates' card and Play's button.
+- A game moving to 3.30.0 sets `kHighwayPreview = false` (and an empty `kHighwayGallery` / `kHighwayAssets`) unless
+  it has the highway's pictures.
+
+## 3.29.0
+
+Rows of the game's own with several values, and the Mods category's Highway and Stage groups (2026-11-17, GH Warriors
+of Rock's mods: the note highway's scale, length and style, the crowd).
+
+- `game::Choice` (game_types.h) and `game::kChoices` (each game's game.h): a row of the game's own with several
+  values. It is a cvar written as one of its `values` (a number, or with `quoted` a string in quotes). Its fields:
+  - `default_value`, one of those values;
+  - a `group` (`ToggleGroup`); in a group the rows come after its switches;
+  - a `suffix` for the values shown as they are (" %").
+  
+  Its title, hint and help are `GameTexts::choices` and `choice_help`; its values' names are
+  `GameTexts::choice_values` (null: the value and the suffix). The options file is read as text, or as the same
+  number for an unquoted value; a value that is none of them reads as the default. The category's Reset sets the
+  defaults back. `Options::choices` holds each row's index (`DefaultChoices()`).
+- `game::ToggleGroup` gains `kModsHighway` and `kModsStage`: Mods' new first groups "Highway" and "Stage", before Sound
+  and Tools. Reset mods covers them.
+- Texts (five languages): `group_highway` (Highway, Notenbahn, Piste de notes, Highway, Pista delle note),
+  `group_stage` (Stage, Bühne, Scène, Escenario, Palco).
+- A game moving to 3.29.0 must add to its game.h:
+  - `kChoices`, empty unless it has such rows: `inline constexpr std::array<Choice, 0> kChoices{};`;
+  - in `GameTexts`: `choices`, `choice_help` and `choice_values`, as GH Warriors of Rock's.
+
 ## 3.28.0
 
 The Settings tab reordered by intention (2026-11-17, Gustavo's "propuesta A v2"; the other tabs unchanged).

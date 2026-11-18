@@ -25,5 +25,9 @@ bool SavePng(const std::filesystem::path& path, const Rgba& picture);
 // An image file in memory (a PNG), or a file, as it is (at most 1024 x 1024); nullopt if it cannot be read.
 std::optional<Rgba> DecodePicture(const std::vector<uint8_t>& file);
 std::optional<Rgba> LoadPicture(const std::filesystem::path& path);
+// Any image Windows reads stretched to `width` x `height` (launcher 3.30: the note highway's pictures, which the game
+// stretches over the highway); the file's own size in `file_width` and `file_height`. nullopt if it cannot be read.
+std::optional<Rgba> LoadStretchedPicture(const std::filesystem::path& path, int width, int height, int* file_width,
+                                         int* file_height);
 
 }  // namespace launcher

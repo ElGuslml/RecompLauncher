@@ -107,6 +107,7 @@ bool App::Busy() const {
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
          dlc_freeing_.valid() || dlc_free_confirm_ || dlc_search_.valid() ||
          dlc_install_.Get().state == DlcInstall::State::kRunning || mic_meter_.stream || preparing_ ||
+         (game::kHighwayPreview && page_ == Page::kModsHighway) ||
          launcher::GameInputStatus() == launcher::GameInputState::kInstalling ||
          (installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning));
 }
@@ -128,6 +129,7 @@ std::string App::BusyReasons() const {
   add(achievements_loading_.valid(), "the achievements' reading");
   add(profile_games_loading_.valid(), "the profile's games");
   add(game_running_, "the game");
+  add(game::kHighwayPreview && page_ == Page::kModsHighway, "the highway's preview");
   add(update_check_.valid(), "the update check");
   add(update == Update::State::kDownloading || update == Update::State::kVerifying ||
           update == Update::State::kInstalling,
@@ -348,10 +350,10 @@ void App::StartingOverlay(ImVec2 size) {
 
 const char* PageName(Page page) {
   static const char* const kNames[] = {
-      "Play",           "DLC",           "Achievements",      "Controls",        "Settings: Display",
-      "Settings: Graphics", "Settings: Effects", "Settings: Audio", "Settings: Game", "Settings: Mods",
-      "Settings: Online", "Updates",     "Profiles",          "Profile",         "Profile: a game",
-      "Profile: edit"};
+      "Play",           "DLC",           "Achievements",      "Mods: Highway",   "Mods: Stage",
+      "Mods: Sound",    "Mods: Tools",   "Controls",          "Settings: Display", "Settings: Graphics",
+      "Settings: Effects", "Settings: Audio", "Settings: Game", "Settings: Online", "Settings: Updates",
+      "Profiles",       "Profile",       "Profile: a game",   "Profile: edit"};
   static_assert(std::size(kNames) == size_t(Page::kCount));
   return page < Page::kCount ? kNames[int(page)] : "?";
 }
@@ -489,7 +491,7 @@ void App::FrameContents(ImVec2 size) {
   ImRect main(ImVec2(origin.x, origin.y + header_height), ImVec2(origin.x + size.x, origin.y + size.y - footer_height));
   page_rect_ = main;
   // Another page (the Settings tab's categories count as one): it fades in.
-  if (int key = IsSettingsPage(page_) ? int(Page::kDisplay) : int(page_);
+  if (int key = IsSettingsPage(page_) ? int(Page::kDisplay) : IsModsPage(page_) ? int(Page::kModsHighway) : int(page_);
       key != fade_key_) {
     if (fade_key_ >= 0) StartFade();
     fade_key_ = key;
@@ -511,17 +513,18 @@ void App::FrameContents(ImVec2 size) {
     case Page::kControls:
       ControlsPage(main);
       break;
+    case Page::kModsHighway:
+    case Page::kModsStage:
+    case Page::kModsSound:
+    case Page::kModsTools:
     case Page::kDisplay:
     case Page::kGraphics:
     case Page::kEffects:
     case Page::kAudio:
     case Page::kGame:
-    case Page::kMods:
     case Page::kOnline:
-      SettingsPage(main);
-      break;
     case Page::kUpdates:
-      UpdatesPage(main);
+      SettingsPage(main);
       break;
     case Page::kProfiles:
       ProfilesPage(main);

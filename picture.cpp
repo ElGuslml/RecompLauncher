@@ -131,6 +131,44 @@ std::optional<Rgba> LoadSquarePicture(const std::filesystem::path& path, int siz
   return result;
 }
 
+std::optional<Rgba> LoadStretchedPicture(const std::filesystem::path& path, int width, int height, int* file_width,
+                                         int* file_height) {
+  Com com;
+  IWICImagingFactory* factory = nullptr;
+  IWICBitmapDecoder* decoder = nullptr;
+  IWICBitmapFrameDecode* frame = nullptr;
+  IWICBitmapScaler* scaler = nullptr;
+  IWICFormatConverter* converter = nullptr;
+  std::optional<Rgba> result;
+  UINT w = 0, h = 0;
+  if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))) &&
+      SUCCEEDED(factory->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ,
+                                                   WICDecodeMetadataCacheOnDemand, &decoder)) &&
+      SUCCEEDED(decoder->GetFrame(0, &frame)) && SUCCEEDED(frame->GetSize(&w, &h)) && w && h) {
+    if (file_width) *file_width = int(w);
+    if (file_height) *file_height = int(h);
+    if (SUCCEEDED(factory->CreateBitmapScaler(&scaler)) &&
+        SUCCEEDED(scaler->Initialize(frame, UINT(width), UINT(height), WICBitmapInterpolationModeFant)) &&
+        SUCCEEDED(factory->CreateFormatConverter(&converter)) &&
+        SUCCEEDED(converter->Initialize(scaler, GUID_WICPixelFormat32bppRGBA, WICBitmapDitherTypeNone, nullptr, 0.0,
+                                        WICBitmapPaletteTypeCustom))) {
+      Rgba picture;
+      picture.width = width;
+      picture.height = height;
+      picture.pixels.resize(size_t(width) * size_t(height) * 4);
+      if (SUCCEEDED(converter->CopyPixels(nullptr, UINT(width) * 4, UINT(picture.pixels.size()), picture.pixels.data()))) {
+        result = std::move(picture);
+      }
+    }
+  }
+  Free(converter);
+  Free(scaler);
+  Free(frame);
+  Free(decoder);
+  Free(factory);
+  return result;
+}
+
 bool SavePng(const std::filesystem::path& path, const Rgba& picture) {
   Com com;
   // PNG's encoder takes BGRA.

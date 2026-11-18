@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <map>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -124,6 +125,17 @@ extern const BindInfo kBinds[int(Bind::kCount)];
 // Online play's UDP port by default (the SDK's online_port: Xbox Live's).
 inline constexpr int kOnlinePort = 3074;
 
+// The index of each of the game's rows with several values' default (game::kChoices, launcher 3.29).
+constexpr std::array<int, game::kChoices.size()> DefaultChoices() {
+  std::array<int, game::kChoices.size()> out{};
+  for (size_t i = 0; i < game::kChoices.size(); ++i) {
+    for (size_t j = 0; j < game::kChoices[i].values.size(); ++j) {
+      if (std::string_view(game::kChoices[i].values[j]) == game::kChoices[i].default_value) out[i] = int(j);
+    }
+  }
+  return out;
+}
+
 struct Options {
   int monitor = 1;  // cvar monitor: 1 = primary, in SDL order
   int display = kBorderless;
@@ -165,6 +177,8 @@ struct Options {
   // cvar) and its switches. game::kUltrawideCvar follows native_aspect (the image format).
   int language = 0;
   std::array<bool, game::kToggles.size()> toggles{};
+  // The game's rows with several values (game::kChoices, launcher 3.29): the index of each one's value.
+  std::array<int, game::kChoices.size()> choices = DefaultChoices();
   // Settings > Audio (launcher 3.19). The sound through WASAPI in exclusive mode (the SDK's audio_wasapi_exclusive,
   // recomp change 64): less delay, and other programs silent on that device while the game runs.
   bool audio_exclusive = false;
@@ -180,6 +194,19 @@ struct Options {
   // The SDK's developer keys (debug_hotkeys: F3 the debug overlay, F4 its settings window, ` the console); off, those
   // keys do nothing in the game. A key bound to a control plays it either way.
   bool debug_hotkeys = false;
+  // The Mods tab's Highway section (game::kHighwayPreview, launcher 3.30), game::kHighwayGallery's cvars: the folder of
+  // pictures (its default, game::kHighwayGallery.folder in the game's user data folder, set by LoadSettings), the
+  // picture ("" the game's own, kHighwayRandom a random one at each song), a random one among the favorites only, the
+  // favorites (file names), the darkening of every picture (kHighwayDims' values) and each picture's own (a file name
+  // and its value), and the gallery's recent pictures (launcher_highway_recent, the newest first).
+  std::string highway_folder;
+  std::string highway_default_folder;
+  std::string highway_image;
+  bool highway_random_favorites = false;
+  std::vector<std::string> highway_favorites;
+  std::string highway_dim = "off";
+  std::vector<std::pair<std::string, std::string>> highway_image_dims;
+  std::vector<std::string> highway_recent;
   // Settings > Online (launcher 3.20, game::kHasOnline): online play between friends, the SDK's online_play. This PC's
   // game hosts (online_host "") or joins the friend at `online_address` ("a.b.c.d:port": online_host), through its
   // UDP port (online_port); Steam adds the Steam friends, invites and relays (online_steam: rexsteam.exe, experimental).
@@ -252,6 +279,20 @@ struct Options {
 // usb_microphone_1's value for the system's default recording device.
 inline constexpr const char* kSystemMicrophone = "default";
 
+// The Highway gallery (launcher 3.30): the picture's value for a random one at each song; the darkenings, every
+// picture's and each one's ("off" as it is, "auto" as much as a picture is bright, a brightness in percent); how many
+// recent pictures are kept.
+inline constexpr const char* kHighwayRandom = "<random>";
+inline constexpr const char* kHighwayDims[] = {"off", "auto", "90", "80", "70", "60", "50", "40"};
+inline constexpr size_t kHighwayRecentCount = 12;
+// A picture's own darkening ("" when it takes every picture's), and the list with it set ("" removes it).
+std::string HighwayImageDim(const Options& o, std::string_view name);
+void SetHighwayImageDim(Options& o, std::string_view name, std::string_view value);
+bool IsHighwayFavorite(const Options& o, std::string_view name);
+void ToggleHighwayFavorite(Options& o, std::string_view name);
+// The picture used: first in the recent ones.
+void AddHighwayRecent(Options& o, std::string_view name);
+
 // A friend's address as typed ("a.b.c.d" or "a.b.c.d:port", spaces around it ignored) as the SDK's online_host takes
 // it, "a.b.c.d:port" (`default_port` when it names none); "" when it is neither. Only IPv4 numbers: the SDK resolves no
 // names.
@@ -282,7 +323,11 @@ void ResetDisplay(Options& o);
 void ResetGraphics(Options& o);
 void ResetEffects(Options& o);
 void ResetGame(Options& o);
-void ResetMods(Options& o);
+// The Mods tab's sections (launcher 3.30). Highway keeps the favorites, each picture's darkening and the recent ones.
+void ResetModsHighway(Options& o);
+void ResetModsStage(Options& o);
+void ResetModsSound(Options& o);
+void ResetModsTools(Options& o);
 void ResetAudio(Options& o);
 void ResetOnline(Options& o);
 void ResetKeyboard(Options& o);

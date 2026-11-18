@@ -756,9 +756,82 @@ struct Texts {
   const char* group_game_other;  // the Game category's last group (game::ToggleGroup::kGame)
   const char* group_sound;
   const char* group_tools;
+  // Launcher 3.29: the Mods category's groups of the note highway and the stage (game::ToggleGroup::kModsHighway,
+  // kModsStage), before Sound.
+  const char* group_highway;
+  const char* group_stage;
   const char* xenos_notice;
   const char* xenos_notice_dlss;
   const char* xenos_notice_msaa;
+  // Launcher 3.30 (Gustavo's "mods-galeria" mockup): the Mods tab, the Highway gallery and its preview, Settings >
+  // Updates, Play's update button.
+  // The Mods tab's sections' intros, its note, Settings > Updates' intro.
+  const char* mods_intro_highway;
+  const char* mods_intro_stage;
+  const char* mods_intro_sound;
+  const char* mods_intro_tools;
+  const char* mods_note;
+  const char* settings_intro_updates;
+  // The Highway section's groups and rows.
+  const char* group_highway_background;
+  const char* group_highway_shape;
+  const char* group_highway_look;
+  const char* highway_folder;
+  const char* highway_folder_sub;
+  const char* highway_folder_help;
+  const char* highway_image;
+  const char* highway_image_sub;
+  const char* highway_image_sub_empty;
+  const char* highway_image_help;
+  const char* highway_original;
+  const char* highway_random;
+  const char* highway_random_from;
+  const char* highway_random_from_sub;
+  const char* highway_random_from_help;
+  const char* highway_all;
+  const char* highway_favorites;
+  const char* highway_dim;
+  const char* highway_dim_sub;
+  const char* highway_dim_help;
+  const char* highway_dim_auto;
+  // The preview and the gallery.
+  const char* preview_title;
+  const char* preview_badge;
+  const char* preview_note;
+  const char* preview_no_game;
+  const char* gallery_title;
+  const char* gallery_count_all;
+  const char* gallery_count_favorites;
+  const char* gallery_recent;
+  const char* gallery_by_name;
+  const char* gallery_position;
+  const char* gallery_favorite;
+  const char* gallery_random_all;
+  const char* gallery_random_favorites;
+  const char* gallery_original;
+  const char* gallery_no_favorites_title;
+  const char* gallery_no_favorites;
+  const char* see_all;
+  const char* gallery_no_recent_title;
+  const char* gallery_no_recent;
+  const char* gallery_empty_title;
+  const char* gallery_empty;
+  const char* gallery_open_folder;
+  const char* gallery_unreadable;
+  const char* gallery_no_preview;
+  const char* gallery_dim;
+  const char* gallery_dim_as_all;
+  const char* hint_use;
+  const char* hint_favorite;
+  const char* hint_dim;
+  const char* hint_choose_image;
+  const char* hint_choose_folder;
+  // Settings > Updates and Play's update button.
+  const char* updates_last_check;
+  const char* update_available_title;
+  const char* update_button;
+  const char* play_update;
+  const char* hint_update;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

@@ -90,10 +90,49 @@ constexpr float kNoticeAbove = 6.0f;
 constexpr float kNoticeBelow = 5.0f;
 constexpr Type kNoticeText{Font::kRegular, 15};
 
-// The categories, in the pages' order (Page::kDisplay to Page::kOnline).
+// The categories (launcher 3.30): the Mods tab's sections, then the Settings tab's categories, each in its pages' order
+// (Page::kModsHighway to Page::kModsTools, Page::kDisplay to Page::kUpdates).
 enum Category {
-  kCategoryDisplay, kCategoryGraphics, kCategoryEffects, kCategoryAudio, kCategoryGame, kCategoryMods, kCategoryOnline
+  kCategoryHighway, kCategoryStage, kCategorySound, kCategoryTools,
+  kCategoryDisplay, kCategoryGraphics, kCategoryEffects, kCategoryAudio, kCategoryGame, kCategoryOnline, kCategoryUpdates,
+  kCategoryCount
 };
+static_assert(int(Page::kModsTools) - int(Page::kModsHighway) == kCategoryTools - kCategoryHighway);
+static_assert(int(Page::kUpdates) - int(Page::kDisplay) == kCategoryUpdates - kCategoryDisplay);
+
+int CategoryOf(Page page) {
+  if (IsModsPage(page)) return kCategoryHighway + (int(page) - int(Page::kModsHighway));
+  return kCategoryDisplay + std::clamp(int(page) - int(Page::kDisplay), 0, kCategoryUpdates - kCategoryDisplay);
+}
+
+// A Mods section with rows in this game (launcher 3.30): Highway with the gallery or a switch or row of its groups,
+// Stage and Sound with one of theirs, Tools always (the launcher's Debug keys).
+bool ModsSectionHasRows(int section) {
+  auto has = [](std::initializer_list<game::ToggleGroup> groups) {
+    for (const game::Toggle& t : game::kToggles) {
+      if (std::find(groups.begin(), groups.end(), t.group) != groups.end()) return true;
+    }
+    for (const game::Choice& c : game::kChoices) {
+      if (std::find(groups.begin(), groups.end(), c.group) != groups.end()) return true;
+    }
+    return false;
+  };
+  switch (section) {
+    case 0:
+      return game::kHighwayPreview || has({game::ToggleGroup::kModsHighway, game::ToggleGroup::kModsHighwayLook});
+    case 1:
+      return has({game::ToggleGroup::kModsStage});
+    case 2:
+      return has({game::ToggleGroup::kModsSound});
+    default:
+      return true;
+  }
+}
+
+Page PageOf(int category) {
+  return category < kCategoryDisplay ? Page(int(Page::kModsHighway) + category - kCategoryHighway)
+                                     : Page(int(Page::kDisplay) + category - kCategoryDisplay);
+}
 // Launcher 3.22, the rows as an accordion: the mouse's row opens after it rests there this long (crossing the list
 // opens nothing), over this long.
 constexpr double kHoverDelay = 0.08;
@@ -202,19 +241,29 @@ void App::SettingsPage(const ImRect& rect) {
   Options& o = settings_.o;
   const game::GameTexts& own = game::GameTextsFor(language_);
   bool changed = false;
-  // The category: its page's place from Display (launcher 3.28: Display, Graphics, Effects, Audio, Game, Mods, Online).
-  static_assert(int(Page::kOnline) - int(Page::kDisplay) == kCategoryOnline);
-  const int category = std::clamp(int(page_) - int(Page::kDisplay), 0, int(kCategoryOnline));
+  // The category (launcher 3.30): a section of the Mods tab, or a category of the Settings tab.
+  if (IsModsPage(page_) && !ModsSectionHasRows(CategoryOf(page_) - kCategoryHighway)) {
+    for (int c = kCategoryHighway; c <= kCategoryTools; ++c) {
+      if (ModsSectionHasRows(c - kCategoryHighway)) {
+        page_ = PageOf(c);
+        break;
+      }
+    }
+  }
+  const bool mods_tab = IsModsPage(page_);
+  const int category = CategoryOf(page_);
 
   // --- The rows of the category ---
   std::vector<OptionRow> rows;
   const char* online_intro = game::kOnlineByAddress ? t_.settings_intro_online : t_.settings_intro_online_steam;
-  const char* const category_labels[] = {t_.nav_display, t_.nav_graphics, t_.nav_effects,
-                                         t_.nav_audio,   t_.nav_game,     t_.nav_mods,
-                                         t_.nav_online};
-  const char* const intros[] = {t_.settings_intro_display, t_.settings_intro_graphics, t_.settings_intro_effects,
-                                t_.settings_intro_audio,   t_.settings_intro_game,     t_.settings_intro_mods,
-                                online_intro};
+  const char* const category_labels[] = {t_.group_highway, t_.group_stage,  t_.group_sound,    t_.group_tools,
+                                         t_.nav_display,   t_.nav_graphics, t_.nav_effects,    t_.nav_audio,
+                                         t_.nav_game,      t_.nav_online,   t_.nav_updates};
+  const char* const intros[] = {t_.mods_intro_highway,      t_.mods_intro_stage,        t_.mods_intro_sound,
+                                t_.mods_intro_tools,        t_.settings_intro_display,  t_.settings_intro_graphics,
+                                t_.settings_intro_effects,  t_.settings_intro_audio,    t_.settings_intro_game,
+                                online_intro,               t_.settings_intro_updates};
+  static_assert(std::size(category_labels) == kCategoryCount && std::size(intros) == kCategoryCount);
   const char* category_label = category_labels[category];
   const char* intro = intros[category];
   Size output = settings_.OutputSize();
@@ -281,6 +330,36 @@ void App::SettingsPage(const ImRect& rect) {
           }
         }
       };
+      push(std::move(row));
+    }
+    // Then the group's rows with several values (launcher 3.29), in game.h's order.
+    for (size_t i = 0; i < game::kChoices.size(); ++i) {
+      const game::Choice& choice = game::kChoices[i];
+      if (choice.group != toggle_group) continue;
+      OptionRow row;
+      row.id = choice.cvar;
+      row.title = own.choices[i * 2];
+      row.sub = own.choices[i * 2 + 1];
+      row.help = own.choice_help[i] ? own.choice_help[i] : own.choices[i * 2 + 1];
+      for (size_t j = 0; j < choice.values.size(); ++j) {
+        const char* label = j < own.choice_values[i].size() ? own.choice_values[i][j] : nullptr;
+        row.values.push_back(label ? std::string(label) : std::string(choice.values[j]) + choice.suffix);
+      }
+      row.index = std::clamp(o.choices[i], 0, int(choice.values.size()) - 1);
+      row.child = children || choice.needs;
+      // Launcher 3.30: a row that needs a switch, locked with its value while that one is off.
+      if (choice.needs) {
+        for (size_t j = 0; j < game::kToggles.size(); ++j) {
+          if (std::string_view(game::kToggles[j].cvar) == choice.needs && !o.toggles[j]) {
+            row.locked = true;
+            row.locked_value = row.values[size_t(row.index)];
+            char needs[160];
+            std::snprintf(needs, sizeof(needs), t_.screen_effects_needs, own.toggles[j * 2]);
+            row.sub = needs;
+          }
+        }
+      }
+      row.apply = [&o, i](int index) { o.choices[i] = index; };
       push(std::move(row));
     }
   };
@@ -885,11 +964,87 @@ void App::SettingsPage(const ImRect& rect) {
     toggle_rows(game::ToggleGroup::kStart);
     group(t_.group_game_other);
     toggle_rows(game::ToggleGroup::kGame);
-  } else if (category == kCategoryMods) {
-    // What changes the game itself (launcher 3.28): its sound, and the developers' tools.
-    group(t_.group_sound);
+  } else if (category == kCategoryHighway) {
+    // The Mods tab (launcher 3.30): the note highway's picture (the gallery, game::kHighwayGallery), its shape and its
+    // look.
+    if (game::kHighwayPreview) {
+      if (!highway_pictures_) highway_pictures_ = std::make_unique<highway::Pictures>();
+      highway_pictures_->Refresh(o.highway_folder);
+      group(t_.group_highway_background);
+      // The folder: A chooses another (its last name shown).
+      {
+        OptionRow row;
+        row.id = "highway_folder";
+        row.title = t_.highway_folder;
+        row.sub = t_.highway_folder_sub;
+        row.help = t_.highway_folder_help;
+        std::string shown = o.highway_folder;
+        while (!shown.empty() && (shown.back() == '\\' || shown.back() == '/')) shown.pop_back();
+        const size_t last = shown.find_last_of("\\/");
+        if (last != std::string::npos && last > 0) shown = "\xE2\x80\xA6" + shown.substr(last);
+        row.values = {shown};
+        row.icon = Icon::kFolder;
+        row.activate = [this] { ChooseHighwayFolder(); };
+        push(std::move(row));
+      }
+      // The picture: A opens the gallery; its line counts the folder's pictures and favorites.
+      {
+        OptionRow row;
+        row.id = "highway_image";
+        row.title = t_.highway_image;
+        const auto& list = highway_pictures_->List();
+        int favorites = 0;
+        for (const highway::Picture& picture : list) favorites += IsHighwayFavorite(o, picture.name) ? 1 : 0;
+        char sub[192];
+        std::snprintf(sub, sizeof(sub), t_.highway_image_sub, int(list.size()), favorites);
+        row.sub = list.empty() ? std::string(t_.highway_image_sub_empty) : std::string(sub);
+        row.help = t_.highway_image_help;
+        row.values = {HighwayImageLabel()};
+        row.icon = Icon::kChevronRight;
+        row.activate = [this] { OpenHighwayGallery(); };
+        push(std::move(row));
+      }
+      // Where Random's picture comes from.
+      {
+        OptionRow row;
+        row.id = "highway_random_from";
+        row.title = t_.highway_random_from;
+        row.sub = t_.highway_random_from_sub;
+        row.help = t_.highway_random_from_help;
+        row.values = {t_.highway_all, t_.highway_favorites};
+        row.index = o.highway_random_favorites ? 1 : 0;
+        row.apply = [&o](int index) { o.highway_random_favorites = index == 1; };
+        push(std::move(row));
+      }
+    }
+    group(t_.group_highway_shape);
+    toggle_rows(game::ToggleGroup::kModsHighway);
+    group(t_.group_highway_look);
+    toggle_rows(game::ToggleGroup::kModsHighwayLook);
+    // Every picture darkened (each one's own in the gallery, Y).
+    if (game::kHighwayPreview) {
+      OptionRow row;
+      row.id = "highway_dim";
+      row.title = t_.highway_dim;
+      row.sub = t_.highway_dim_sub;
+      row.help = t_.highway_dim_help;
+      for (const char* value : kHighwayDims) {
+        const std::string_view v(value);
+        row.values.push_back(v == "off" ? std::string(t_.off) : v == "auto" ? std::string(t_.highway_dim_auto)
+                                                                            : std::string(v) + " %");
+      }
+      row.index = 0;
+      for (size_t i = 0; i < std::size(kHighwayDims); ++i) {
+        if (o.highway_dim == kHighwayDims[i]) row.index = int(i);
+      }
+      row.apply = [&o](int index) { o.highway_dim = kHighwayDims[size_t(index)]; };
+      push(std::move(row));
+    }
+  } else if (category == kCategoryStage) {
+    toggle_rows(game::ToggleGroup::kModsStage);
+  } else if (category == kCategorySound) {
     toggle_rows(game::ToggleGroup::kModsSound);
-    group(t_.group_tools);
+  } else if (category == kCategoryTools) {
     toggle_rows(game::ToggleGroup::kModsTools);
     // The SDK's developer keys (debug_hotkeys); on, the ones on the keyboard's controls are named: they play there.
     {
@@ -912,7 +1067,7 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.debug_hotkeys = index == 0; };
       push(std::move(row));
     }
-  } else {
+  } else if (category == kCategoryOnline) {
     // Launcher 3.20: online play between friends (the SDK's online_play, experimental). While it is off, the other rows
     // are locked with their values.
     auto lock_while_off = [&](OptionRow& row) {
@@ -1106,14 +1261,17 @@ void App::SettingsPage(const ImRect& rect) {
   const float page_left = rect.Min.x;
   const float page_top = rect.Min.y;
   const float rows_left = page_left + Px(300.0f);
-  const float rows_right = rect.Max.x - Px(56.0f);
+  // The Highway section (launcher 3.30): its rows 430 dp wide, its preview or gallery at their right to 56 dp from the
+  // edge.
+  const bool highway_panel = category == kCategoryHighway && game::kHighwayPreview;
+  const float rows_right = highway_panel ? rows_left + Px(430.0f) : rect.Max.x - Px(56.0f);
   const float foot_top = rect.Max.y - Px(60.0f);
 
   // The title and the categories: a dot marks the current one; up and down change it at once, right (or A) goes to
   // its rows.
   {
     Type title{Font::kDisplaySemiBold, 44, 0.015f};
-    std::string label = Title(t_.nav_settings);
+    std::string label = Title(mods_tab ? t_.nav_mods : t_.nav_settings);
     // No wider than the column, clear of the intro at 300 (German's EINSTELLUNGEN).
     float width = MeasureText(title, label).x;
     if (width > Px(216.0f)) title.size *= Px(216.0f) / width;
@@ -1124,10 +1282,14 @@ void App::SettingsPage(const ImRect& rect) {
     const bool has_effects = std::any_of(game::kToggles.begin(), game::kToggles.end(), [](const game::Toggle& toggle) {
       return toggle.group == game::ToggleGroup::kScreenEffects;
     });
+    // The Mods tab's sections that have rows (the Tools' Debug keys in every game), Settings' categories.
     std::vector<std::pair<Page, const char*>> categories;
-    for (int c = kCategoryDisplay; c <= kCategoryOnline; ++c) {
+    const int first = mods_tab ? kCategoryHighway : kCategoryDisplay;
+    const int last = mods_tab ? kCategoryTools : kCategoryUpdates;
+    for (int c = first; c <= last; ++c) {
       if ((c == kCategoryEffects && !has_effects) || (c == kCategoryOnline && !game::kHasOnline)) continue;
-      categories.push_back({Page(int(Page::kDisplay) + c), category_labels[c]});
+      if (mods_tab && c != kCategoryTools && !ModsSectionHasRows(c - kCategoryHighway)) continue;
+      categories.push_back({PageOf(c), category_labels[c]});
     }
     std::vector<std::array<ImGuiID, 2>> category_ids;
     float y = page_top + Px(112.0f);
@@ -1170,9 +1332,10 @@ void App::SettingsPage(const ImRect& rect) {
     ColumnNav(category_ids);
     constexpr Type kNote{Font::kRegular, 15};
     float note_width = Px(236.0f);
-    float note_height = DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.5f, 0, t_.settings_controls_note, false);
+    float note_height =
+        DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.5f, 0, mods_tab ? t_.mods_note : t_.settings_controls_note, false);
     DrawParagraph(kNote, ImVec2(page_left + Px(56.0f), rect.Max.y - Px(65.0f) - note_height), note_width, 1.5f,
-                  col::kTextMuted, t_.settings_controls_note);
+                  col::kTextMuted, mods_tab ? t_.mods_note : t_.settings_controls_note);
   }
 
   // The intro over the rows (launcher 3.28: the graphics API is a row of Xenos's, no longer written at its right).
@@ -1180,9 +1343,26 @@ void App::SettingsPage(const ImRect& rect) {
   float intro_y = page_top + Px(28.0f);
   DrawLabel(kIntro, ImVec2(rows_left, intro_y), col::kTextMuted, intro);
 
+  // Settings > Updates (launcher 3.30): the state, its card and its rows, page_updates.cpp's.
+  if (category == kCategoryUpdates) {
+    UpdatesCategory(ImRect(ImVec2(rows_left, page_top + Px(68.0f)), ImVec2(rows_right, foot_top - Px(8.0f))));
+    ImRect foot(ImVec2(rows_left, foot_top), ImVec2(rows_right, foot_top + Px(52.0f)));
+    FillRect(ImRect(foot.Min, ImVec2(foot.Max.x, foot.Min.y + Snap(Px(1.0f)))), col::kHairline);
+    constexpr Type kNote{Font::kRegular, 15};
+    DrawIcon(Icon::kCheck, ImVec2(foot.Min.x, foot.GetCenter().y - Px(9.0f)), 18.0f, col::kTextDim, 1.9f);
+    DrawLabel(kNote, ImVec2(foot.Min.x + Px(28.0f), foot.GetCenter().y - LineHeight(kNote) * 0.5f), col::kTextMuted,
+              t_.autosave);
+    return;
+  }
+  // The Highway section's preview or gallery (launcher 3.30), at the rows' right.
+  if (highway_panel) {
+    HighwayPanel(ImRect(ImVec2(rows_right + Px(40.0f), page_top + Px(68.0f)), ImVec2(rect.Max.x - Px(56.0f), foot_top - Px(8.0f))));
+  }
+
   // The rows, scrolling when they do not fit; the scroll bar 16 dp right of them.
   int& selected = settings_row_[category];
   selected = std::clamp(selected, 0, std::max(0, int(rows.size()) - 1));
+  settings_row_id_ = rows.empty() ? std::string() : rows[size_t(selected)].id;
   ImRect list(ImVec2(rows_left, page_top + Px(68.0f)), ImVec2(rows_right + Px(16.0f), foot_top - Px(8.0f)));
   BeginScroll("##settings_rows", list);
   ImVec2 origin = ImGui::GetCursorScreenPos();
@@ -1539,8 +1719,17 @@ void App::SettingsPage(const ImRect& rect) {
         case kCategoryGame:
           ResetGame(o);
           break;
-        case kCategoryMods:
-          ResetMods(o);
+        case kCategoryHighway:
+          ResetModsHighway(o);
+          break;
+        case kCategoryStage:
+          ResetModsStage(o);
+          break;
+        case kCategorySound:
+          ResetModsSound(o);
+          break;
+        case kCategoryTools:
+          ResetModsTools(o);
           break;
         default:
           ResetOnline(o);

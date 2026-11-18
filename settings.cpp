@@ -1,6 +1,7 @@
 // The launcher's settings (settings.h).
 
 #include "settings.h"
+#include "dlc.h"
 #include "texts.h"
 
 #ifndef NOMINMAX
@@ -53,11 +54,17 @@ const BindInfo kBinds[int(Bind::kCount)] = {
 
 namespace {
 
-// The game's switches of these groups back to their defaults.
+// The game's switches and rows with several values of these groups back to their defaults.
 void ResetToggles(Options& o, std::initializer_list<game::ToggleGroup> groups) {
   for (size_t i = 0; i < game::kToggles.size(); ++i) {
     if (std::find(groups.begin(), groups.end(), game::kToggles[i].group) != groups.end()) {
       o.toggles[i] = game::kToggles[i].default_value;
+    }
+  }
+  const std::array<int, game::kChoices.size()> defaults = DefaultChoices();
+  for (size_t i = 0; i < game::kChoices.size(); ++i) {
+    if (std::find(groups.begin(), groups.end(), game::kChoices[i].group) != groups.end()) {
+      o.choices[i] = defaults[i];
     }
   }
 }
@@ -104,10 +111,92 @@ void ResetGame(Options& o) {
   ResetToggles(o, {game::ToggleGroup::kStart, game::ToggleGroup::kGame});
 }
 
-void ResetMods(Options& o) {
+void ResetModsHighway(Options& o) {
+  Options defaults;
+  o.highway_folder = o.highway_default_folder;
+  o.highway_image = defaults.highway_image;
+  o.highway_random_favorites = defaults.highway_random_favorites;
+  o.highway_dim = defaults.highway_dim;
+  ResetToggles(o, {game::ToggleGroup::kModsHighway, game::ToggleGroup::kModsHighwayLook});
+}
+
+void ResetModsStage(Options& o) { ResetToggles(o, {game::ToggleGroup::kModsStage}); }
+
+void ResetModsSound(Options& o) { ResetToggles(o, {game::ToggleGroup::kModsSound}); }
+
+void ResetModsTools(Options& o) {
   Options defaults;
   o.debug_hotkeys = defaults.debug_hotkeys;
-  ResetToggles(o, {game::ToggleGroup::kModsSound, game::ToggleGroup::kModsTools});
+  ResetToggles(o, {game::ToggleGroup::kModsTools});
+}
+
+namespace {
+
+// File names compared as Windows does, ASCII letters in any case.
+bool SameName(std::string_view a, std::string_view b) {
+  return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
+           return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+         });
+}
+
+std::vector<std::string> SplitList(std::string_view s, char separator) {
+  std::vector<std::string> out;
+  size_t start = 0;
+  while (start <= s.size()) {
+    size_t end = s.find(separator, start);
+    if (end == std::string_view::npos) end = s.size();
+    if (end > start) out.emplace_back(s.substr(start, end - start));
+    start = end + 1;
+  }
+  return out;
+}
+
+std::string JoinList(const std::vector<std::string>& items) {
+  std::string out;
+  for (const std::string& item : items) {
+    if (!out.empty()) out += '|';
+    out += item;
+  }
+  return out;
+}
+
+}  // namespace
+
+std::string HighwayImageDim(const Options& o, std::string_view name) {
+  for (const auto& [file, value] : o.highway_image_dims) {
+    if (SameName(file, name)) return value;
+  }
+  return {};
+}
+
+void SetHighwayImageDim(Options& o, std::string_view name, std::string_view value) {
+  auto& dims = o.highway_image_dims;
+  dims.erase(std::remove_if(dims.begin(), dims.end(), [&](const auto& d) { return SameName(d.first, name); }),
+             dims.end());
+  if (!value.empty()) dims.emplace_back(std::string(name), std::string(value));
+}
+
+bool IsHighwayFavorite(const Options& o, std::string_view name) {
+  return std::any_of(o.highway_favorites.begin(), o.highway_favorites.end(),
+                     [&](const std::string& f) { return SameName(f, name); });
+}
+
+void ToggleHighwayFavorite(Options& o, std::string_view name) {
+  auto& favorites = o.highway_favorites;
+  auto it = std::find_if(favorites.begin(), favorites.end(), [&](const std::string& f) { return SameName(f, name); });
+  if (it != favorites.end()) {
+    favorites.erase(it);
+  } else {
+    favorites.emplace_back(name);
+  }
+}
+
+void AddHighwayRecent(Options& o, std::string_view name) {
+  auto& recent = o.highway_recent;
+  recent.erase(std::remove_if(recent.begin(), recent.end(), [&](const std::string& r) { return SameName(r, name); }),
+               recent.end());
+  recent.insert(recent.begin(), std::string(name));
+  if (recent.size() > kHighwayRecentCount) recent.resize(kHighwayRecentCount);
 }
 
 void ResetAudio(Options& o) {
@@ -540,6 +629,44 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   }
   for (size_t i = 0; i < game::kToggles.size(); ++i) {
     o.toggles[i] = GetBool(c, game::kToggles[i].cvar, game::kToggles[i].default_value);
+  }
+  // A row with several values: the value in the file, as text or as the same number ("100" and "100.0"); else its
+  // default.
+  for (size_t i = 0; i < game::kChoices.size(); ++i) {
+    const std::string value = GetString(c, game::kChoices[i].cvar);
+    char* end = nullptr;
+    const double number = std::strtod(value.c_str(), &end);
+    const bool numeric = !value.empty() && end && *end == 0;
+    for (size_t j = 0; j < game::kChoices[i].values.size(); ++j) {
+      const char* candidate = game::kChoices[i].values[j];
+      if (value == candidate || (numeric && !game::kChoices[i].quoted && std::strtod(candidate, nullptr) == number)) {
+        o.choices[i] = int(j);
+      }
+    }
+  }
+  // The Highway gallery (launcher 3.30): the game's cvars, and the launcher's recent pictures.
+  if (game::kHighwayPreview) {
+    const game::HighwayGallery& gallery = game::kHighwayGallery;
+    o.highway_folder = GetEscapedString(c, gallery.folder_cvar);
+    o.highway_image = GetEscapedString(c, gallery.image_cvar);
+    o.highway_random_favorites = GetString(c, gallery.random_from_cvar) == "favorites";
+    o.highway_favorites = SplitList(GetEscapedString(c, gallery.favorites_cvar), '|');
+    const std::string dim = GetString(c, gallery.dim_cvar);
+    o.highway_dim = "off";
+    for (const char* value : kHighwayDims) {
+      if (dim == value) o.highway_dim = value;
+    }
+    for (const std::string& item : SplitList(GetEscapedString(c, gallery.image_dims_cvar), '|')) {
+      const size_t colon = item.rfind(':');
+      if (colon == std::string::npos) continue;
+      const std::string value = item.substr(colon + 1);
+      if (std::find_if(std::begin(kHighwayDims), std::end(kHighwayDims),
+                       [&](const char* v) { return value == v; }) != std::end(kHighwayDims)) {
+        o.highway_image_dims.emplace_back(item.substr(0, colon), value);
+      }
+    }
+    o.highway_recent = SplitList(GetEscapedString(c, "launcher_highway_recent"), '|');
+    if (o.highway_recent.size() > kHighwayRecentCount) o.highway_recent.resize(kHighwayRecentCount);
   }
   // Off where the game has no such row (game::kHasLowLatencyAudio), whatever an older launcher left in the file.
   o.audio_exclusive = game::kHasLowLatencyAudio && GetBool(c, "audio_wasapi_exclusive", false);
@@ -1035,6 +1162,20 @@ Settings LoadSettings(const std::filesystem::path& exe_dir) {
   s.FitFrameRate();
   Size output = s.OutputSize();
   s.o.upscale_quality = FitUpscaleQuality(s.o.upscaler, s.o.upscale_quality, output, ImageAspect(output, s.o.native_aspect));
+  // The Highway gallery's folder by default: Highways in the game's user data folder (launcher 3.30), written whole so
+  // that the game finds it. A default folder of another place (the game moved) that is gone: this one's.
+  if (game::kHighwayPreview) {
+    const std::filesystem::path default_folder = GameUserDataFolder(exe_dir) / game::kHighwayGallery.folder;
+    const std::u8string folder = default_folder.u8string();
+    s.o.highway_default_folder.assign(reinterpret_cast<const char*>(folder.data()), folder.size());
+    const std::filesystem::path chosen(
+        std::u8string(reinterpret_cast<const char8_t*>(s.o.highway_folder.data()), s.o.highway_folder.size()));
+    std::error_code ec;
+    if (s.o.highway_folder.empty() ||
+        (chosen.filename() == default_folder.filename() && !std::filesystem::is_directory(chosen, ec))) {
+      s.o.highway_folder = s.o.highway_default_folder;
+    }
+  }
   return s;
 }
 
@@ -1143,6 +1284,25 @@ bool SaveOptions(const Settings& s) {
   }
   for (size_t i = 0; i < game::kToggles.size(); ++i) {
     f << game::kToggles[i].cvar << " = " << boolean(o.toggles[i]) << "\n";
+  }
+  for (size_t i = 0; i < game::kChoices.size(); ++i) {
+    const game::Choice& choice = game::kChoices[i];
+    const char* value = choice.values[size_t(std::clamp(o.choices[i], 0, int(choice.values.size()) - 1))];
+    const char* quote = choice.quoted ? "\"" : "";
+    f << choice.cvar << " = " << quote << value << quote << "\n";
+  }
+  // The Highway gallery (launcher 3.30): the folder of pictures, the one chosen ("" the game's own, "<random>"), where
+  // a random one comes from, the favorites, the darkenings (every picture's, each one's).
+  if (game::kHighwayPreview) {
+    const game::HighwayGallery& gallery = game::kHighwayGallery;
+    std::vector<std::string> dims;
+    for (const auto& [name, value] : o.highway_image_dims) dims.push_back(name + ":" + value);
+    f << gallery.folder_cvar << " = \"" << Escaped(o.highway_folder) << "\"\n";
+    f << gallery.image_cvar << " = \"" << Escaped(o.highway_image) << "\"\n";
+    f << gallery.random_from_cvar << " = \"" << (o.highway_random_favorites ? "favorites" : "all") << "\"\n";
+    f << gallery.favorites_cvar << " = \"" << Escaped(JoinList(o.highway_favorites)) << "\"\n";
+    f << gallery.dim_cvar << " = \"" << o.highway_dim << "\"\n";
+    f << gallery.image_dims_cvar << " = \"" << Escaped(JoinList(dims)) << "\"\n";
   }
   // The sound in exclusive mode (WASAPI), past Windows' audio engine; the shared output when the device refuses.
   f << "audio_wasapi_exclusive = " << boolean(o.audio_exclusive) << "\n";
@@ -1349,6 +1509,9 @@ bool SaveOptions(const Settings& s) {
   f << "launcher_language = " << o.launcher_language << "\n";
   f << "launcher_check_updates = " << boolean(o.check_updates) << "\n";
   f << "launcher_beta_updates = " << boolean(o.beta_updates) << "\n";
+  if (game::kHighwayPreview) {
+    f << "launcher_highway_recent = \"" << Escaped(JoinList(o.highway_recent)) << "\"\n";
+  }
   if (o.last_update_check > 0) {
     f << "launcher_last_update_check = " << o.last_update_check << "\n";
   }

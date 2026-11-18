@@ -122,17 +122,28 @@ void App::PlayPage(const ImRect& rect) {
     }
     parts.push_back({Icon::kSliders, col::kTextDim, screen, Page::kDisplay});
   }
-  if (!update_url_.empty()) {
-    const Release* newer = NewerRelease();
-    if (newer) {
-      std::string number = newer->tag.size() > 1 && (newer->tag[0] == 'v' || newer->tag[0] == 'V') ? newer->tag.substr(1)
-                                                                                                    : newer->tag;
-      char text[128];
-      std::snprintf(text, sizeof(text), t_.update_card_available, number.c_str());
-      parts.push_back({Icon::kArrowDown, col::kAccent, text, Page::kUpdates});
-    } else {
-      parts.push_back({Icon::kCheck, col::kSuccess, t_.all_up_to_date, Page::kUpdates});
-    }
+  // Launcher 3.30 (Gustavo's "mods-galeria" mockup): a new version is a button of its own at the strip's right, to
+  // Settings > Updates (Y too); none while the installed one is the latest.
+  if (const Release* newer = update_url_.empty() ? nullptr : NewerRelease()) {
+    std::string number = newer->tag.size() > 1 && (newer->tag[0] == 'v' || newer->tag[0] == 'V') ? newer->tag.substr(1)
+                                                                                                  : newer->tag;
+    char text[128];
+    std::snprintf(text, sizeof(text), t_.play_update, number.c_str());
+    constexpr Type kUpdate{Font::kSemiBold, 15};
+    const float width = Px(16.0f) + Px(18.0f) + Px(10.0f) + MeasureText(kUpdate, text).x + Px(10.0f) + Px(16.0f) +
+                        Px(16.0f);
+    ImRect button(ImVec2(rect.Max.x - Px(56.0f) - width, strip_y), ImVec2(rect.Max.x - Px(56.0f), strip_y + strip_height));
+    ItemState state = Item("##update", button);
+    FillRect(button, state.hovered ? Fade(col::kAccent, 0.16f) : Fade(col::kAccent, 0.08f), 12.0f);
+    StrokeRect(button, Fade(col::kAccent, state.hovered ? 0.9f : 0.6f), 12.0f);
+    DrawIcon(Icon::kRefresh, ImVec2(button.Min.x + Px(16.0f), button.GetCenter().y - Px(9.0f)), 18.0f, col::kAccent, 2.0f);
+    DrawLabel(kUpdate, ImVec2(button.Min.x + Px(16.0f) + Px(18.0f) + Px(10.0f), button.Min.y), col::kText, text,
+              button.GetHeight());
+    DrawIcon(Icon::kArrowRight, ImVec2(button.Max.x - Px(16.0f) - Px(16.0f), button.GetCenter().y - Px(8.0f)), 16.0f,
+             col::kTextSoft, 2.0f);
+    if (state.focused) FocusRing(button, 12.0f);
+    const bool popup = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
+    if (state.pressed || (!popup && ButtonPressed(PadButton::kY))) Navigate(Page::kUpdates, true);
   }
   constexpr Type kPart{Font::kMedium, 15};
   float strip_width = Px(8.0f);
