@@ -294,8 +294,38 @@ void GameTextures::Update() {
     failed_ = true;
     return;
   }
+  // The visible part of each sprite: the pixels with some alpha. The strike line's rings and the notes are placed by
+  // it (the rings' centre on the line), the gem's layers by the union of theirs.
+  auto content = [](const Decoded& d, ImVec2& lo, ImVec2& hi) {
+    int x0 = d.width, y0 = d.height, x1 = -1, y1 = -1;
+    for (int y = 0; y < d.height; ++y) {
+      for (int x = 0; x < d.width; ++x) {
+        if (d.rgba[(size_t(y) * d.width + x) * 4 + 3] > 24) {
+          x0 = std::min(x0, x), y0 = std::min(y0, y), x1 = std::max(x1, x), y1 = std::max(y1, y);
+        }
+      }
+    }
+    if (x1 < 0) return;
+    lo = ImVec2(std::min(lo.x, float(x0) / d.width), std::min(lo.y, float(y0) / d.height));
+    hi = ImVec2(std::max(hi.x, float(x1 + 1) / d.width), std::max(hi.y, float(y1 + 1) / d.height));
+  };
   for (size_t i = 0; i < decoded_.size(); ++i) {
     textures_[i] = MakeTexture(decoded_[i].rgba.data(), decoded_[i].width, decoded_[i].height);
+  }
+  for (Part part : {Part::kCollar}) {
+    ImVec2 lo(1.0f, 1.0f), hi(0.0f, 0.0f);
+    content(decoded_[size_t(part)], lo, hi);
+    if (hi.x > lo.x) textures_[size_t(part)].content_min = lo, textures_[size_t(part)].content_max = hi;
+  }
+  {
+    ImVec2 lo(1.0f, 1.0f), hi(0.0f, 0.0f);
+    for (Part part : {Part::kGemBase, Part::kGemColor, Part::kGemCap}) content(decoded_[size_t(part)], lo, hi);
+    if (hi.x > lo.x) {
+      for (Part part : {Part::kGemBase, Part::kGemColor, Part::kGemCap}) {
+        textures_[size_t(part)].content_min = lo;
+        textures_[size_t(part)].content_max = hi;
+      }
+    }
   }
   decoded_.clear();
   ready_ = true;
@@ -642,16 +672,24 @@ void Draw(const ImRect& area, const GameTextures& game, const Texture* picture, 
     constexpr int kStrips = 64;
     const double tiles = double(a.tiling) * k;
     const double scroll = std::fmod(double(t) * tiles / crossing, 1.0);
+    // In 16 columns: a trapezoid drawn as two triangles bends the picture along their diagonal (a zigzag strip by
+    // strip); narrow pieces keep it straight.
+    auto quad = [&](double pa, double pb, double va, double vb) {
+      constexpr int kColumns = 16;
+      const double wa = width_at(pa), wb = width_at(pb);
+      for (int c = 0; c < kColumns; ++c) {
+        const double f0 = double(c) / kColumns, f1 = double(c + 1) / kColumns;
+        draw->AddImageQuad(texture.id, at(wa * (f0 - 0.5), y_at(pa)), at(wa * (f1 - 0.5), y_at(pa)),
+                           at(wb * (f1 - 0.5), y_at(pb)), at(wb * (f0 - 0.5), y_at(pb)), ImVec2(float(f0), float(va)),
+                           ImVec2(float(f1), float(va)), ImVec2(float(f1), float(vb)), ImVec2(float(f0), float(vb)),
+                           color);
+      }
+    };
     for (int i = 0; i < kStrips; ++i) {
       const double r0 = double(a.rows) * i / kStrips, r1 = double(a.rows) * (i + 1) / kStrips;
       const double p0 = PlaceAt(shape.place, r0), p1 = PlaceAt(shape.place, r1);
       // v from the far end: the time from the strike line, in textures.
       double v0 = tiles * (r0 / a.rows) - scroll, v1 = tiles * (r1 / a.rows) - scroll;
-      auto quad = [&](double pa, double pb, double va, double vb) {
-        const double wa = width_at(pa) * 0.5, wb = width_at(pb) * 0.5;
-        draw->AddImageQuad(texture.id, at(-wa, y_at(pa)), at(wa, y_at(pa)), at(wb, y_at(pb)), at(-wb, y_at(pb)),
-                           ImVec2(0, float(va)), ImVec2(1, float(va)), ImVec2(1, float(vb)), ImVec2(0, float(vb)), color);
-      };
       // Split where the texture repeats (the sampler clamps).
       const double floor0 = std::floor(v0);
       v0 -= floor0;
@@ -665,10 +703,7 @@ void Draw(const ImRect& area, const GameTextures& game, const Texture* picture, 
       }
     }
     // Below the strike line, the texture's last rows stretched.
-    const double wa = width_at(1.0) * 0.5, wb = width_at(1.0 + below) * 0.5;
-    draw->AddImageQuad(texture.id, at(-wa, y_at(1.0)), at(wa, y_at(1.0)), at(wb, y_at(1.0 + below)),
-                       at(-wb, y_at(1.0 + below)), ImVec2(0, 0.97f), ImVec2(1, 0.97f), ImVec2(1, 1), ImVec2(0, 1),
-                       color);
+    quad(1.0, 1.0 + below, 0.97, 1.0);
   }
   const double lane_step = 0.18;  // of the width, between lanes' middles
   auto lane_x = [&](int lane, double place) { return (lane - 2) * lane_step * width_at(place); };
@@ -709,18 +744,22 @@ void Draw(const ImRect& area, const GameTextures& game, const Texture* picture, 
                          IM_COL32(255, 255, 255, 230));
     }
   }
-  // The strike line: a bar and each lane's ring.
+  // A sprite's visible part centred on (x, y), `width` wide (game units), its height by its own shape.
+  auto sprite = [&](const Texture& t, double x, double y, double width, ImU32 color) {
+    const ImVec2 lo = t.content_min, hi = t.content_max;
+    const double aspect = (double(hi.y - lo.y) * t.height) / std::max(1.0, double(hi.x - lo.x) * t.width);
+    const double height = width * aspect;
+    draw->AddImage(t.id, at(x - width * 0.5, y - height * 0.5), at(x + width * 0.5, y + height * 0.5), lo, hi, color);
+  };
+  // The strike line: a bar and each lane's ring on it.
   {
     const double place = 1.0;
     const double half = width_at(place) * 0.5;
     draw->AddImage(game.Get(Part::kFretbar).id, at(-half, y_at(place) - 6.0), at(half, y_at(place) + 6.0),
                    ImVec2(0, 0), ImVec2(1, 1), IM_COL32(255, 255, 255, 220));
     const Texture& collar = game.Get(Part::kCollar);
-    const double size = lane_step * width_at(place) * 1.25;
     for (int lane = 0; lane < 5; ++lane) {
-      const double x = lane_x(lane, place), y = y_at(place);
-      draw->AddImage(collar.id, at(x - size * 0.5, y - size * 0.5), at(x + size * 0.5, y + size * 0.5), ImVec2(0, 0),
-                     ImVec2(1, 1), kLanes[lane]);
+      sprite(collar, lane_x(lane, place), y_at(place), lane_step * width_at(place) * 0.9, kLanes[lane]);
     }
   }
   // The notes coming down (the far ones first), their sustains under them.
@@ -760,13 +799,11 @@ void Draw(const ImRect& area, const GameTextures& game, const Texture* picture, 
     for (const Shown& item : shown) {
       if (item.ahead < 0.0) continue;
       const double place = place_of(item.ahead);
-      // The textures' puck takes about 70 % of their width.
-      const double size = lane_step * width_at(place) * 1.35;
+      const double width = lane_step * width_at(place) * 0.85;
       const double x = lane_x(item.note->lane, place), y = y_at(place);
-      const ImVec2 p0 = at(x - size * 0.5, y - size * 0.5), p1 = at(x + size * 0.5, y + size * 0.5);
-      draw->AddImage(body.id, p0, p1, ImVec2(0, 0), ImVec2(1, 1), kLanes[item.note->lane]);
-      draw->AddImage(rim.id, p0, p1);
-      draw->AddImage(cap.id, p0, p1);
+      sprite(body, x, y, width, kLanes[item.note->lane]);
+      sprite(rim, x, y, width, IM_COL32_WHITE);
+      sprite(cap, x, y, width, IM_COL32_WHITE);
     }
   }
   draw->PopClipRect();

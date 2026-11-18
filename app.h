@@ -282,6 +282,14 @@ class App {
   // right, or the gallery of the player's pictures over it (a popup: its own focus and buttons), the folder's dialog.
   void HighwayPanel(const ImRect& rect);
   void HighwayGalleryWindow();
+  // The Folder row's list (launcher 3.30.1): open the folder in Explorer, or change it; under the row's right side.
+  void HighwayFolderMenuWindow();
+  struct HighwayFolderMenu {
+    bool open = false;
+    bool opened = false;
+    ImRect anchor;  // the row
+  };
+  HighwayFolderMenu folder_menu_;
   void OpenHighwayGallery();
   void ChooseHighwayFolder();
   void PollHighwayFolder();

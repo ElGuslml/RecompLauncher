@@ -826,6 +826,9 @@ struct Texts {
   const char* hint_dim;
   const char* hint_choose_image;
   const char* hint_choose_folder;
+  // Launcher 3.30.1: the Folder row's list.
+  const char* highway_folder_open;
+  const char* highway_folder_change;
   // Settings > Updates and Play's update button.
   const char* updates_last_check;
   const char* update_available_title;

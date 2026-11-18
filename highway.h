@@ -29,6 +29,10 @@ struct Texture {
   ImTextureID id = 0;
   int width = 0;
   int height = 0;
+  // Where its visible part is (the game's sprites leave room around theirs), in texture coordinates; a gem's three
+  // layers share theirs, so that they stay stacked.
+  ImVec2 content_min{0.0f, 0.0f};
+  ImVec2 content_max{1.0f, 1.0f};
 };
 
 // The game's textures the preview draws (game::kHighwayAssets' keys, in that order).

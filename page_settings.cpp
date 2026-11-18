@@ -984,7 +984,12 @@ void App::SettingsPage(const ImRect& rect) {
         if (last != std::string::npos && last > 0) shown = "\xE2\x80\xA6" + shown.substr(last);
         row.values = {shown};
         row.icon = Icon::kFolder;
-        row.activate = [this] { ChooseHighwayFolder(); };
+        // A list under it (launcher 3.30.1): open it in Explorer, or change it. Called right after the row's item.
+        row.activate = [this] {
+          folder_menu_ = HighwayFolderMenu{};
+          folder_menu_.open = true;
+          folder_menu_.anchor = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+        };
         push(std::move(row));
       }
       // The picture: A opens the gallery; its line counts the folder's pictures and favorites.

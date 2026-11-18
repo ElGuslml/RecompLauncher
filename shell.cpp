@@ -460,6 +460,10 @@ std::vector<App::Hint> App::PageHints() const {
   if (info_.open) {
     return {{HintKey::kB, t_.close}};
   }
+  // Launcher 3.30.1: the Highway folder's list.
+  if (folder_menu_.open) {
+    return {{HintKey::kA, t_.hint_select}, {HintKey::kB, t_.cancel}};
+  }
   // Launcher 3.30: the Highway gallery's (Mods > Highway): five, its own list on LB / RB.
   if (gallery_.open) {
     return {{HintKey::kA, t_.hint_use}, {HintKey::kX, t_.hint_favorite}, {HintKey::kY, t_.hint_dim},

@@ -2,6 +2,20 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.30.1
+
+The Highway section's folder and preview (2026-11-17, Gustavo's look at 3.30.0).
+
+- **Folder** opens a list under its value, as the selectors' (A or a click; B, Esc or a click outside closes it):
+  **Open in Explorer** (the folder made first when it does not exist yet) or **Change folder...** (the folder dialog).
+  Its footer hint "Open or change"; its help says so.
+- The preview:
+  - the highway's picture no longer zigzags: each strip was a trapezoid drawn as two triangles, which bent the picture
+    along their diagonal; each is now 16 narrow pieces;
+  - the strike line's rings sit on the line, and the notes on their place: each sprite is placed by its visible part
+    (the game's sprites leave room around theirs; a gem's three layers share theirs). `highway::Texture` gains
+    `content_min` / `content_max`.
+
 ## 3.30.0
 
 Mods as a tab of its own, Updates in Settings, and the note highway's gallery and preview (2026-11-17, Gustavo's

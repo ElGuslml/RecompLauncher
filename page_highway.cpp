@@ -170,6 +170,77 @@ void App::PollHighwayFolder() {
   }
 }
 
+void App::HighwayFolderMenuWindow() {
+  // As the selectors' list (ChoiceList): a card under the row's right side, the controller's focus on its first item,
+  // up and down move, A or a click picks, B, Escape or a click outside closes it.
+  constexpr const char* kPopup = "##highway_folder_menu";
+  if (!folder_menu_.open) return;
+  if (!folder_menu_.opened) ImGui::OpenPopup(kPopup);
+  const float row_height = Px(46.0f);
+  const float padding = Px(6.0f);
+  const ImVec2 size(Px(300.0f), padding * 2.0f + row_height * 2.0f);
+  ImVec2 pos(folder_menu_.anchor.Max.x - size.x, folder_menu_.anchor.Max.y + Px(6.0f));
+  ImGuiViewport* viewport = ImGui::GetMainViewport();
+  const float bottom = viewport->Pos.y + viewport->Size.y - Snap(Px(52.0f));
+  if (pos.y + size.y > bottom) pos.y = folder_menu_.anchor.Min.y - Px(6.0f) - size.y;
+  ImGui::SetNextWindowPos(Snap(pos));
+  ImGui::SetNextWindowSize(size);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.0f);
+  if (!ImGui::BeginPopup(kPopup, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                                     ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground)) {
+    ImGui::PopStyleVar(4);
+    if (folder_menu_.opened) folder_menu_ = HighwayFolderMenu{};  // closed by a click outside it
+    return;
+  }
+  const bool first = !folder_menu_.opened;
+  folder_menu_.opened = true;
+  const ImVec2 origin = ImGui::GetWindowPos();
+  ImRect card(origin, ImVec2(origin.x + size.x, origin.y + size.y));
+  FillRect(card, col::kCardRaised, 12.0f);
+  StrokeRect(card, col::kHairline, 12.0f);
+  constexpr Type kItem{Font::kSemiBold, 15};
+  const char* labels[2] = {t_.highway_folder_open, t_.highway_folder_change};
+  const Icon icons[2] = {Icon::kFolder, Icon::kPencil};
+  int picked = -1;
+  for (int i = 0; i < 2; ++i) {
+    ImRect r(ImVec2(card.Min.x + padding, card.Min.y + padding + row_height * float(i)),
+             ImVec2(card.Max.x - padding, card.Min.y + padding + row_height * float(i + 1)));
+    if (first && i == 0) ImGui::SetKeyboardFocusHere();
+    ImGui::PushID(i);
+    ItemState state = Item("##folder_item", r);
+    ImGui::PopID();
+    if (state.focused || state.hovered) {
+      FillRect(r, state.focused ? Fade(col::kAccent, 0.16f) : Fade(col::kFocus, 0.06f), 8.0f);
+    }
+    DrawIcon(icons[i], ImVec2(r.Min.x + Px(14.0f), r.GetCenter().y - Px(9.0f)), 18.0f,
+             state.focused ? col::kText : col::kTextMuted, 1.9f);
+    DrawLabel(kItem, ImVec2(r.Min.x + Px(44.0f), r.Min.y), state.focused || state.hovered ? col::kText : col::kTextSoft,
+              Ellipsize(kItem, labels[i], r.GetWidth() - Px(54.0f)), r.GetHeight());
+    if (state.pressed) picked = i;
+  }
+  const bool cancel = !first && (ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||
+                                 ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false));
+  if (picked >= 0 || cancel) {
+    folder_menu_ = HighwayFolderMenu{};
+    ImGui::CloseCurrentPopup();
+    if (picked == 0) {
+      // Made first: the default folder does not exist until a picture goes in.
+      std::error_code ec;
+      const std::filesystem::path folder = highway::PathFromUtf8(settings_.o.highway_folder);
+      std::filesystem::create_directories(folder, ec);
+      OpenFolder(folder);
+    } else if (picked == 1) {
+      ChooseHighwayFolder();
+    }
+    if (settings_row_focus_) RequestFocus(settings_row_focus_, gamepad_used_ || SDL_HasGamepad());
+  }
+  ImGui::EndPopup();
+  ImGui::PopStyleVar(4);
+}
+
 void App::HighwayPanel(const ImRect& rect) {
   Options& o = settings_.o;
   if (!highway_game_) {
@@ -179,6 +250,7 @@ void App::HighwayPanel(const ImRect& rect) {
   }
   if (!highway_pictures_) highway_pictures_ = std::make_unique<highway::Pictures>();
   PollHighwayFolder();
+  HighwayFolderMenuWindow();
   highway_game_->Update();
   highway_pictures_->Refresh(o.highway_folder);
   highway_pictures_->Update();
