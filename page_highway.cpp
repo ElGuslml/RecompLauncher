@@ -115,6 +115,11 @@ highway::Look App::HighwayLook(std::string_view picture) const {
   look.scale = Percent(o, g.scale_cvar);
   look.length = Percent(o, g.length_cvar);
   look.perspective = Percent(o, g.perspective_cvar);
+  if (g.keep_speed_cvar) {
+    for (size_t i = 0; i < game::kToggles.size(); ++i) {
+      if (std::string_view(game::kToggles[i].cvar) == g.keep_speed_cvar) look.keep_speed = o.toggles[i];
+    }
+  }
   look.opacity = float(Percent(o, g.opacity_cvar));
   look.dark = g.style_cvar && g.dark_style && ChoiceValue(o, g.style_cvar) == g.dark_style;
   if (!picture.empty() && highway_pictures_) {

@@ -154,6 +154,7 @@ struct Look {
   double scale = 1.0;        // the one-player highway's scale (game::kChoices' ghwor_highway_scale)
   double length = 1.0;       // its length, the time on it
   double perspective = 1.0;  // its compression
+  bool keep_speed = false;   // the notes at the console's speed at the strike line (launcher 3.32)
   bool dark = false;         // the community's black highway: the texture's multiplier black
   float opacity = 1.0f;      // the highway's alpha (the venue through it)
   float brightness = 1.0f;   // the picture's darkening, 1 = as it is
