@@ -547,6 +547,7 @@ struct Shape {
   double height = 0.0;
   double top_width = 0.0;
   double length = 1.0;  // the length that fits
+  double strike_speed = 1.0;  // the notes' speed at the strike line against the console's (the perspective's)
 };
 
 double Exponent(double f, double e) { return e * std::log(f) / (e - 1.0); }
@@ -605,6 +606,13 @@ const Shape& ShapeFor(const Look& look) {
       length = std::max(1.0, length - 0.05);
       shape = MakeShape(p, length);
     }
+    // The last row's share of the highway against the console's: how fast the notes reach the strike line (the same
+    // for every length).
+    if (p != 1.0) {
+      const game::HighwayAssets& g = game::kHighwayAssets;
+      const auto last_row = [&](const Shape& s) { return s.place[size_t(g.rows)] - s.place[size_t(g.rows) - 1]; };
+      shape.strike_speed = last_row(MakeShape(p, 1.0)) / last_row(MakeShape(1.0, 1.0));
+    }
   }
   return shape;
 }
@@ -656,7 +664,8 @@ void Draw(const ImRect& area, const GameTextures& game, const Texture* picture, 
   auto y_at = [&](double place) { return top_y + shape.height * place; };
   // A place below the strike line continues its lines (the highway goes on to the screen's bottom).
   const double below = 45.0 / shape.height;
-  const double crossing = a.crossing_time * k;
+  // With the notes' speed kept (launcher 3.32, as the game does), the time on the highway times the perspective's speed.
+  const double crossing = a.crossing_time * k * (look.keep_speed ? shape.strike_speed : 1.0);
   const float t = float(std::fmod(time, double(kLoop) * 64.0));
 
   if (!game.Ready()) {

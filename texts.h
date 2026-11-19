@@ -429,6 +429,7 @@ struct Texts {
   const char* from_monitor;  // %s: the monitor's resolution
   const char* from_monitor_hint;
   const char* screen_effects_needs;  // %s: the switch it needs
+  const char* needs_other_value;  // launcher 3.32: %s the row with several values a switch needs, %s its default
   const char* renderer_title;
   const char* renderer_native_sub;
   const char* renderer_xenos_sub;

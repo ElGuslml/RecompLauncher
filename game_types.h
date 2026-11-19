@@ -55,7 +55,9 @@ enum class ToggleShown { kAlways, kSceneUpscaled, kDlssUpscales };
 // A switch of the game's own (game.h's kToggles): a boolean cvar with a row in the Settings tab; its title, hint and help
 // are game.cpp's (GameTexts::toggles and toggle_help, in the same order). `needs`: another switch's cvar that must
 // be on for this one to be (GH Metallica's grain needs its color correction); while that one is off, this one is off
-// and cannot be changed, and its row is drawn under that one's, indented.
+// and cannot be changed, and its row is drawn under that one's, indented. Launcher 3.32: `needs` may name a row with
+// several values (kChoices) of the same group instead: the switch is drawn right under that row, indented, and locked
+// with its value while the row is at its default (GH Warriors of Rock's notes' speed under the highway perspective).
 struct Toggle {
   const char* cvar;
   bool default_value;
@@ -100,6 +102,9 @@ struct HighwayGallery {
   const char* opacity_cvar;
   const char* style_cvar;
   const char* dark_style;
+  // Launcher 3.32: a switch's cvar (kToggles) that keeps the notes' speed at the strike line whatever the perspective
+  // (the time on the highway times the perspective's speed there, as the game does); null: none.
+  const char* keep_speed_cvar = nullptr;
 };
 
 // The preview's assets in the installed game (launcher 3.30): a Neversoft pak (CHNK-compressed), the texture

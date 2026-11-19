@@ -2,6 +2,19 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.32.0
+
+A switch under a row with several values (2026-11-19, GH Warriors of Rock's notes' speed with the highway perspective).
+
+- `Toggle::needs` may name a row with several values (`kChoices`) of the same group: the switch is drawn right under
+  that row, indented, and locked with its value while the row is at its default, its hint then "Only when <row> is not
+  <default>" (`needs_other_value`, five languages). A switch that needs another switch is drawn as before.
+- The Highway section's preview: `HighwayGallery::keep_speed_cvar` (null by default) names a switch that keeps the
+  notes' speed at the strike line whatever the perspective; while it is on, the preview's notes take the time the game
+  gives them (the time on the highway times the perspective's speed at the strike line: 0.78 at 75 %, 1.51 at 150 %).
+
+Nothing changes for a game that does not use them.
+
 ## 3.31.0
 
 GH Warriors of Rock's ambient occlusion, texture detail, speakers and frame rates above 240 (2026-11-18).

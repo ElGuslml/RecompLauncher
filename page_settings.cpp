@@ -292,45 +292,81 @@ void App::SettingsPage(const ImRect& rect) {
         return true;
     }
   };
+  // The row of the game's own with several values named `cvar` (game.h's kChoices), or -1.
+  auto choice_index = [](const char* cvar) {
+    for (size_t j = 0; cvar && j < game::kChoices.size(); ++j) {
+      if (std::string_view(game::kChoices[j].cvar) == cvar) return int(j);
+    }
+    return -1;
+  };
   // The game's switches of a group, in game.h's order. `children`: each under the row above, indented (Upscaling's);
-  // a switch that needs another is under that one anyway.
+  // a switch that needs another is under that one anyway, and one that needs a row with several values (launcher
+  // 3.32) right under that row.
+  auto toggle_row = [&](size_t i, bool children) {
+    const game::Toggle& toggle = game::kToggles[i];
+    OptionRow row;
+    row.id = toggle.cvar;
+    row.title = own.toggles[i * 2];
+    row.sub = own.toggles[i * 2 + 1];
+    row.help = own.toggle_help[i] ? own.toggle_help[i] : own.toggles[i * 2 + 1];
+    row.values = {t_.on_value, t_.off};
+    row.is_switch = true;
+    row.index = o.toggles[i] ? 0 : 1;
+    row.child = children || toggle.needs;
+    // A switch that needs another: off and locked while that one is off.
+    if (toggle.needs) {
+      for (size_t j = 0; j < game::kToggles.size(); ++j) {
+        if (std::string_view(game::kToggles[j].cvar) == toggle.needs && !o.toggles[j]) {
+          row.locked = true;
+          row.locked_value = t_.off;
+          char needs[160];
+          std::snprintf(needs, sizeof(needs), t_.screen_effects_needs, own.toggles[j * 2]);
+          row.sub = needs;
+        }
+      }
+    }
+    // Launcher 3.32: a switch that needs a row with several values, locked while that row is at its default (where the
+    // switch changes nothing; GH Warriors of Rock's notes' speed at a perspective of 100 %). Drawn off as every locked
+    // switch; its value is kept, and shows again when the row changes.
+    if (const int c = choice_index(toggle.needs); c >= 0) {
+      const game::Choice& choice = game::kChoices[size_t(c)];
+      const int at = std::clamp(o.choices[size_t(c)], 0, int(choice.values.size()) - 1);
+      if (std::string_view(choice.values[size_t(at)]) == choice.default_value) {
+        size_t default_index = 0;
+        while (default_index + 1 < choice.values.size() &&
+               std::string_view(choice.values[default_index]) != choice.default_value) {
+          ++default_index;
+        }
+        const char* label =
+            default_index < own.choice_values[size_t(c)].size() ? own.choice_values[size_t(c)][default_index] : nullptr;
+        const std::string value = label ? std::string(label) : std::string(choice.default_value) + choice.suffix;
+        row.locked = true;
+        row.locked_value = t_.off;
+        char needs[200];
+        std::snprintf(needs, sizeof(needs), t_.needs_other_value, own.choices[size_t(c) * 2], value.c_str());
+        row.sub = needs;
+      }
+    }
+    row.apply = [&o, i](int index) {
+      o.toggles[i] = index == 0;
+      // Turned off, the switches that need it go off too (GH Metallica: the color correction takes the grain).
+      if (!o.toggles[i]) {
+        for (size_t k = 0; k < game::kToggles.size(); ++k) {
+          if (game::kToggles[k].needs && std::string_view(game::kToggles[k].needs) == game::kToggles[i].cvar) {
+            o.toggles[k] = false;
+          }
+        }
+      }
+    };
+    push(std::move(row));
+  };
   auto toggle_rows = [&](game::ToggleGroup toggle_group, bool children = false) {
     for (size_t i = 0; i < game::kToggles.size(); ++i) {
       const game::Toggle& toggle = game::kToggles[i];
       if (toggle.group != toggle_group || !toggle_shown(toggle)) continue;
-      OptionRow row;
-      row.id = toggle.cvar;
-      row.title = own.toggles[i * 2];
-      row.sub = own.toggles[i * 2 + 1];
-      row.help = own.toggle_help[i] ? own.toggle_help[i] : own.toggles[i * 2 + 1];
-      row.values = {t_.on_value, t_.off};
-      row.is_switch = true;
-      row.index = o.toggles[i] ? 0 : 1;
-      row.child = children || toggle.needs;
-      // A switch that needs another: off and locked while that one is off.
-      if (toggle.needs) {
-        for (size_t j = 0; j < game::kToggles.size(); ++j) {
-          if (std::string_view(game::kToggles[j].cvar) == toggle.needs && !o.toggles[j]) {
-            row.locked = true;
-            row.locked_value = t_.off;
-            char needs[160];
-            std::snprintf(needs, sizeof(needs), t_.screen_effects_needs, own.toggles[j * 2]);
-            row.sub = needs;
-          }
-        }
-      }
-      row.apply = [&o, i](int index) {
-        o.toggles[i] = index == 0;
-        // Turned off, the switches that need it go off too (GH Metallica: the color correction takes the grain).
-        if (!o.toggles[i]) {
-          for (size_t k = 0; k < game::kToggles.size(); ++k) {
-            if (game::kToggles[k].needs && std::string_view(game::kToggles[k].needs) == game::kToggles[i].cvar) {
-              o.toggles[k] = false;
-            }
-          }
-        }
-      };
-      push(std::move(row));
+      // Under the row with several values it needs (below).
+      if (choice_index(toggle.needs) >= 0) continue;
+      toggle_row(i, children);
     }
     // Then the group's rows with several values (launcher 3.29), in game.h's order.
     for (size_t i = 0; i < game::kChoices.size(); ++i) {
@@ -361,6 +397,11 @@ void App::SettingsPage(const ImRect& rect) {
       }
       row.apply = [&o, i](int index) { o.choices[i] = index; };
       push(std::move(row));
+      // The switches that need this row, right under it (launcher 3.32).
+      for (size_t k = 0; k < game::kToggles.size(); ++k) {
+        const game::Toggle& toggle = game::kToggles[k];
+        if (toggle.needs && std::string_view(toggle.needs) == choice.cvar && toggle_shown(toggle)) toggle_row(k, true);
+      }
     }
   };
 
