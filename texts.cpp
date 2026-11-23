@@ -799,6 +799,8 @@ const Texts kEnglish = {
     .framerate_unlimited = "Unlimited",
     .framerate_above_240 = "Experimental above 240: V-Sync off, the game's timing still being checked.",
     .framerate_vsync_caps = "With V-Sync on, the monitor's %d Hz. Turn V-Sync off for this rate.",
+    .framerate_vsync_uneven = "With V-Sync on, %d FPS does not fit the monitor's %d Hz: frames are shown unevenly. "
+                              "Choose its rate or a whole fraction of it, or turn V-Sync off.",
 };
 
 const Texts kGerman = {
@@ -1591,6 +1593,9 @@ const Texts kGerman = {
     .framerate_unlimited = "Unbegrenzt",
     .framerate_above_240 = "Experimentell über 240: V-Sync aus, das Timing des Spiels wird noch geprüft.",
     .framerate_vsync_caps = "Mit V-Sync die %d Hz des Monitors. Für diese Bildrate V-Sync ausschalten.",
+    .framerate_vsync_uneven = "Mit V-Sync passen %d FPS nicht zu den %d Hz des Monitors: Bilder werden ungleichmäßig "
+                              "gezeigt. Seine Bildrate oder einen ganzzahligen Teil davon wählen, oder V-Sync "
+                              "ausschalten.",
 };
 
 const Texts kFrench = {
@@ -2383,6 +2388,9 @@ const Texts kFrench = {
     .framerate_unlimited = "Illimitée",
     .framerate_above_240 = "Expérimental au-delà de 240 : V-Sync désactivée, le timing du jeu encore en vérification.",
     .framerate_vsync_caps = "Avec la V-Sync, les %d Hz du moniteur. Désactivez la V-Sync pour ce taux.",
+    .framerate_vsync_uneven = "Avec la V-Sync, %d FPS ne s'accorde pas aux %d Hz du moniteur : les images "
+                              "s'affichent de façon irrégulière. Choisissez son taux ou une fraction entière de "
+                              "celui-ci, ou désactivez la V-Sync.",
 };
 
 const Texts kSpanish = {
@@ -3174,6 +3182,8 @@ const Texts kSpanish = {
     .framerate_unlimited = "Ilimitado",
     .framerate_above_240 = "Experimental por encima de 240: V-Sync apagado, la sincronía del juego aún en revisión.",
     .framerate_vsync_caps = "Con V-Sync, los %d Hz del monitor. Apaga V-Sync para esta tasa.",
+    .framerate_vsync_uneven = "Con V-Sync, %d FPS no encaja en los %d Hz del monitor: los fotogramas se ven "
+                              "irregulares. Elige su tasa o una fracción exacta de ella, o apaga V-Sync.",
 };
 
 const Texts kItalian = {
@@ -3965,6 +3975,8 @@ const Texts kItalian = {
     .framerate_unlimited = "Illimitato",
     .framerate_above_240 = "Sperimentale oltre 240: V-Sync disattivato, il tempo del gioco ancora in verifica.",
     .framerate_vsync_caps = "Con il V-Sync, i %d Hz del monitor. Disattiva il V-Sync per questa frequenza.",
+    .framerate_vsync_uneven = "Con il V-Sync, %d FPS non si accorda ai %d Hz del monitor: i fotogrammi appaiono "
+                              "irregolari. Scegli la sua frequenza o una sua frazione esatta, o disattiva il V-Sync.",
 };
 
 // Every member is a string (or an array of them): a text a language lacks falls back to English.

@@ -7,6 +7,7 @@
 // row's whole help, X resets the category. Every change is saved at once.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <functional>
@@ -531,10 +532,25 @@ void App::SettingsPage(const ImRect& rect) {
       // 3.31: every rate is offered. Above the monitor's with V-Sync on the game runs at the monitor's (Gustavo:
       // "V-Sync manda"); above 240 its timing is still being checked.
       const bool above_monitor = o.frame_rate > monitor.refresh + 1;
+      // 3.33: with V-Sync a rate under the monitor's that is not a whole fraction of it (within 2 %, the SDK's
+      // vblank_follows_display rule) runs on the emulated vblank's timer, each frame shown for a number of refreshes
+      // that changes from frame to frame: 90 on a 160 Hz monitor, 100 on a 144 Hz one, and the default 60 on 144, 160
+      // and 165 Hz (72 on 144 and 80 on 160 fit; 60 fits 60, 120 and 240).
+      bool fits = true;
+      if (o.frame_rate > 0 && monitor.refresh > 0 && o.frame_rate <= monitor.refresh + 1) {
+        fits = false;
+        for (int n = 1; n <= 8 && !fits; ++n) {
+          fits = std::abs(double(monitor.refresh) / n - o.frame_rate) <= 0.02 * o.frame_rate;
+        }
+      }
       if (!settings_.FrameGenerationOn() && o.vsync && above_monitor) {
         static char capped[256];
         std::snprintf(capped, sizeof(capped), t_.framerate_vsync_caps, monitor.refresh);
         row.sub = capped;
+      } else if (!settings_.FrameGenerationOn() && o.vsync && !fits) {
+        static char uneven[320];
+        std::snprintf(uneven, sizeof(uneven), t_.framerate_vsync_uneven, o.frame_rate, monitor.refresh);
+        row.sub = uneven;
       } else if (!settings_.FrameGenerationOn() && o.frame_rate > 240) {
         row.sub = t_.framerate_above_240;
       }

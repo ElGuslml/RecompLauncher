@@ -859,6 +859,10 @@ struct Texts {
   const char* framerate_unlimited;
   const char* framerate_above_240;
   const char* framerate_vsync_caps;  // %d: the monitor's refresh rate
+  // With V-Sync on, a rate that is not the monitor's refresh rate or a whole fraction of it (within 2 %, the SDK's
+  // vblank_follows_display rule): each frame is shown for a number of refreshes that changes from frame to frame.
+  // %d: the rate, %d: the Hz.
+  const char* framerate_vsync_uneven;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

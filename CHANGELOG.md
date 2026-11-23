@@ -2,6 +2,19 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## Unreleased (3.33.0 at its merge: a minor update, Gustavo 2026-11-22)
+
+The frame rate row with V-Sync and a rate that does not fit the monitor (2026-11-22, GH Warriors of Rock's 72, 75, 90
+and 100 FPS: its `local_docs/73`, 2.3).
+
+- With V-Sync on, a frame rate under the monitor's refresh rate that is not the refresh rate or a whole fraction of it
+  (within 2 %, the SDK's `vblank_follows_display` rule: 72 on 144 Hz and 80 on 160 fit; 90 on 160 and 100 on 144 do
+  not) gets the row's hint "frames are shown unevenly" (`framerate_vsync_uneven`, five languages): the game's
+  vertical blank runs on its timer there, and FIFO shows each frame for a number of refreshes that changes from frame
+  to frame (90 on 160 Hz: two and one; 60 on 144 Hz: three and two).
+- That includes the default, 60 FPS, on 144, 160 and 165 Hz monitors (60 fits 60, 120 and 240 Hz). The launcher cannot
+  tell a variable refresh rate display, where the frames are even; the hint shows there too.
+
 ## 3.32.0
 
 A switch under a row with several values (2026-11-19, GH Warriors of Rock's notes' speed with the highway perspective).
