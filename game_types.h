@@ -285,6 +285,10 @@ inline constexpr bool kTextureDetail = false;
 // game keeps it, as GH Warriors of Rock's ghwor_dolby_timing). False:
 // Automatic, Stereo, Mono, as before.
 inline constexpr bool kSpeakerChoice = false;
+// The Mods tab's Packs section (launcher next, mod_packs.h): the players' mods as folders of files in <user data>\Mods,
+// each switched on or off, written to Mods\enabled.txt, which the game reads to mount them over its files (the SDK's
+// game_data_overlays). False: no section, and nothing is read or written.
+inline constexpr bool kHasModPacks = false;
 }  // namespace defaults
 using namespace defaults;
 

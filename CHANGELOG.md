@@ -2,6 +2,54 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## Unreleased
+
+Mod packs: the players' mods as folders of files the game reads in place of its own (2026-11-24, GH Warriors of
+Rock's mod packs).
+
+- `game::kHasModPacks` (false in `game_types.h`; a game that reads the packs, the SDK's `game_data_overlays` set by the
+  game from `enabled.txt` when it starts, sets it in its game.h): the Mods tab's last section, **Packs**
+  (`Page::kModsPacks`, `mod_packs.h`, `page_mod_packs.cpp`). A pack is a folder of `Mods\` in the game's user data
+  folder (`ModsFolder`, beside `Highways`; made when a first pack is added): its `mod.toml` (`format = 1`, `id`,
+  `name`, `version`, `author`, `description`, `title_id`; optional `name_<language>` and `description_<language>`, the
+  launcher's keys `en`, `de`, `fr`, `es`, `it`), and `files\` (whole files at the game data's paths), `patches\` (the
+  same paths with `.delta`) or both. Without a Mods folder nothing is read and nothing logged.
+- The section: the Mods folder's card (its path, how many packs and how many on; **Add mod…**, a file dialog for a
+  pack's `.zip` or its `mod.toml`, and the folder in Explorer; a zip or a folder dropped on the window is added too),
+  then a row for each pack: its name, version and author, its description as the second line, and its switch. The
+  second line says the pack's state instead when there is one: to be prepared (and how much it writes), its
+  preparation's progress (with a bar; A cancels it), made for other game files (the first file that is not the
+  player's), made for another game, broken (no readable `mod.toml`, a newer format, no files, a patch that is none or
+  whose result would be over 16 GiB, a folder whose name starts with `#`), "cannot be read right now" (a `mod.toml`
+  another program holds: left as it was), or "replaces files that <pack> also replaces" when two packs on hold the same
+  file. At the foot: mods never change the game's files, they apply when the game starts, and online they may not work
+  with players who lack them. Y: what a pack is, how one is added and prepared, the load order. Its hints: Turn on or
+  off, Cancel, More info. The rows wait while the folder is read again or a pack is added.
+- Adding (`AddModPack`, on a thread, never throwing): the zip (the updater's reader: the whole archive in memory, no
+  ZIP64) or the folder with its `mod.toml` at its top or one folder down, installed as `Mods\<id>\` through
+  `Mods\.adding <id>\`. Every name of the zip is checked first (valid UTF-8, relative, a name Windows takes in each
+  part: no device name, no trailing dot or space); the id too, and it cannot be `enabled.txt`. A folder of that name
+  with another pack (or none) is left as it is; the same pack is replaced once the player says so (the version
+  installed and the new one). A `.7z` or `.rar` gets a line saying a `.zip` or a folder is needed.
+- Preparing (`ModPackPreparation`, on a thread, never throwing; `ApplyModPatch`): each patch applied to the player's
+  own file, the base checked (size and SHA-256) before anything is written, the result streamed to `<file>.part<pid>`
+  in `files\` and renamed once its SHA-256 is the patch's; cancelled between files and within one, leaving no file. It
+  starts by deleting the `*.part<digits>` an earlier one left (never mounted), and never writes through a link (a
+  `files` folder, a folder on the way or a result that is one, or a result outside the pack's folder). The free space
+  is asked first; sums from the headers saturate. `prepared.txt` beside `files\` records what was made (the patch's
+  size and time, the result's size and SHA-256) and the bases found to differ: a pack prepared is not read again at
+  every start, an updated one is prepared again. A pack switched on with patches is prepared first and switched on when
+  that ends; a patch refused leaves the results before it, and the pack off.
+- `Mods\enabled.txt`: the packs on, a folder a line in the order of their names (a later one's file wins), written
+  whole (a failed write puts the switch back and says so); the launcher's switches are read back from it. A pack
+  listed that cannot be mounted as it is (to be prepared, made for other files or another game, broken, gone) is
+  taken out of it when the folder is read (when the launcher opens and after each change), with a line saying so.
+- `GameDataRoot` (install.h): the game files the game reads, a `--game_data_root` on the launcher's command line
+  (which Play passes on) or `GameFilesFolder`; the patches' base. `GameFilesFolder` is unchanged.
+- SHA-256 with Windows' CNG (bcrypt, already linked for the updater); no new dependency.
+- Texts in the five languages: the section's name (Packs, Pakete, Packs, Paquetes, Pacchetti), its intro, the card,
+  the rows' states, the replace question, the note and the help.
+
 ## 3.33.1
 
 3.31.1 (GH5's, made on a branch beside 3.31.0) merged into 3.33: the Mods tab's highway preview reads the highway's

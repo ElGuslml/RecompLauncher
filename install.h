@@ -20,6 +20,10 @@ bool GameInstalled(const std::filesystem::path& exe_dir);
 // The folder of the game's files: assets\ next to the launcher, or the repository's of a development build; empty if
 // neither has them.
 std::filesystem::path GameFilesFolder(const std::filesystem::path& exe_dir);
+// The game files the game reads (launcher next, the base of the mod packs' patches): a --game_data_root on the
+// launcher's command line, which Play passes on to the game (relative to the launcher's folder, the game's working
+// folder), else GameFilesFolder.
+std::filesystem::path GameDataRoot(const std::filesystem::path& exe_dir);
 
 struct IsoCheck {
   enum class Result {
