@@ -2,6 +2,15 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.33.1
+
+3.31.1 (GH5's, made on a branch beside 3.31.0) merged into 3.33: the Mods tab's highway preview reads the highway's
+texture from another pak where a game keeps it apart from the gems (2026-11-18, GH5's port of GH Warriors of Rock's
+mods): `game::HighwayAssets` gains `highway_pak` and `highway_dictionary` (nullptr / 0 by default: the highway from
+`pak` and `dictionary`, as before). GH5 keeps its highway, `Highway_Judy_fm_01`, in
+`data/compressed/ZONES/global.pak.xen`'s `judy_1_highway.tex` and the gems in `z_in_game.pak.xen`'s `basic_gems.tex`. No
+game needs a change to build.
+
 ## 3.33.0
 
 The keyboard plays on Guitar Hero III's controller layout too (2026-11-23, GH Warriors of Rock; the SDK's change 125,

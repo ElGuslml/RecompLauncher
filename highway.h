@@ -45,8 +45,9 @@ class GameTextures {
   GameTextures& operator=(const GameTextures&) = delete;
   ~GameTextures();
   // Starts reading them once, on a thread of their own: `pak` the game's pak (game::kHighwayAssets.pak in the game's
-  // files).
-  void Load(const std::filesystem::path& pak);
+  // files), `highway_pak` the one with the highway's texture when it is another (kHighwayAssets.highway_pak; empty:
+  // `pak`).
+  void Load(const std::filesystem::path& pak, const std::filesystem::path& highway_pak = {});
   // On the main thread, every frame: the textures made from what the thread decoded.
   void Update();
   bool Ready() const { return ready_; }

@@ -248,25 +248,40 @@ GameTextures::~GameTextures() {
   for (Texture& t : textures_) Free(t);
 }
 
-void GameTextures::Load(const std::filesystem::path& pak) {
+void GameTextures::Load(const std::filesystem::path& pak, const std::filesystem::path& highway_pak) {
   if (started_) return;
   started_ = true;
-  thread_ = std::thread([this, pak] {
+  thread_ = std::thread([this, pak, highway_pak] {
     std::vector<Decoded> decoded(static_cast<size_t>(Part::kCount));
     bool ok = false;
-    std::ifstream file(pak, std::ios::binary);
-    if (file) {
+    auto read = [](const std::filesystem::path& path) {
+      std::ifstream file(path, std::ios::binary);
+      if (!file) return std::vector<uint8_t>{};
       std::vector<uint8_t> raw((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-      std::vector<uint8_t> inflated = Inflate(raw);
+      return Inflate(raw);
+    };
+    std::vector<uint8_t> inflated = read(pak);
+    if (!inflated.empty()) {
       const game::HighwayAssets& a = game::kHighwayAssets;
       auto [tex, tex_size] = PakEntry(inflated, a.dictionary);
-      if (tex) {
+      // The highway's texture where the game keeps it in another pak (launcher 3.31.1).
+      std::vector<uint8_t> highway_inflated;
+      const uint8_t* highway_tex = tex;
+      size_t highway_tex_size = tex_size;
+      if (!highway_pak.empty() && a.highway_dictionary) {
+        highway_inflated = read(highway_pak);
+        auto [h, h_size] = PakEntry(highway_inflated, a.highway_dictionary);
+        highway_tex = h;
+        highway_tex_size = h_size;
+      }
+      if (tex && highway_tex) {
         const uint32_t keys[] = {a.highway, a.sidebar,   a.string,  a.fretbar, a.collar,
                                  a.gem_base, a.gem_color, a.gem_cap, a.sustain};
         static_assert(std::size(keys) == size_t(Part::kCount));
         ok = true;
         for (size_t i = 0; i < std::size(keys); ++i) {
-          Image image = DecodeTexture(tex, tex_size, keys[i]);
+          Image image = Part(i) == Part::kHighway ? DecodeTexture(highway_tex, highway_tex_size, keys[i])
+                                                  : DecodeTexture(tex, tex_size, keys[i]);
           if (image.rgba.empty()) {
             ok = false;
             continue;

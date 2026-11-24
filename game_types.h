@@ -124,6 +124,10 @@ struct HighwayAssets {
   float crossing_time;          // seconds a note takes over the highway (Expert)
   float highest_top;            // the far end no higher than this y (the game's length limit)
   float tiling;                 // the texture's repeats over the highway (ghighwaytiling)
+  // Launcher 3.31.1: the highway's texture from another pak and dictionary (GH5 keeps it in global.pak.xen's
+  // judy_1_highway.tex, the gems in z_in_game.pak.xen's basic_gems.tex); nullptr: from `pak` and `dictionary`.
+  const wchar_t* highway_pak = nullptr;
+  uint32_t highway_dictionary = 0;
 };
 
 // A control's keys by default where they are not the SDK's (game.h's kKeyboardDefaults: the Keyboard page's "Reset to
