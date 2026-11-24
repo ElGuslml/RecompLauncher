@@ -1536,9 +1536,13 @@ void App::ControlsPage(const ImRect& rect) {
       if (game::kHasMicrophones || game::kHasDrums) tips.push_back(t_.help_tip_part);
       if (KeyboardDrums(settings_.o)) tips.push_back(t_.help_tip_drum_kit);
       tips.push_back(t_.mnk_hint);
+      // Its play style (launcher 3.33, game::kHasGh3PadLayout): what each does; the strum switch only as a guitar.
+      const bool keyboard_guitar = !KeyboardDrums(settings_.o) && !(game::kHasMicrophones && Sings(kKeyboardKey));
+      const bool keyboard_gh3 = game::kHasGh3PadLayout && keyboard_guitar && settings_.o.gh3_keyboard;
+      if (game::kHasGh3PadLayout && keyboard_guitar) tips.push_back(t_.help_tip_gh3_keyboard);
       // The game's own switch (game.h, kKeyboardTapTarget): what it does.
       const game::GameTexts& own = game::GameTextsFor(language_);
-      if (*game::kKeyboardTapTarget && own.keyboard_tap_hint) tips.push_back(own.keyboard_tap_hint);
+      if (*game::kKeyboardTapTarget && own.keyboard_tap_hint && !keyboard_gh3) tips.push_back(own.keyboard_tap_hint);
       tips.push_back(t_.help_tip_escape);
       tips.push_back(t_.help_tip_clear);
     }

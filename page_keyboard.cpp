@@ -462,8 +462,21 @@ float App::KeyRows(ImVec2 origin, float width) {
   switch_row("##mnk", t_.mnk, &o.mnk);
   const game::GameTexts& own = game::GameTextsFor(language_);
   const bool drums = KeyboardDrums(o);
-  // The frets' strum: not for drums.
-  if (*game::kKeyboardTapTarget && own.keyboard_tap_title && !drums) {
+  // The keyboard playing guitar (not drums, not the vocals): its play style (launcher 3.33, game::kHasGh3PadLayout:
+  // the SDK's keyboard_guitar_layout), as a controller's on its page. As in Guitar Hero III, a fret pressed plays; as
+  // an Xbox 360 guitar, the arrows strum.
+  const bool keyboard_guitar = !drums && !(game::kHasMicrophones && Sings(kKeyboardKey));
+  const bool gh3 = game::kHasGh3PadLayout && keyboard_guitar && o.gh3_keyboard;
+  if (game::kHasGh3PadLayout && keyboard_guitar) {
+    if (SelectorRow("keyboard_play_style", ImVec2(origin.x, y), width, t_.play_style,
+                    {t_.play_style_controller, t_.play_style_guitar}, o.gh3_keyboard ? 0 : 1) >= 0) {
+      o.gh3_keyboard = !o.gh3_keyboard;
+      changed = true;
+    }
+    y += Px(kRow);
+  }
+  // The frets' strum: not for drums, nor on Guitar Hero III's layout, which has no strum.
+  if (*game::kKeyboardTapTarget && own.keyboard_tap_title && !drums && !gh3) {
     switch_row("##tap", own.keyboard_tap_title, &o.keyboard_tap);
   }
   // What the keyboard's controller plays (page_microphone.cpp): the instrument, drums or the vocals; drums' kit.

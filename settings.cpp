@@ -463,6 +463,7 @@ void ResetKeyboard(Options& o) {
     o.binds[i] = DefaultKeys(i);
   }
   o.keyboard_tap = false;
+  o.gh3_keyboard = true;
   o.mnk_mouse = false;
   o.mnk_sensitivity = 1.0f;
 }
@@ -781,6 +782,8 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   o.gamepad_tap = *game::kKeyboardTapTarget && !GetString(c, "gamepad_tap_target").empty();
   // Guitar Hero III's layout unless the file says "guitar" (the game's own default, src/startup.cpp).
   o.gh3_pad = game::kHasGh3PadLayout && GetString(c, "gamepad_guitar_layout") != "guitar";
+  // The keyboard's too unless the file says "guitar" (launcher 3.33; the game's own default, src/startup.cpp).
+  o.gh3_keyboard = game::kHasGh3PadLayout && GetString(c, "keyboard_guitar_layout") != "guitar";
 
   o.gamepad_remap = GetString(c, "gamepad_remap");
   o.device_remap = GetEscapedString(c, "gamepad_device_remap");
@@ -1483,6 +1486,7 @@ bool SaveOptions(const Settings& s) {
   }
   if (game::kHasGh3PadLayout) {
     f << "gamepad_guitar_layout = \"" << (o.gh3_pad ? "gh3" : "guitar") << "\"\n";
+    f << "keyboard_guitar_layout = \"" << (o.gh3_keyboard ? "gh3" : "guitar") << "\"\n";
   }
   {
     char text[32];
