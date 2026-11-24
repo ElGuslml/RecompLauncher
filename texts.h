@@ -621,6 +621,8 @@ struct Texts {
   const char* play_style_controller;
   const char* play_style_guitar;
   const char* help_tip_gh3_layout;
+  // Launcher 3.33: the keyboard's Play style (the SDK's keyboard_guitar_layout), its tip in the help.
+  const char* help_tip_gh3_keyboard;
   // Its two groups of rows: the buttons in a song (the five frets, the open note, Star Power, the whammy bar, each on
   // up to two inputs: the SDK's gamepad_song_binds) and those of the menus (gamepad_device_remap); the sticks pushed.
   const char* song_section;

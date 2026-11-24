@@ -235,6 +235,9 @@ struct Options {
   // Every controller playing guitar plays a song on Guitar Hero III's controller layout (game::kHasGh3PadLayout: the
   // SDK's gamepad_guitar_layout, "gh3"; off: "guitar").
   bool gh3_pad = true;
+  // The keyboard playing guitar plays a song on Guitar Hero III's controller layout too (game::kHasGh3PadLayout: the
+  // SDK's keyboard_guitar_layout, "gh3"; off: "guitar", an Xbox 360 guitar's controls, the arrows strumming).
+  bool gh3_keyboard = true;
   float mnk_sensitivity = 1.0f;
   std::array<std::string, int(Bind::kCount)> binds;
   // The keyboard's keys while it plays drums (game::kHasDrums, launcher 3.19.1), the same controls kept apart so that the

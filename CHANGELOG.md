@@ -2,6 +2,22 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.33.0
+
+The keyboard plays on Guitar Hero III's controller layout too (2026-11-23, GH Warriors of Rock; the SDK's change 125,
+`keyboard_guitar_layout`).
+
+- With `game::kHasGh3PadLayout`, the Keyboard page has a **Play style** row while the keyboard plays guitar (not drums,
+  not the vocals): Controller · GH III (the default) or Guitar · Xbox 360, the same values as a controller's.
+  `Options::gh3_keyboard`, written as `keyboard_guitar_layout = "gh3"` or `"guitar"`; read as GH III unless the file
+  says "guitar". Reset to defaults puts it back on GH III.
+- On GH III the strum switch (`mnk_tap_target`) is hidden, as a controller's on its page; the help says what the
+  layout does (`help_tip_gh3_keyboard`, five languages).
+
+Nothing changes for a game without `kHasGh3PadLayout`. A game with it (GH5 too) gets the row when it moves to this
+version; the keyboard plays on the layout only with an SDK that has `keyboard_guitar_layout` (rexglue-sdk change 125)
+and the game's hooks that ask `PlaysGh3Layout` (an older SDK logs the line as an unknown setting and ignores it).
+
 ## 3.32.0
 
 A switch under a row with several values (2026-11-19, GH Warriors of Rock's notes' speed with the highway perspective).
