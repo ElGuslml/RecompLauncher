@@ -2,6 +2,15 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.33.2
+
+The keyboard's own functions for a game with `game::kGuitarControlsApart` (2026-11-24, Guitar Hero: Aerosmith): its
+keyboard plays as a guitar in the menus (green selects, red goes back) and on the game's controller layout in a song
+(the SDK's `keyboard_guitar_layout = "gh3"` for a keyboard the game is told is a gamepad, rexglue-sdk change 126), so
+the Keyboard page names its keys with `game::GameKeyboardControlsFor` (new; game.cpp defines it with
+`kGuitarControlsApart`), no longer with the controller's `GameControlsFor` (the frets on the triggers, the bumpers and
+A). Only GH Aerosmith sets `kGuitarControlsApart`: no other game needs a change to build.
+
 ## 3.33.1
 
 3.31.1 (GH5's, made on a branch beside 3.31.0) merged into 3.33: the Mods tab's highway preview reads the highway's
