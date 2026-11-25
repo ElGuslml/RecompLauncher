@@ -29,6 +29,7 @@
 #include "dlc.h"
 #include "highway.h"
 #include "install.h"
+#include "mod_packs.h"
 #include "picture.h"
 #include "pipelines.h"
 #include "profile_store.h"
@@ -55,16 +56,17 @@ void OpenFolder(const std::filesystem::path& folder);
 // online (game::kHasOnline); the others always. kProfiles .. kProfileEdit are not tabs: the header's avatar opens
 // kProfiles, the others follow from it.
 // Launcher 3.30 (Gustavo's "mods-galeria" mockup): Mods is a tab of its own, its sections kModsHighway to kModsTools,
-// and Updates the Settings tab's last category.
+// and Updates the Settings tab's last category. Launcher next: kModsPacks, the mod packs, only when the game has them
+// (game::kHasModPacks).
 enum class Page : int {
-  kPlay, kDlc, kAchievements, kModsHighway, kModsStage, kModsSound, kModsTools, kControls,
+  kPlay, kDlc, kAchievements, kModsHighway, kModsStage, kModsSound, kModsTools, kModsPacks, kControls,
   kDisplay, kGraphics, kEffects, kAudio, kGame, kOnline, kUpdates,
   kProfiles, kProfile, kProfileGame, kProfileEdit, kCount
 };
 // The Settings tab's categories, kDisplay to kUpdates.
 inline constexpr bool IsSettingsPage(Page page) { return page >= Page::kDisplay && page <= Page::kUpdates; }
-// The Mods tab's sections, kModsHighway to kModsTools.
-inline constexpr bool IsModsPage(Page page) { return page >= Page::kModsHighway && page <= Page::kModsTools; }
+// The Mods tab's sections, kModsHighway to kModsPacks.
+inline constexpr bool IsModsPage(Page page) { return page >= Page::kModsHighway && page <= Page::kModsPacks; }
 // A page's name, for the log.
 const char* PageName(Page page);
 
@@ -277,6 +279,8 @@ class App {
   // the release notes' row, in the category's place; the release notes in the info sheet.
   void UpdatesCategory(const ImRect& rect);
   float ReleaseNotesSheet(ImVec2 pos, float width, bool draw);
+  // The Mods tab's Packs section (launcher next, page_mod_packs.cpp; its state with the DLC page's, below).
+  void ModPacksCategory(const ImRect& rect);
   // The Mods tab's Highway section (launcher 3.30, page_highway.cpp; game::kHighwayPreview): the preview at the rows'
   // right, or the gallery of the player's pictures over it (a popup: its own focus and buttons), the folder's dialog.
   void HighwayPanel(const ImRect& rect);
@@ -361,7 +365,7 @@ class App {
   ImGuiID header_focus_ = 0;   // the header's control up from the page reaches: the current tab, or the avatar
   std::vector<ImGuiID> header_items_;  // the header's controls (tabs, Donate, avatar), this frame
   ImGuiID category_focus_ = 0; // the Settings tab's current category button
-  int settings_row_[11] = {};  // the row in focus in each Mods section and Settings category (its help shows)
+  int settings_row_[12] = {};  // the row in focus in each Mods section and Settings category (its help shows)
   std::string settings_row_id_;  // the id of that row on the page shown (the footer's hints)
   ImGuiID settings_row_focus_ = 0;  // the Settings row in focus last (right from a category returns to it)
   // Launcher 3.22, the rows as an accordion: how open each row is (0 small, 1 the big row; by its ImGuiID), the rows'
@@ -572,6 +576,26 @@ class App {
   std::set<std::string> dlc_turned_off_;  // packages the game does not read, turned off this session (game::kDlcRule)
   std::vector<std::string> dlc_installing_names_;  // the folders of the packages being installed
   std::set<std::string> dlc_new_;                  // installed this session: marked "New" in the list
+
+  // The Mods tab's Packs section (launcher next, mod_packs.h, game::kHasModPacks): the Mods folder's packs, read when
+  // the launcher opens (a pack updated is off before Play) and after each change; a pack added on a thread (the file
+  // dialog, or a zip or a folder dropped on the window), one with patches prepared on another as it is switched on.
+  void PollModPacks();
+  void ReadModPacks();
+  void BrowseModPack();
+  void AddModPackFrom(const std::string& path, bool replace);  // UTF-8
+  void SwitchModPack(size_t index, bool on);
+  std::future<ModPacks> mod_packs_scan_;
+  std::optional<ModPacks> mod_packs_;
+  bool mod_packs_read_ = false;    // read once, and after each change
+  bool mod_packs_rescan_ = false;  // a change while the folder was read: read it again
+  std::future<ModPackAdd> mod_pack_adding_;
+  std::string mod_pack_adding_path_;  // what is being added, UTF-8
+  std::shared_ptr<DialogResult> mod_pack_dialog_ = std::make_shared<DialogResult>();
+  ModPackPreparation mod_pack_preparation_;
+  std::string mod_packs_notice_;  // under the folder: what the last addition or preparation did
+  bool mod_packs_notice_error_ = false;
+  int mod_packs_focus_kind_ = 0;  // the footer's hints: 0 the card, 1 a pack, 2 the pack being prepared
 
   // The profiles (page_profile.cpp, profile_store.h): the first profile's dialog when there is none, and this
   // installation's saves from before the profiles copied into the current one.

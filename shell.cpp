@@ -45,6 +45,7 @@ Page TabOf(Page page) {
     case Page::kModsStage:
     case Page::kModsSound:
     case Page::kModsTools:
+    case Page::kModsPacks:
       return Page::kModsHighway;
     case Page::kProfiles:
     case Page::kProfile:
@@ -533,6 +534,16 @@ std::vector<App::Hint> App::PageHints() const {
               {HintKey::kX, t_.hint_reset},
               {HintKey::kY, t_.more_info},
               {HintKey::kB, t_.hint_back}};
+    case Page::kModsPacks:
+      // Launcher next: the card's controls, a pack's switch, or the pack being prepared (A cancels it).
+      switch (mod_packs_focus_kind_) {
+        case 1:
+          return {{HintKey::kA, t_.dlc_hint_toggle}, {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
+        case 2:
+          return {{HintKey::kA, t_.cancel}, {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
+        default:
+          return {{HintKey::kA, t_.hint_select}, {HintKey::kY, t_.more_info}, {HintKey::kB, t_.hint_back}};
+      }
     case Page::kProfiles:
       return {{HintKey::kA, t_.hint_use_profile}, {HintKey::kX, t_.edit}, {HintKey::kY, t_.create_profile},
               {HintKey::kB, t_.hint_back}};

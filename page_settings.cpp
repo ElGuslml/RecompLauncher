@@ -91,13 +91,13 @@ constexpr float kNoticeBelow = 5.0f;
 constexpr Type kNoticeText{Font::kRegular, 15};
 
 // The categories (launcher 3.30): the Mods tab's sections, then the Settings tab's categories, each in its pages' order
-// (Page::kModsHighway to Page::kModsTools, Page::kDisplay to Page::kUpdates).
+// (Page::kModsHighway to Page::kModsPacks, Page::kDisplay to Page::kUpdates).
 enum Category {
-  kCategoryHighway, kCategoryStage, kCategorySound, kCategoryTools,
+  kCategoryHighway, kCategoryStage, kCategorySound, kCategoryTools, kCategoryPacks,
   kCategoryDisplay, kCategoryGraphics, kCategoryEffects, kCategoryAudio, kCategoryGame, kCategoryOnline, kCategoryUpdates,
   kCategoryCount
 };
-static_assert(int(Page::kModsTools) - int(Page::kModsHighway) == kCategoryTools - kCategoryHighway);
+static_assert(int(Page::kModsPacks) - int(Page::kModsHighway) == kCategoryPacks - kCategoryHighway);
 static_assert(int(Page::kUpdates) - int(Page::kDisplay) == kCategoryUpdates - kCategoryDisplay);
 
 int CategoryOf(Page page) {
@@ -106,7 +106,8 @@ int CategoryOf(Page page) {
 }
 
 // A Mods section with rows in this game (launcher 3.30): Highway with the gallery or a switch or row of its groups,
-// Stage and Sound with one of theirs, Tools always (the launcher's Debug keys).
+// Stage and Sound with one of theirs, Tools always (the launcher's Debug keys); launcher next, Packs where the game has
+// mod packs.
 bool ModsSectionHasRows(int section) {
   auto has = [](std::initializer_list<game::ToggleGroup> groups) {
     for (const game::Toggle& t : game::kToggles) {
@@ -124,6 +125,8 @@ bool ModsSectionHasRows(int section) {
       return has({game::ToggleGroup::kModsStage});
     case 2:
       return has({game::ToggleGroup::kModsSound});
+    case 4:
+      return game::kHasModPacks;
     default:
       return true;
   }
@@ -257,12 +260,12 @@ void App::SettingsPage(const ImRect& rect) {
   std::vector<OptionRow> rows;
   const char* online_intro = game::kOnlineByAddress ? t_.settings_intro_online : t_.settings_intro_online_steam;
   const char* const category_labels[] = {t_.group_highway, t_.group_stage,  t_.group_sound,    t_.group_tools,
-                                         t_.nav_display,   t_.nav_graphics, t_.nav_effects,    t_.nav_audio,
-                                         t_.nav_game,      t_.nav_online,   t_.nav_updates};
+                                         t_.group_packs,   t_.nav_display,  t_.nav_graphics,   t_.nav_effects,
+                                         t_.nav_audio,     t_.nav_game,     t_.nav_online,     t_.nav_updates};
   const char* const intros[] = {t_.mods_intro_highway,      t_.mods_intro_stage,        t_.mods_intro_sound,
-                                t_.mods_intro_tools,        t_.settings_intro_display,  t_.settings_intro_graphics,
-                                t_.settings_intro_effects,  t_.settings_intro_audio,    t_.settings_intro_game,
-                                online_intro,               t_.settings_intro_updates};
+                                t_.mods_intro_tools,        t_.mods_intro_packs,        t_.settings_intro_display,
+                                t_.settings_intro_graphics, t_.settings_intro_effects,  t_.settings_intro_audio,
+                                t_.settings_intro_game,     online_intro,               t_.settings_intro_updates};
   static_assert(std::size(category_labels) == kCategoryCount && std::size(intros) == kCategoryCount);
   const char* category_label = category_labels[category];
   const char* intro = intros[category];
@@ -1402,7 +1405,7 @@ void App::SettingsPage(const ImRect& rect) {
     // The Mods tab's sections that have rows (the Tools' Debug keys in every game), Settings' categories.
     std::vector<std::pair<Page, const char*>> categories;
     const int first = mods_tab ? kCategoryHighway : kCategoryDisplay;
-    const int last = mods_tab ? kCategoryTools : kCategoryUpdates;
+    const int last = mods_tab ? kCategoryPacks : kCategoryUpdates;
     for (int c = first; c <= last; ++c) {
       if ((c == kCategoryEffects && !has_effects) || (c == kCategoryOnline && !game::kHasOnline)) continue;
       if (mods_tab && c != kCategoryTools && !ModsSectionHasRows(c - kCategoryHighway)) continue;
@@ -1469,6 +1472,23 @@ void App::SettingsPage(const ImRect& rect) {
     DrawIcon(Icon::kCheck, ImVec2(foot.Min.x, foot.GetCenter().y - Px(9.0f)), 18.0f, col::kTextDim, 1.9f);
     DrawLabel(kNote, ImVec2(foot.Min.x + Px(28.0f), foot.GetCenter().y - LineHeight(kNote) * 0.5f), col::kTextMuted,
               t_.autosave);
+    return;
+  }
+  // Mods > Packs (launcher next): the Mods folder and its packs, page_mod_packs.cpp's; at the foot what the packs do
+  // and do not do.
+  if (category == kCategoryPacks) {
+    ModPacksCategory(ImRect(ImVec2(rows_left, page_top + Px(68.0f)), ImVec2(rows_right, foot_top - Px(8.0f))));
+    ImRect foot(ImVec2(rows_left, foot_top), ImVec2(rows_right, foot_top + Px(52.0f)));
+    FillRect(ImRect(foot.Min, ImVec2(foot.Max.x, foot.Min.y + Snap(Px(1.0f)))), col::kHairline);
+    constexpr Type kNote{Font::kRegular, 14};
+    const float note_x = foot.Min.x + Px(28.0f);
+    const float note_width = foot.Max.x - note_x;
+    const float note_y =
+        foot.GetCenter().y - DrawParagraph(kNote, ImVec2(0, 0), note_width, 1.4f, 0, t_.mod_packs_note, false) * 0.5f;
+    // The icon beside its first line.
+    DrawIcon(Icon::kInfo, ImVec2(foot.Min.x, note_y + (Px(14.0f) * 1.4f - Px(18.0f)) * 0.5f), 18.0f, col::kTextDim,
+             1.9f);
+    DrawParagraph(kNote, ImVec2(note_x, note_y), note_width, 1.4f, col::kTextMuted, t_.mod_packs_note);
     return;
   }
   // The Highway section's preview or gallery (launcher 3.30), at the rows' right.
