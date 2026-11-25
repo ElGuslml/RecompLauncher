@@ -2,6 +2,16 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.36.0
+
+The game's AVX2 build (2026-11-25, the performance plan's Phase 5, GH Warriors of Rock's `local_docs/77`, Gustavo's
+"Vamos por el 1 que es x86-64-v3 y PGO"): a game may ship its executable twice, the baseline's (x86-64-v2) and one built
+for x86-64-v3 processors (AVX2, FMA, BMI1/2, MOVBE, LZCNT, F16C: Intel Haswell, AMD Zen and later), named by
+`game::kRecompExecutableAvx2`. Play starts the second where the processor runs it (`cpu.h`: CPUID and the system saving
+the AVX registers), the file is beside the launcher and the options file's `launcher_avx2` is not false; the log says
+which and why. The tools the launcher runs (the pipelines' preparation, achievements, DLC) keep the baseline's. A game
+without it (`kRecompExecutableAvx2 = nullptr`, the default in `game_types.h`) needs no change.
+
 ## 3.35.1
 
 The first run's Quit works again (2026-11-25, Gustavo, GH Aerosmith's installer): since 3.22.0 Quit asks first

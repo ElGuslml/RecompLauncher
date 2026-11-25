@@ -821,6 +821,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
   if (TextsLanguage(o.launcher_language) != o.launcher_language) o.launcher_language = 0;
   o.check_updates = GetBool(c, "launcher_check_updates", true);
   o.beta_updates = GetBool(c, "launcher_beta_updates", false);
+  o.avx2 = GetBool(c, "launcher_avx2", true);
   o.last_update_check = std::strtoll(GetString(c, "launcher_last_update_check").c_str(), nullptr, 10);
   o.ui_fullscreen = GetBool(c, "launcher_ui_fullscreen", true);
   o.ui_maximized = GetBool(c, "launcher_ui_maximized", false);
@@ -1539,6 +1540,7 @@ bool SaveOptions(const Settings& s) {
   f << "launcher_language = " << o.launcher_language << "\n";
   f << "launcher_check_updates = " << boolean(o.check_updates) << "\n";
   f << "launcher_beta_updates = " << boolean(o.beta_updates) << "\n";
+  if (game::kRecompExecutableAvx2) f << "launcher_avx2 = " << boolean(o.avx2) << "\n";
   if (game::kHighwayPreview) {
     f << "launcher_highway_recent = \"" << Escaped(JoinList(o.highway_recent)) << "\"\n";
   }

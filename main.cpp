@@ -48,6 +48,7 @@
 #include "app.h"
 #include "game.h"
 #include "controllers.h"
+#include "cpu.h"
 #include "launcher_log.h"
 #include "launcher_version.h"
 #include "ui/gfx.h"
@@ -520,10 +521,11 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       // The controllers are the game's while it runs (both reading a DualSense would also set its lights twice).
       launcher::CloseControllers();
       SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
-      std::filesystem::path exe = exe_dir / launcher::game::kRecompExecutable;
+      // The AVX2 build where the processor runs it (launcher 3.36, cpu.h).
+      std::filesystem::path exe = launcher::GameExecutableToRun(exe_dir, app.settings().o);
       bool found = std::filesystem::exists(exe);
       if (!found) {
-        ShowError(Formatted(app.texts().game_missing, launcher::game::kRecompExecutable, launcher::game::kLauncherName)
+        ShowError(Formatted(app.texts().game_missing, exe.filename().string().c_str(), launcher::game::kLauncherName)
                       .c_str());
       }
       // The launcher's own options are not the game's.

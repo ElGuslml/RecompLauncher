@@ -50,6 +50,7 @@ function(recomp_launcher_add target)
       "${dir}/dlc.cpp"
       "${dir}/page_pipelines.cpp"
       "${dir}/pipelines.cpp"
+      "${dir}/cpu.cpp"
       "${dir}/iso.cpp"
       "${dir}/install.cpp"
       "${dir}/achievements.cpp"

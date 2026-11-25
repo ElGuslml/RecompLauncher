@@ -296,6 +296,9 @@ inline constexpr bool kTextureDetail = false;
 // game keeps it, as GH Warriors of Rock's ghwor_dolby_timing). False:
 // Automatic, Stereo, Mono, as before.
 inline constexpr bool kSpeakerChoice = false;
+// The game built for x86-64-v3 processors (AVX2; launcher 3.36, cpu.h), beside kRecompExecutable in a release: Play
+// starts it where the processor runs it and the options file's launcher_avx2 is not false. nullptr: none.
+inline constexpr const char* kRecompExecutableAvx2 = nullptr;
 }  // namespace defaults
 using namespace defaults;
 
