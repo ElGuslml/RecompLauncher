@@ -129,11 +129,10 @@ void DrawIcon(Icon icon, ImVec2 pos, float size, ImU32 color, float stroke = 1.8
 
 // The mockup's art (launcher/art), in the executable's resources.
 enum class Art : int { kBackground, kCount };
-// The art covering `rect` (CSS "slice"), cropped around `anchor` (0..1 per axis), with rounded corners.
-void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding = 0, ImDrawFlags corners = 0);
-// A part of the art: `source` (in the art's own units, its SVG's viewBox) drawn into `rect`, its alpha times `alpha`
-// (launcher 3.18: the corner of the art under the pages other than Play, faint).
-void DrawArtPart(Art art, const ImRect& rect, const ImRect& source, float alpha);
+// The art covering `rect` (CSS "slice"), cropped around `anchor` (0..1 per axis), with rounded corners, its alpha times
+// `alpha` (launcher 3.35: 0.09 under the pages other than Play, as the mockups' "opacity: .09").
+void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding = 0, ImDrawFlags corners = 0,
+             float alpha = 1.0f);
 
 // Pictures and icons are drawn at the current scale: drop them when it changes.
 void ReleasePictures();

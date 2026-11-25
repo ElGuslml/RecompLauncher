@@ -174,20 +174,14 @@ void App::Background(ImVec2 size, float dim) {
   }
 }
 
-void App::BackgroundCorner(ImVec2 size) {
-  // Launcher 3.18 ("Camerino"): the art in full only on Play; under the other pages the window's own color and a corner
-  // of the art at 9 %, with no panel over it.
+void App::BackgroundFaint(ImVec2 size) {
+  // Launcher 3.35 (Gustavo's GH Aerosmith mockup, "arte atenuado en otras páginas"): under the pages other than Play the
+  // whole art, covering the window and cropped as on Play, at 9 % over the window's own color ("opacity: .09"). 3.18
+  // drew a corner of it at half its size instead.
   ImVec2 origin = ImGui::GetMainViewport()->Pos;
   ImRect window(origin, ImVec2(origin.x + size.x, origin.y + size.y));
   FillRect(window, col::kBackground);
-  const game::ArtPart& part = game::kArtCorner;
-  // The art's units at half the size the full art has in a 760 dp high window.
-  float unit = Px(1.0f) * 0.5f;
-  float width = (part.right - part.left) * unit;
-  float height = (part.bottom - part.top) * unit;
-  float top = window.Max.y - Px(game::kArtCornerRise);
-  DrawArtPart(Art::kBackground, ImRect(ImVec2(window.Max.x - width, top), ImVec2(window.Max.x, top + height)),
-              ImRect(ImVec2(part.left, part.top), ImVec2(part.right, part.bottom)), 0.09f);
+  DrawArt(Art::kBackground, window, ImVec2(game::kArtFocusX, game::kArtFocusY), 0.0f, 0, 0.09f);
 }
 
 void App::Header(const ImRect& rect) {

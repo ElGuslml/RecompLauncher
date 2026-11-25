@@ -157,10 +157,8 @@ std::map<std::tuple<std::string, int, int>, Picture> g_svg_icons;
 struct ArtCache {
   Picture picture;
   std::chrono::steady_clock::time_point drawn_at;
-  ImRect source;  // DrawArtPart's: the part rasterized
 };
 ArtCache g_art[int(Art::kCount)];
-ArtCache g_art_part[int(Art::kCount)];
 
 // Rasterizes SVG text into a width x height picture: scaled by `scale`, moved by (tx, ty) pixels.
 Picture Rasterize(std::string svg, int width, int height, float scale, float tx, float ty) {
@@ -496,11 +494,11 @@ static ImVec2 ArtSize(Art art, int id) {
   return size;
 }
 
-void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding, ImDrawFlags corners) {
+void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding, ImDrawFlags corners, float alpha) {
   constexpr int kIds[int(Art::kCount)] = {IDR_ART_BACKGROUND};
   int width = int(Snap(rect.GetWidth()));
   int height = int(Snap(rect.GetHeight()));
-  if (width <= 0 || height <= 0) {
+  if (width <= 0 || height <= 0 || alpha <= 0.0f) {
     return;
   }
   ArtCache& cache = g_art[int(art)];
@@ -524,41 +522,12 @@ void DrawArt(Art art, const ImRect& rect, ImVec2 anchor, float rounding, ImDrawF
   }
   ImVec2 a = Snap(rect.Min);
   ImVec2 b = Snap(rect.Max);
+  ImU32 tint = Fade(IM_COL32_WHITE, alpha);
   if (rounding > 0.0f) {
-    List()->AddImageRounded(cache.picture.texture, a, b, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE,
-                            Radius(rounding), corners);
+    List()->AddImageRounded(cache.picture.texture, a, b, ImVec2(0, 0), ImVec2(1, 1), tint, Radius(rounding), corners);
   } else {
-    List()->AddImage(cache.picture.texture, a, b);
+    List()->AddImage(cache.picture.texture, a, b, ImVec2(0, 0), ImVec2(1, 1), tint);
   }
-}
-
-void DrawArtPart(Art art, const ImRect& rect, const ImRect& source, float alpha) {
-  constexpr int kIds[int(Art::kCount)] = {IDR_ART_BACKGROUND};
-  int width = int(Snap(rect.GetWidth()));
-  int height = int(Snap(rect.GetHeight()));
-  if (width <= 0 || height <= 0 || source.GetWidth() <= 0.0f || source.GetHeight() <= 0.0f || alpha <= 0.0f) {
-    return;
-  }
-  ArtCache& cache = g_art_part[int(art)];
-  auto now = std::chrono::steady_clock::now();
-  bool same_source = cache.source.Min.x == source.Min.x && cache.source.Min.y == source.Min.y &&
-                     cache.source.Max.x == source.Max.x && cache.source.Max.y == source.Max.y;
-  if ((cache.picture.width != width || cache.picture.height != height || !same_source) &&
-      (cache.picture.texture == ImTextureID_Invalid || !same_source ||
-       now - cache.drawn_at > std::chrono::milliseconds(100))) {
-    Release(cache.picture);
-    // The part fills the picture's width; its height follows the part's shape.
-    float scale = float(width) / source.GetWidth();
-    cache.picture = Rasterize(std::string(Resource(kIds[int(art)])), width, height, scale, -source.Min.x * scale,
-                              -source.Min.y * scale);
-    cache.source = source;
-    cache.drawn_at = now;
-  }
-  if (cache.picture.texture == ImTextureID_Invalid) {
-    return;
-  }
-  List()->AddImage(cache.picture.texture, Snap(rect.Min), Snap(rect.Max), ImVec2(0, 0), ImVec2(1, 1),
-                   Fade(IM_COL32_WHITE, alpha));
 }
 
 void DrawSvg(std::string_view key, std::string_view body, float view, const ImRect& rect, bool circle) {
@@ -715,9 +684,6 @@ void ReleasePictures() {
   }
   g_svg_icons.clear();
   for (ArtCache& art : g_art) {
-    Release(art.picture);
-  }
-  for (ArtCache& art : g_art_part) {
     Release(art.picture);
   }
 }
