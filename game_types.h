@@ -158,6 +158,11 @@ struct GameControlGroup {
 // A real guitar's functions, for a game that sets kGuitarControlsApart (game.cpp defines it then): a controller's are
 // GameControlsFor, on the controller's own layout.
 const std::vector<GameControlGroup>& GameGuitarControlsFor(uint32_t language);
+// The keyboard's functions, for a game that sets kGuitarControlsApart (game.cpp defines it then, launcher 3.33.2): the
+// keyboard plays as a guitar in the menus and on the game's controller layout in a song (the SDK's
+// keyboard_guitar_layout = "gh3" for a keyboard the game is told is a gamepad, its change 126), so its page names a
+// guitar's frets on its own keys, without a strum.
+const std::vector<GameControlGroup>& GameKeyboardControlsFor(uint32_t language);
 
 // What the game does with an installed package it does not read (DlcRule): the DLC page's note on such a package.
 enum class DlcForeign {
@@ -249,8 +254,9 @@ inline const std::vector<GameControlGroup>& GameDrumControlsFor(uint32_t, bool) 
 inline constexpr bool kHasFourLaneDrums = true;
 // A real guitar's controls apart from a controller's (launcher 3.21.2): true for a game that plays a plain controller on
 // a layout of its own (Guitar Hero III's engine: the frets on the triggers, the bumpers and A, no strum), so that a guitar's
-// page names its frets with GameGuitarControlsFor and a controller's and the keyboard's with GameControlsFor. False: one
-// list for both (a controller reported as a guitar, as GH Metallica's).
+// page names its frets with GameGuitarControlsFor, a controller's with GameControlsFor and the keyboard's with
+// GameKeyboardControlsFor (3.33.2; GameControlsFor before). False: one list for all (a controller reported as a
+// guitar, as GH Metallica's).
 inline constexpr bool kGuitarControlsApart = false;
 // Guitar Hero III's controller layout for a controller playing guitar (launcher 3.23, the SDK's gamepad_guitar_layout
 // = "gh3", its change 112): for a game that has no layout of its own for a controller, which it is told is a guitar

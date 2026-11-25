@@ -29,6 +29,16 @@ using namespace ui;
 
 namespace {
 
+// The keyboard's functions playing guitar: its own list where the game's controllers play on a layout of their own
+// (game::kGuitarControlsApart, 3.33.2), else the game's.
+const std::vector<game::GameControlGroup>& KeyboardControls(uint32_t language) {
+  if constexpr (game::kGuitarControlsApart) {
+    return game::GameKeyboardControlsFor(language);
+  } else {
+    return game::GameControlsFor(language);
+  }
+}
+
 constexpr uint8_t kShift = 1;
 constexpr uint8_t kCtrl = 2;
 constexpr uint8_t kAlt = 4;
@@ -342,7 +352,7 @@ void App::Assign(std::string token) {
 const char* App::BindName(int bind) {
   const std::vector<game::GameControlGroup>& groups =
       KeyboardDrums(settings_.o) ? game::GameDrumControlsFor(language_, KeyboardFourLanes(settings_.o))
-                                 : game::GameControlsFor(language_);
+                                 : KeyboardControls(language_);
   for (const game::GameControlGroup& group : groups) {
     for (const game::GameControl& control : group.controls) {
       if (control.bind == bind) return control.name;
@@ -500,7 +510,7 @@ float App::KeyRows(ImVec2 origin, float width) {
   };
   std::vector<Group> groups;
   const std::vector<game::GameControlGroup>& functions =
-      drums ? game::GameDrumControlsFor(language_, KeyboardFourLanes(o)) : game::GameControlsFor(language_);
+      drums ? game::GameDrumControlsFor(language_, KeyboardFourLanes(o)) : KeyboardControls(language_);
   if (functions.empty()) {
     auto range = [](const char* title, Bind first, Bind last) {
       Group group{title, {}};
