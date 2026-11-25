@@ -136,9 +136,8 @@ class App {
   // The frame's contents (Frame draws them, then the page's fade-in and the focus frame over every window).
   void FrameContents(ImVec2 size);
   void Background(ImVec2 size, float dim);
-  // Launcher 3.18: under the pages other than Play, the window's color and a faint corner of the art (game.h's
-  // kArtCorner).
-  void BackgroundCorner(ImVec2 size);
+  // Launcher 3.35: under the pages other than Play, the window's color and the whole art at 9 % over it.
+  void BackgroundFaint(ImVec2 size);
   // Launcher 3.18: "More info" (Y on a page): a panel at the right over a flat veil, the page's long help in it, the
   // controller held in it until B (or its Close). `kicker` names what it is about ("More info", "Tips").
   struct InfoPanel {

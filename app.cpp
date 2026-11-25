@@ -480,11 +480,11 @@ void App::FrameContents(ImVec2 size) {
   }
 
   ImVec2 origin = viewport->Pos;
-  // The art in full under Play; under the other pages a faint corner of it (launcher 3.18).
+  // The art in full under Play; under the other pages the whole art, faint (launcher 3.35).
   if (page_ == Page::kPlay) {
     Background(size, 0.0f);
   } else {
-    BackgroundCorner(size);
+    BackgroundFaint(size);
   }
   float header_height = Snap(Px(72.0f));
   float footer_height = Snap(Px(52.0f));

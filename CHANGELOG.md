@@ -2,6 +2,15 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.35.0
+
+The art under the pages other than Play, as Gustavo's mockups draw it (2026-11-25, his GH Aerosmith mockup's "arte
+atenuado en otras páginas", for every game, his word): the whole art, covering the window and cropped around
+`kArtFocusX` / `kArtFocusY` as on Play, at 9 % over the window's color (`App::BackgroundFaint`, the mockups' "opacity:
+.09"), no longer a corner of it at half its size (`App::BackgroundCorner`). `ui::DrawArt` gains an alpha (1 by default);
+`ui::DrawArtPart` is gone. `game::kArtCorner` and `kArtCornerRise` are read no more, kept so that a game.h that sets
+them (GH Metallica's) still builds: no game needs a change.
+
 ## 3.34.0
 
 The Mods tab's highway preview reads Guitar Hero III's files (2026-11-24, Guitar Hero: Aerosmith's highway pictures):
