@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <cwctype>
 #include <fstream>
 #include <iterator>
 #include <optional>
@@ -35,9 +36,18 @@ namespace {
 uint32_t Be32(const uint8_t* p) { return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3]; }
 uint16_t Be16(const uint8_t* p) { return uint16_t(p[0] << 8 | p[1]); }
 
-// The pak inflated: its CHNK chunks one after the other, each in its place; empty if it is not one.
+// The pak inflated: its CHNK chunks one after the other, each in its place; or (launcher 3.34, Guitar Hero III's
+// engine) the whole file one raw deflate stream; empty if it is neither.
 std::vector<uint8_t> Inflate(const std::vector<uint8_t>& file) {
   std::vector<uint8_t> out;
+  if (file.size() >= 4 && std::memcmp(file.data(), "CHNK", 4) != 0) {
+    int length = 0;
+    char* data = stbi_zlib_decode_noheader_malloc(reinterpret_cast<const char*>(file.data()), int(file.size()), &length);
+    if (!data) return {};
+    out.assign(data, data + length);
+    std::free(data);
+    return out;
+  }
   size_t at = 0;
   while (at + 0x80 <= file.size() && std::memcmp(file.data() + at, "CHNK", 4) == 0) {
     const uint8_t* h = file.data() + at;
@@ -254,11 +264,29 @@ void GameTextures::Load(const std::filesystem::path& pak, const std::filesystem:
   thread_ = std::thread([this, pak, highway_pak] {
     std::vector<Decoded> decoded(static_cast<size_t>(Part::kCount));
     bool ok = false;
-    auto read = [](const std::filesystem::path& path) {
+    auto read_one = [](const std::filesystem::path& path) {
       std::ifstream file(path, std::ios::binary);
       if (!file) return std::vector<uint8_t>{};
       std::vector<uint8_t> raw((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
       return Inflate(raw);
+    };
+    // A pak, and its .pab after it when there is one (launcher 3.34, Guitar Hero III's engine: the pak's entries
+    // reach into the .pab as if the two were one file).
+    auto read = [&read_one](const std::filesystem::path& path) {
+      std::vector<uint8_t> inflated = read_one(path);
+      std::wstring name = path.filename().wstring();
+      for (wchar_t& c : name) c = wchar_t(std::towlower(c));
+      const size_t at = name.rfind(L".pak.xen");
+      if (!inflated.empty() && at != std::wstring::npos && at + 8 == name.size()) {
+        std::filesystem::path pab = path;
+        pab.replace_filename(path.filename().wstring().substr(0, at) + L".pab.xen");
+        std::error_code error;
+        if (std::filesystem::is_regular_file(pab, error)) {
+          std::vector<uint8_t> data = read_one(pab);
+          inflated.insert(inflated.end(), data.begin(), data.end());
+        }
+      }
+      return inflated;
     };
     std::vector<uint8_t> inflated = read(pak);
     if (!inflated.empty()) {
@@ -275,11 +303,15 @@ void GameTextures::Load(const std::filesystem::path& pak, const std::filesystem:
         highway_tex_size = h_size;
       }
       if (tex && highway_tex) {
-        const uint32_t keys[] = {a.highway, a.sidebar,   a.string,  a.fretbar, a.collar,
-                                 a.gem_base, a.gem_color, a.gem_cap, a.sustain};
-        static_assert(std::size(keys) == size_t(Part::kCount));
+        uint32_t keys[size_t(Part::kCount)] = {a.highway,  a.sidebar,   a.string,  a.fretbar, a.collar,
+                                               a.gem_base, a.gem_color, a.gem_cap, a.sustain};
+        for (size_t lane = 0; lane < 5; ++lane) {
+          keys[size_t(Part::kLaneGem) + lane] = a.lane_gems ? a.lane_gems[lane] : 0;
+          keys[size_t(Part::kLaneCollar) + lane] = a.lane_collars ? a.lane_collars[lane] : 0;
+        }
         ok = true;
         for (size_t i = 0; i < std::size(keys); ++i) {
+          if (keys[i] == 0) continue;  // a part this game does not have (its lanes' or GH5's layers)
           Image image = Part(i) == Part::kHighway ? DecodeTexture(highway_tex, highway_tex_size, keys[i])
                                                   : DecodeTexture(tex, tex_size, keys[i]);
           if (image.rgba.empty()) {
@@ -325,16 +357,22 @@ void GameTextures::Update() {
     hi = ImVec2(std::max(hi.x, float(x1 + 1) / d.width), std::max(hi.y, float(y1 + 1) / d.height));
   };
   for (size_t i = 0; i < decoded_.size(); ++i) {
+    if (decoded_[i].rgba.empty()) continue;
     textures_[i] = MakeTexture(decoded_[i].rgba.data(), decoded_[i].width, decoded_[i].height);
   }
-  for (Part part : {Part::kCollar}) {
+  // The rings, and each lane's gem and ring (launcher 3.34), by their own visible part.
+  for (size_t i = 0; i < decoded_.size(); ++i) {
+    if (Part(i) != Part::kCollar && i < size_t(Part::kLaneGem)) continue;
+    if (decoded_[i].rgba.empty()) continue;
     ImVec2 lo(1.0f, 1.0f), hi(0.0f, 0.0f);
-    content(decoded_[size_t(part)], lo, hi);
-    if (hi.x > lo.x) textures_[size_t(part)].content_min = lo, textures_[size_t(part)].content_max = hi;
+    content(decoded_[i], lo, hi);
+    if (hi.x > lo.x) textures_[i].content_min = lo, textures_[i].content_max = hi;
   }
   {
     ImVec2 lo(1.0f, 1.0f), hi(0.0f, 0.0f);
-    for (Part part : {Part::kGemBase, Part::kGemColor, Part::kGemCap}) content(decoded_[size_t(part)], lo, hi);
+    for (Part part : {Part::kGemBase, Part::kGemColor, Part::kGemCap}) {
+      if (!decoded_[size_t(part)].rgba.empty()) content(decoded_[size_t(part)], lo, hi);
+    }
     if (hi.x > lo.x) {
       for (Part part : {Part::kGemBase, Part::kGemColor, Part::kGemCap}) {
         textures_[size_t(part)].content_min = lo;
@@ -783,7 +821,12 @@ void Draw(const ImRect& area, const GameTextures& game, const Texture* picture, 
                    ImVec2(0, 0), ImVec2(1, 1), IM_COL32(255, 255, 255, 220));
     const Texture& collar = game.Get(Part::kCollar);
     for (int lane = 0; lane < 5; ++lane) {
-      sprite(collar, lane_x(lane, place), y_at(place), lane_step * width_at(place) * 0.9, kLanes[lane]);
+      if (a.lane_collars) {
+        sprite(game.Get(Part(int(Part::kLaneCollar) + lane)), lane_x(lane, place), y_at(place),
+               lane_step * width_at(place) * 0.9, IM_COL32_WHITE);
+      } else {
+        sprite(collar, lane_x(lane, place), y_at(place), lane_step * width_at(place) * 0.9, kLanes[lane]);
+      }
     }
   }
   // The notes coming down (the far ones first), their sustains under them.
@@ -825,6 +868,10 @@ void Draw(const ImRect& area, const GameTextures& game, const Texture* picture, 
       const double place = place_of(item.ahead);
       const double width = lane_step * width_at(place) * 0.85;
       const double x = lane_x(item.note->lane, place), y = y_at(place);
+      if (a.lane_gems) {
+        sprite(game.Get(Part(int(Part::kLaneGem) + item.note->lane)), x, y, width, IM_COL32_WHITE);
+        continue;
+      }
       sprite(body, x, y, width, kLanes[item.note->lane]);
       sprite(rim, x, y, width, IM_COL32_WHITE);
       sprite(cap, x, y, width, IM_COL32_WHITE);

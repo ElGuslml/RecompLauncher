@@ -2,6 +2,16 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.34.0
+
+The Mods tab's highway preview reads Guitar Hero III's files (2026-11-24, Guitar Hero: Aerosmith's highway pictures):
+- A pak that is one raw deflate stream (Guitar Hero III's engine), not CHNK chunks, is inflated whole, and its
+  `.pab.xen` beside it is read after it (the pak's entries reach into it as if the two were one file).
+- `game::HighwayAssets` gains `lane_gems` and `lane_collars` (five keys each, green to orange; nullptr by default):
+  a game whose notes and strike line rings are a texture per lane draws them as they are, not GH5's grey layers
+  tinted by the lane. The layers' keys may then be 0.
+No game needs a change to build.
+
 ## 3.33.2
 
 The keyboard's own functions for a game with `game::kGuitarControlsApart` (2026-11-24, Guitar Hero: Aerosmith): its
