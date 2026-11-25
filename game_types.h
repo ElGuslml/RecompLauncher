@@ -107,9 +107,10 @@ struct HighwayGallery {
   const char* keep_speed_cvar = nullptr;
 };
 
-// The preview's assets in the installed game (launcher 3.30): a Neversoft pak (CHNK-compressed), the texture
-// dictionary in it, and the textures by their keys (QBKeys of their names); and the highway's shape, the game's own
-// values (in the game's 1280 x 720; its src/mods.cpp changes them the same way).
+// The preview's assets in the installed game (launcher 3.30): a Neversoft pak (CHNK-compressed; launcher 3.34: or one
+// raw deflate stream, with its .pab beside it as Guitar Hero III's engine keeps them), the texture dictionary in it,
+// and the textures by their keys (the dictionary's keys); and the highway's shape, the game's own values (in the game's
+// 1280 x 720; its src/mods.cpp changes them the same way).
 struct HighwayAssets {
   const wchar_t* pak;           // relative to the game's files, e.g. data/compressed/ZONES/z_in_game.pak.xen
   uint32_t dictionary;          // the .tex entry's full name key
@@ -128,6 +129,11 @@ struct HighwayAssets {
   // judy_1_highway.tex, the gems in z_in_game.pak.xen's basic_gems.tex); nullptr: from `pak` and `dictionary`.
   const wchar_t* highway_pak = nullptr;
   uint32_t highway_dictionary = 0;
+  // Launcher 3.34: a game whose notes and strike line rings are a texture per lane (Guitar Hero III's engine: green,
+  // red, yellow, blue, orange), drawn as they are; nullptr: GH5's grey layers (gem_base, gem_color, gem_cap, collar)
+  // tinted by the lane's color, and those keys may then be 0.
+  const uint32_t* lane_gems = nullptr;
+  const uint32_t* lane_collars = nullptr;
 };
 
 // A control's keys by default where they are not the SDK's (game.h's kKeyboardDefaults: the Keyboard page's "Reset to

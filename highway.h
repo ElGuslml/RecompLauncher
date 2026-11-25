@@ -35,8 +35,22 @@ struct Texture {
   ImVec2 content_max{1.0f, 1.0f};
 };
 
-// The game's textures the preview draws (game::kHighwayAssets' keys, in that order).
-enum class Part { kHighway, kSidebar, kString, kFretbar, kCollar, kGemBase, kGemColor, kGemCap, kSustain, kCount };
+// The game's textures the preview draws (game::kHighwayAssets' keys, in that order; then its lane_gems and
+// lane_collars, launcher 3.34).
+enum class Part {
+  kHighway,
+  kSidebar,
+  kString,
+  kFretbar,
+  kCollar,
+  kGemBase,
+  kGemColor,
+  kGemCap,
+  kSustain,
+  kLaneGem,                    // five: green, red, yellow, blue, orange
+  kLaneCollar = kLaneGem + 5,  // five
+  kCount = kLaneCollar + 5,
+};
 
 class GameTextures {
  public:
