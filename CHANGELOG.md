@@ -2,6 +2,14 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.35.1
+
+The first run's Quit works again (2026-11-25, Gustavo, GH Aerosmith's installer): since 3.22.0 Quit asks first
+(`App::AskQuit`, a confirmation), but the install screens and "Compiling shaders" returned before the frame drew the
+confirmation (`App::ConfirmWindow`), so the dialog never showed and the launcher waited for it, its footer showing the
+dialog's keys; Donate's question before the browser did the same there. Both screens now draw it after themselves. No
+game needs a change.
+
 ## 3.35.0
 
 The art under the pages other than Play, as Gustavo's mockups draw it (2026-11-25, his GH Aerosmith mockup's "arte

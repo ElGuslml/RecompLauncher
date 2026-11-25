@@ -463,14 +463,19 @@ void App::FrameContents(ImVec2 size) {
   ImGui::PopStyleVar(3);
 
   // "Compiling shaders" first: it runs after Play, and its poll is what starts the game.
+  // Both screens ask too (Quit, Donate's browser: AskConfirm), so the confirmation is drawn after them as after the
+  // pages (launcher 3.35.1: until then the first run's Quit opened a dialog that was never drawn, and the launcher
+  // waited for it, its footer showing the dialog's keys).
   if (preparing_) {
     PreparingScreen(size);
     ImGui::End();
+    ConfirmWindow(size);
     return;
   }
   if (installing_) {
     InstallScreen(size);
     ImGui::End();
+    ConfirmWindow(size);
     return;
   }
   // After the first run: the profiles (a first profile to make, this installation's saves).
