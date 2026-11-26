@@ -44,10 +44,12 @@ struct Language {
 //   Highway section's "Shape" and "Look" groups, Stage, Sound, and Tools (before the launcher's Debug keys);
 // - kModsNoteEffects, kModsVenues (launcher 3.37): the Highway section's last group, "Note effects" (the flames and
 //   sparks on the strike line), and the Stage section's "Venues in Quickplay" (the venues the game may pick at random),
-//   each with its group's title only where the game has rows in it.
+//   each with its group's title only where the game has rows in it;
+// - kModsGameplay (launcher 3.38): the Mods tab's Gameplay section, after Highway (how the game takes your input: GH
+//   Warriors of Rock's infinite front-end and sustain drop leniency), shown where the game has rows in it.
 enum class ToggleGroup {
   kGame, kScreenEffects, kStart, kSmoothness, kUpscaling, kModsSound, kModsTools, kModsHighway, kModsStage,
-  kModsHighwayLook, kModsNoteEffects, kModsVenues
+  kModsHighwayLook, kModsNoteEffects, kModsVenues, kModsGameplay
 };
 
 // When a switch under Upscaling is shown (it is ignored otherwise; its value is kept): always, while something enlarges

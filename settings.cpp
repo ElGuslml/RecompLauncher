@@ -126,6 +126,8 @@ void ResetModsHighway(Options& o) {
 
 void ResetModsStage(Options& o) { ResetToggles(o, {game::ToggleGroup::kModsStage, game::ToggleGroup::kModsVenues}); }
 
+void ResetModsGameplay(Options& o) { ResetToggles(o, {game::ToggleGroup::kModsGameplay}); }
+
 void ResetModsSound(Options& o) { ResetToggles(o, {game::ToggleGroup::kModsSound}); }
 
 void ResetModsTools(Options& o) {

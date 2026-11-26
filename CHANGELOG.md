@@ -2,6 +2,13 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.38.0
+
+The Mods tab's **Gameplay** section (2026-11-26, GH Warriors of Rock's infinite front-end and sustain drop leniency):
+`Page::kModsGameplay` after Highway, `game::ToggleGroup::kModsGameplay` for its switches and rows with several values,
+shown where the game has a row in it (a game without them needs no change); its name and intro in the five languages
+(`group_gameplay`, `mods_intro_gameplay`), Reset with it (`ResetModsGameplay`).
+
 ## 3.37.0
 
 Two groups of a game's own switches in the Mods tab, and the art under the other pages darker (2026-11-26, GH Warriors

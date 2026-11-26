@@ -783,6 +783,9 @@ struct Texts {
   // (game::ToggleGroup::kModsNoteEffects, kModsVenues).
   const char* group_note_effects;
   const char* group_venues;
+  // Launcher 3.38: the Mods tab's Gameplay section (game::ToggleGroup::kModsGameplay): its name and intro.
+  const char* group_gameplay;
+  const char* mods_intro_gameplay;
   const char* highway_folder;
   const char* highway_folder_sub;
   const char* highway_folder_help;

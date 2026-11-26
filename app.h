@@ -59,7 +59,7 @@ void OpenFolder(const std::filesystem::path& folder);
 // and Updates the Settings tab's last category. Launcher next: kModsPacks, the mod packs, only when the game has them
 // (game::kHasModPacks).
 enum class Page : int {
-  kPlay, kDlc, kAchievements, kModsHighway, kModsStage, kModsSound, kModsTools, kModsPacks, kControls,
+  kPlay, kDlc, kAchievements, kModsHighway, kModsGameplay, kModsStage, kModsSound, kModsTools, kModsPacks, kControls,
   kDisplay, kGraphics, kEffects, kAudio, kGame, kOnline, kUpdates,
   kProfiles, kProfile, kProfileGame, kProfileEdit, kCount
 };

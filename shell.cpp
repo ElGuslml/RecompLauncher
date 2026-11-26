@@ -42,6 +42,7 @@ Page TabOf(Page page) {
     case Page::kOnline:
     case Page::kUpdates:
       return Page::kDisplay;
+    case Page::kModsGameplay:
     case Page::kModsStage:
     case Page::kModsSound:
     case Page::kModsTools:
@@ -517,6 +518,7 @@ std::vector<App::Hint> App::PageHints() const {
       }
       return {{HintKey::kA, t_.hint_play}, {HintKey::kView, t_.hint_profile}, {HintKey::kB, t_.quit}};
     case Page::kModsHighway:
+    case Page::kModsGameplay:
     case Page::kModsStage:
     case Page::kModsSound:
     case Page::kModsTools:
