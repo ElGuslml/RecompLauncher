@@ -2,7 +2,7 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
-## Unreleased
+## 3.36.0
 
 Mod packs: the players' mods as folders of files the game reads in place of its own (2026-11-24, GH Warriors of
 Rock's mod packs).
