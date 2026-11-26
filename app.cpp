@@ -107,6 +107,8 @@ bool App::Busy() const {
          game_running_ || update_check_.valid() || updating || dlc_scan_.valid() || dlc_listing_.valid() ||
          dlc_freeing_.valid() || dlc_free_confirm_ || dlc_search_.valid() ||
          dlc_install_.Get().state == DlcInstall::State::kRunning || mic_meter_.stream || preparing_ ||
+         mod_packs_scan_.valid() || mod_pack_adding_.valid() ||
+         mod_pack_preparation_.Get().state == ModPackPreparation::State::kRunning ||
          (game::kHighwayPreview && page_ == Page::kModsHighway) ||
          launcher::GameInputStatus() == launcher::GameInputState::kInstalling ||
          (installing_ && (iso_check_.valid() || extraction_.Get().state == Extraction::State::kRunning));
@@ -137,6 +139,9 @@ std::string App::BusyReasons() const {
   add(dlc_scan_.valid() || dlc_listing_.valid() || dlc_freeing_.valid() || dlc_free_confirm_ || dlc_search_.valid() ||
           dlc_install_.Get().state == DlcInstall::State::kRunning,
       "the DLC");
+  add(mod_packs_scan_.valid() || mod_pack_adding_.valid() ||
+          mod_pack_preparation_.Get().state == ModPackPreparation::State::kRunning,
+      "the mod packs");
   add(mic_meter_.stream != nullptr, "the microphone's meter");
   add(preparing_, "compiling shaders");
   add(launcher::GameInputStatus() == launcher::GameInputState::kInstalling, "GameInput's installer");
@@ -351,8 +356,9 @@ void App::StartingOverlay(ImVec2 size) {
 const char* PageName(Page page) {
   static const char* const kNames[] = {
       "Play",           "DLC",           "Achievements",      "Mods: Highway",   "Mods: Stage",
-      "Mods: Sound",    "Mods: Tools",   "Controls",          "Settings: Display", "Settings: Graphics",
-      "Settings: Effects", "Settings: Audio", "Settings: Game", "Settings: Online", "Settings: Updates",
+      "Mods: Sound",    "Mods: Tools",   "Mods: Packs",       "Controls",        "Settings: Display",
+      "Settings: Graphics", "Settings: Effects", "Settings: Audio", "Settings: Game", "Settings: Online",
+      "Settings: Updates",
       "Profiles",       "Profile",       "Profile: a game",   "Profile: edit"};
   static_assert(std::size(kNames) == size_t(Page::kCount));
   return page < Page::kCount ? kNames[int(page)] : "?";
@@ -377,6 +383,13 @@ void App::WaitForTasks() {
   wait(dlc_search_, "the DLC search");
   wait(dlc_listing_, "the installed DLC's listing");
   wait(profile_games_loading_, "the profile's games");
+  wait(mod_packs_scan_, "the Mods folder's reading");
+  wait(mod_pack_adding_, "a mod pack's addition");
+  // A preparation stops between its reads and writes, its file left unwritten.
+  if (mod_pack_preparation_.Get().state == ModPackPreparation::State::kRunning) {
+    Log("closing: a mod pack's preparation cancelled");
+    mod_pack_preparation_.Cancel();
+  }
 }
 
 void App::Navigate(Page page, bool focus) {
@@ -450,6 +463,7 @@ void App::FrameContents(ImVec2 size) {
   PollProfileGames();
   PollUpdates();
   PollDlc();
+  PollModPacks();
   ImGuiViewport* viewport = ImGui::GetMainViewport();
   ImGui::SetNextWindowPos(viewport->Pos);
   ImGui::SetNextWindowSize(size);
@@ -522,6 +536,7 @@ void App::FrameContents(ImVec2 size) {
     case Page::kModsStage:
     case Page::kModsSound:
     case Page::kModsTools:
+    case Page::kModsPacks:
     case Page::kDisplay:
     case Page::kGraphics:
     case Page::kEffects:
@@ -643,6 +658,15 @@ void App::FrameContents(ImVec2 size) {
   if (profile_dialog_ != ProfileDialog::kNone && result_ == Result::kPlay) {
     result_ = Result::kNone;
   }
+  // Not while the Mods folder is read or a pack added: the game would read enabled.txt before the reading cleans it,
+  // or mount a pack being replaced. Play waits for them (PollModPacks starts it), the Play page saying so.
+  if (game::kHasModPacks && result_ == Result::kPlay && (mod_packs_scan_.valid() || mod_pack_adding_.valid())) {
+    result_ = Result::kNone;
+    if (!play_after_mod_packs_) Log("Play: waiting for the mod packs (the folder's reading or a pack's addition)");
+    play_after_mod_packs_ = true;
+    profile_notice_ = t_.mod_packs_play_waits;
+    profile_notice_error_ = false;
+  }
   if (game_running_) {
     StartingOverlay(size);
   }
@@ -697,6 +721,10 @@ bool App::OnEvent(const SDL_Event& event) {
         } else {
           SearchDlc(event.drop.data);
         }
+      }
+      // Launcher next: a pack's zip or folder dropped on the Mods tab's Packs section.
+      if (!installing_ && page_ == Page::kModsPacks && event.drop.data) {
+        AddModPackFrom(event.drop.data, false);
       }
       return true;
     default:

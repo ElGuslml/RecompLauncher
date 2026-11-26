@@ -6,10 +6,12 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <shellapi.h>
 
 #include <algorithm>
 #include <cwctype>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include "game.h"
@@ -76,6 +78,26 @@ std::filesystem::path GameFilesFolder(const std::filesystem::path& exe_dir) {
   }
 #endif
   return {};
+}
+
+std::filesystem::path GameDataRoot(const std::filesystem::path& exe_dir) {
+  // The SDK's forms: --game_data_root=<folder> and --game_data_root <folder>.
+  int count = 0;
+  LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &count);
+  std::filesystem::path root;
+  for (int i = 1; arguments && i < count; ++i) {
+    std::wstring_view argument(arguments[i]);
+    constexpr std::wstring_view kName = L"--game_data_root";
+    if (argument.rfind(kName, 0) != 0) continue;
+    if (argument.size() > kName.size() && argument[kName.size()] == L'=') {
+      root = std::wstring(argument.substr(kName.size() + 1));
+    } else if (argument.size() == kName.size() && i + 1 < count) {
+      root = arguments[i + 1];
+    }
+  }
+  LocalFree(arguments);
+  if (root.empty()) return GameFilesFolder(exe_dir);
+  return root.is_absolute() ? root : exe_dir / root;
 }
 
 bool GameInstalled(const std::filesystem::path& exe_dir) {

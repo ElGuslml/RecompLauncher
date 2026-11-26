@@ -861,6 +861,60 @@ struct Texts {
   const char* framerate_unlimited;
   const char* framerate_above_240;
   const char* framerate_vsync_caps;  // %d: the monitor's refresh rate
+  // Launcher next: the Mods tab's Packs section (game::kHasModPacks, mod_packs.h): its name and intro, the Mods
+  // folder's card and what an addition did, the replace question, a pack's lines, the note at the foot and the help (Y).
+  const char* group_packs;
+  const char* mods_intro_packs;
+  const char* mod_packs_add;
+  const char* mod_packs_open_folder;
+  const char* mod_packs_count;      // %d packs, %d on
+  const char* mod_packs_count_one;  // %d on
+  const char* mod_packs_none;
+  const char* mod_packs_reading;
+  const char* mod_packs_adding;      // %s: the zip's or the folder's name
+  const char* mod_packs_added;       // %s: the pack
+  const char* mod_packs_replaced;    // %s: the pack, %s: its version
+  const char* mod_packs_not_a_pack;  // %s: the zip's or the folder's name
+  const char* mod_packs_other_pack;  // %s: the folder of Mods
+  const char* mod_packs_add_failed;  // %s: what failed
+  const char* mod_packs_replace_title;  // %s: the pack
+  const char* mod_packs_replace_text;   // %s: the version installed, %s: the one added
+  const char* mod_packs_replace;
+  const char* mod_packs_empty_title;
+  const char* mod_packs_empty_text;
+  const char* mod_packs_version;  // %s: the version
+  const char* mod_packs_by;       // %s: the author
+  const char* mod_packs_needs_preparing;  // %s: the size to write
+  const char* mod_packs_preparing;        // %d: percent, %s: the file
+  const char* mod_packs_other_files;      // %s: the first file that is not the player's
+  const char* mod_packs_other_game;       // %s: its title ID
+  const char* mod_packs_broken_toml;
+  const char* mod_packs_broken_format;  // %s: its format
+  const char* mod_packs_broken_empty;
+  const char* mod_packs_broken_patch;  // %s: the patch's file
+  const char* mod_packs_clash;         // %s: the other pack
+  const char* mod_packs_no_space;      // %s: needed, %s: free
+  const char* mod_packs_prepared;      // %s: the pack, %s: the seconds
+  const char* mod_packs_prepare_failed;  // %s: the pack, %s: why (in English, or the system's message)
+  const char* mod_packs_turned_off;      // %s: the packs
+  const char* mod_packs_busy;
+  const char* mod_packs_play_waits;  // Play pressed while the Mods folder is read or a pack added
+  const char* mod_packs_remove;          // a pack's Remove (deletes its folder)
+  const char* mod_packs_remove_title;    // %s: the pack (the question before it is deleted)
+  const char* mod_packs_remove_text;
+  const char* mod_packs_removed;         // %s: the pack
+  const char* mod_packs_remove_failed;   // %s: the pack
+  const char* mod_packs_remove_left;     // %s: the pack, %s: the file left
+  const char* mod_packs_note;
+  const char* mod_packs_help;
+  const char* mod_packs_help_add;
+  const char* mod_packs_help_patches;
+  const char* mod_packs_help_order;
+  const char* mod_packs_not_saved;
+  const char* mod_packs_not_zip;        // %s: the file's name
+  const char* mod_packs_broken_large;   // %s: the patch's file
+  const char* mod_packs_broken_folder;
+  const char* mod_packs_unavailable;
 };
 
 // The Windows display language as an XLanguage id, like the SDK's user_language: 1 English, 3 German,

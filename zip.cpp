@@ -32,12 +32,30 @@ uint32_t U32(const uint8_t* p) { return uint32_t(p[0]) | (uint32_t(p[1]) << 8) |
 
 bool Archive::Open(const std::filesystem::path& path, std::string* error) {
   entries_.clear();
+  data_.clear();
   std::ifstream file(path, std::ios::binary);
   if (!file) {
     *error = "cannot open the archive";
     return false;
   }
-  data_.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+  // Its size first: an archive without ZIP64 cannot be over 4 GB, and one read of that size (no growing buffer, whose
+  // copies peaked above one and a half times the file) is all the memory it takes.
+  std::error_code ec;
+  const uintmax_t file_size = std::filesystem::file_size(path, ec);
+  if (ec) {
+    *error = "cannot open the archive";
+    return false;
+  }
+  if (file_size > 0xFFFFFFFFull) {
+    *error = "unsupported zip archive (over 4 GB, ZIP64)";
+    return false;
+  }
+  data_.resize(size_t(file_size));
+  if (!data_.empty() && !file.read(reinterpret_cast<char*>(data_.data()), std::streamsize(data_.size()))) {
+    data_.clear();
+    *error = "cannot read the archive";
+    return false;
+  }
   size_t size = data_.size();
   if (size < 22) {
     *error = "not a zip archive";
@@ -83,6 +101,9 @@ bool Archive::Open(const std::filesystem::path& path, std::string* error) {
       return false;
     }
     entry.name.assign(reinterpret_cast<const char*>(&data_[at + 46]), name_length);
+    // The format's separator is '/', but some writers store '\' (Windows PowerShell 5.1's Compress-Archive): read as
+    // '/', so that the names' checks see each part of the path.
+    std::replace(entry.name.begin(), entry.name.end(), '\\', '/');
     if ((flags & 1) || entry.compressed == 0xFFFFFFFF || entry.size == 0xFFFFFFFF || entry.local_offset == 0xFFFFFFFF) {
       *error = "unsupported zip entry (encrypted or ZIP64): " + entry.name;
       return false;
@@ -101,6 +122,13 @@ bool Archive::Extract(const Entry& entry, std::vector<uint8_t>& out, std::string
   }
   size_t start = at + 30 + U16(&data_[at + 26]) + U16(&data_[at + 28]);
   if (start + entry.compressed > data_.size() || entry.size > 0x7FFFFFFF || entry.compressed > 0x7FFFFFFF) {
+    *error = "damaged zip archive: " + entry.name;
+    return false;
+  }
+  // A size no stored or deflated entry of that many bytes can have (deflate expands at most 1032 times): the header
+  // lies, and the memory is not taken for it.
+  if ((entry.method == 0 && entry.size != entry.compressed) ||
+      (entry.method == 8 && uint64_t(entry.size) > uint64_t(entry.compressed) * 1032 + 1024)) {
     *error = "damaged zip archive: " + entry.name;
     return false;
   }
