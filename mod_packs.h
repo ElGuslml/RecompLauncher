@@ -83,6 +83,18 @@ ModPacks ScanModPacks(const std::filesystem::path& exe_dir);
 // could not be written.
 bool SetModPackOn(const std::filesystem::path& exe_dir, ModPacks& packs, size_t index, bool on);
 
+// A pack deleted (Mods > Packs, its Remove): its folder first renamed to Mods\.removing <folder>, which Windows refuses
+// while a program has one of its files open (nothing changed then), taken out of enabled.txt, then deleted without
+// following a link inside it (a link is removed, never what it points to); taken out of `packs`. kFilesLeft: out of
+// the list and of enabled.txt, but a file of it could not be deleted (`error`: its path); the next removal tries
+// those again. The launcher's own .removing folders are the only ones it deletes besides the pack's.
+struct ModPackRemove {
+  enum class Result { kRemoved, kFilesLeft, kFailed };
+  Result result = Result::kFailed;
+  std::string error;  // in English (the log), or the system's message
+};
+ModPackRemove RemoveModPack(const std::filesystem::path& exe_dir, ModPacks& packs, size_t index);
+
 // A pack added from a .zip or a folder that holds a mod.toml at its top or one folder down, installed as Mods\<id>.
 struct ModPackAdd {
   enum class Result {

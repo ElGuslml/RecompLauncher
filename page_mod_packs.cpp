@@ -182,6 +182,35 @@ void App::SwitchModPack(size_t index, bool on) {
   mod_pack_preparation_.Start(exe_dir_, pack.folder);
 }
 
+void App::RemoveModPackAt(size_t index) {
+  // Not while the folder is read again, a pack is added or one is prepared (the list's indexes, a pack's files).
+  if (!mod_packs_ || index >= mod_packs_->packs.size() || mod_packs_scan_.valid() || mod_pack_adding_.valid() ||
+      mod_pack_preparation_.Get().state == ModPackPreparation::State::kRunning) {
+    return;
+  }
+  const std::string folder = mod_packs_->packs[index].folder;
+  const std::string name = Localized(mod_packs_->packs[index].names, mod_packs_->packs[index].name, language_);
+  const ModPackRemove removed = RemoveModPack(exe_dir_, *mod_packs_, index);
+  switch (removed.result) {
+    case ModPackRemove::Result::kRemoved:
+      Log("mod pack %s: deleted", folder.c_str());
+      mod_packs_notice_ = Formatted(t_.mod_packs_removed, name);
+      mod_packs_notice_error_ = false;
+      break;
+    case ModPackRemove::Result::kFilesLeft:
+      Log("mod pack %s: deleted from the list, %s left", folder.c_str(), removed.error.c_str());
+      mod_packs_notice_ = Formatted(t_.mod_packs_remove_left, name, Shown(removed.error));
+      mod_packs_notice_error_ = true;
+      break;
+    case ModPackRemove::Result::kFailed:
+      Log("mod pack %s: not deleted, %s", folder.c_str(), removed.error.c_str());
+      mod_packs_notice_ = Formatted(t_.mod_packs_remove_failed, name);
+      mod_packs_notice_error_ = true;
+      break;
+  }
+  ReadModPacks();  // the list as the folder is now
+}
+
 void App::PollModPacks() {
   if (!game::kHasModPacks) {
     return;
@@ -310,6 +339,17 @@ void App::PollModPacks() {
     mod_pack_preparation_.Reset();
     ReadModPacks();
   }
+  // Play pressed meanwhile: now, unless a question waits (a pack to replace) or a reading started again.
+  if (play_after_mod_packs_ && !mod_packs_scan_.valid() && !mod_pack_adding_.valid()) {
+    play_after_mod_packs_ = false;
+    if (profile_notice_ == t_.mod_packs_play_waits) profile_notice_.clear();
+    if (confirm_.open) {
+      Log("Play: not started after the mod packs, a question waits");
+    } else {
+      Log("Play: the mod packs ready, the game starts");
+      result_ = Result::kPlay;
+    }
+  }
 }
 
 void App::ModPacksCategory(const ImRect& rect) {
@@ -403,6 +443,7 @@ void App::ModPacksCategory(const ImRect& rect) {
   size_t switched = SIZE_MAX;
   bool switched_on = false;
   bool cancel = false;
+  size_t removed = SIZE_MAX;
   if (count == 0) {
     constexpr Type kEmptyTitle{Font::kSemiBold, 17};
     const char* title = mod_packs_ ? t_.mod_packs_empty_title : "\xE2\x80\xA6";
@@ -444,6 +485,7 @@ void App::ModPacksCategory(const ImRect& rect) {
       ImGui::PushID(pack.folder.c_str());
       // The rows wait while the folder is read again or a pack is added (a switch then would be lost).
       const bool enabled = !scanning && !adding;
+      ImGui::SetNextItemAllowOverlap();  // its Delete button over it
       ItemState state = Item("##pack", row, enabled);
       if (enabled) ids.push_back({ImGui::GetItemID(), ImGui::GetItemID()});
       if (state.focused) {
@@ -465,11 +507,24 @@ void App::ModPacksCategory(const ImRect& rect) {
       const float toggle_x = row.Max.x - Px(16.0f) - Px(52.0f);
       DrawToggle(ImVec2(toggle_x, center_y - Px(15.0f)), pack.on || this_preparing, enabled && can_switch,
                  this_preparing, state.hovered);
+      // Delete (X on the row, or a click): its folder and all of it, once the player says so (the confirmation's card).
+      float text_right = toggle_x - Px(14.0f);
+      {
+        const char* label = t_.mod_packs_remove;
+        ButtonSpec spec{ButtonKind::kDanger, Type{Font::kSemiBold, 14}, 34, 14, 10, Icon::kTrash, 16, 2.0f};
+        const float remove_width = ButtonWidth(spec, label);
+        ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+        const bool pressed = Button("##remove", ImVec2(text_right - remove_width, center_y - Px(17.0f)), spec, label,
+                                    enabled && !running);
+        ImGui::PopItemFlag();
+        if ((pressed || (state.focused && ButtonPressed(PadButton::kX))) && enabled && !running) removed = i;
+        text_right -= remove_width + Px(14.0f);
+      }
       const float icon_x = row.Min.x + Px(16.0f);
       DrawIcon(Icon::kPackage, ImVec2(icon_x, center_y - Px(11.0f)), 22.0f, pack.on ? col::kTextMuted : col::kTextDim,
                1.75f);
       const float text_x = icon_x + Px(22.0f) + Px(14.0f);
-      const float text_width = std::max(Px(40.0f), toggle_x - Px(14.0f) - text_x);
+      const float text_width = std::max(Px(40.0f), text_right - text_x);
       const float text_y = center_y - (LineHeight(kName) + LineHeight(kSmall)) * 0.5f;
       // Its name, then its version and author.
       std::string name = Ellipsize(kName, pack_name, text_width);
@@ -575,6 +630,20 @@ void App::ModPacksCategory(const ImRect& rect) {
   if (cancel) {
     Log("mod pack %s: cancelling its preparation", preparing.folder.c_str());
     mod_pack_preparation_.Cancel();
+  } else if (removed != SIZE_MAX) {
+    // Asked first; the pack found again by its folder when the player accepts (the list may have been read again).
+    const ModPack& pack = mod_packs_->packs[removed];
+    const std::string folder = pack.folder;
+    AskConfirm(Formatted(t_.mod_packs_remove_title, Localized(pack.names, pack.name, language_)),
+               t_.mod_packs_remove_text, t_.mod_packs_remove, [this, folder] {
+                 if (!mod_packs_) return;
+                 for (size_t i = 0; i < mod_packs_->packs.size(); ++i) {
+                   if (mod_packs_->packs[i].folder == folder) {
+                     RemoveModPackAt(i);
+                     return;
+                   }
+                 }
+               });
   } else if (switched != SIZE_MAX) {
     SwitchModPack(switched, switched_on);
   }

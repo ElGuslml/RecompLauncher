@@ -585,12 +585,16 @@ class App {
   void BrowseModPack();
   void AddModPackFrom(const std::string& path, bool replace);  // UTF-8
   void SwitchModPack(size_t index, bool on);
+  void RemoveModPackAt(size_t index);  // its folder deleted (RemoveModPack), the list read again
   std::future<ModPacks> mod_packs_scan_;
   std::optional<ModPacks> mod_packs_;
   bool mod_packs_read_ = false;    // read once, and after each change
   bool mod_packs_rescan_ = false;  // a change while the folder was read: read it again
   std::future<ModPackAdd> mod_pack_adding_;
   std::string mod_pack_adding_path_;  // what is being added, UTF-8
+  // Play pressed while the Mods folder is read or a pack added: the game starts once they end (PollModPacks), so that
+  // it never mounts a half-made enabled.txt or a pack being replaced. Dropped when a question comes (a replace).
+  bool play_after_mod_packs_ = false;
   std::shared_ptr<DialogResult> mod_pack_dialog_ = std::make_shared<DialogResult>();
   ModPackPreparation mod_pack_preparation_;
   std::string mod_packs_notice_;  // under the folder: what the last addition or preparation did

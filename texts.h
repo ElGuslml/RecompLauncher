@@ -898,6 +898,13 @@ struct Texts {
   const char* mod_packs_prepare_failed;  // %s: the pack, %s: why (in English, or the system's message)
   const char* mod_packs_turned_off;      // %s: the packs
   const char* mod_packs_busy;
+  const char* mod_packs_play_waits;  // Play pressed while the Mods folder is read or a pack added
+  const char* mod_packs_remove;          // a pack's Remove (deletes its folder)
+  const char* mod_packs_remove_title;    // %s: the pack (the question before it is deleted)
+  const char* mod_packs_remove_text;
+  const char* mod_packs_removed;         // %s: the pack
+  const char* mod_packs_remove_failed;   // %s: the pack
+  const char* mod_packs_remove_left;     // %s: the pack, %s: the file left
   const char* mod_packs_note;
   const char* mod_packs_help;
   const char* mod_packs_help_add;

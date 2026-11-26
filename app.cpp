@@ -658,6 +658,15 @@ void App::FrameContents(ImVec2 size) {
   if (profile_dialog_ != ProfileDialog::kNone && result_ == Result::kPlay) {
     result_ = Result::kNone;
   }
+  // Not while the Mods folder is read or a pack added: the game would read enabled.txt before the reading cleans it,
+  // or mount a pack being replaced. Play waits for them (PollModPacks starts it), the Play page saying so.
+  if (game::kHasModPacks && result_ == Result::kPlay && (mod_packs_scan_.valid() || mod_pack_adding_.valid())) {
+    result_ = Result::kNone;
+    if (!play_after_mod_packs_) Log("Play: waiting for the mod packs (the folder's reading or a pack's addition)");
+    play_after_mod_packs_ = true;
+    profile_notice_ = t_.mod_packs_play_waits;
+    profile_notice_error_ = false;
+  }
   if (game_running_) {
     StartingOverlay(size);
   }

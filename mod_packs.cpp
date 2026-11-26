@@ -257,22 +257,28 @@ std::string Printable(const std::string& name) {
   return text;
 }
 
-// The files under `folder` (not an ApplyModPatch temporary), as paths relative to it with '/' separators.
-std::vector<std::string> ListFiles(const fs::path& folder) {
+// The files under `folder` (not an ApplyModPatch temporary), as paths relative to it with '/' separators. `complete`
+// false when the listing stopped at an error (a folder that could not be read): the list is then only part of it.
+std::vector<std::string> ListFiles(const fs::path& folder, bool* complete = nullptr) {
   std::vector<std::string> files;
   std::error_code ec;
+  if (complete) *complete = true;
   if (!fs::is_directory(folder, ec)) return files;
-  for (fs::recursive_directory_iterator it(folder, ec), end; !ec && it != end; it.increment(ec)) {
-    if (!it->is_regular_file(ec) || IsPartFile(it->path().filename().native())) continue;
+  fs::recursive_directory_iterator it(folder, ec), end;
+  for (; !ec && it != end; it.increment(ec)) {
+    const bool regular = it->is_regular_file(ec);
+    if (ec) break;
+    if (!regular || IsPartFile(it->path().filename().native())) continue;
     files.push_back(Utf8(it->path().lexically_relative(folder).generic_wstring()));
   }
+  if (ec && complete) *complete = false;
   return files;
 }
 
 // The paths of patches\ (without .delta) a pack has.
-std::vector<std::string> ListPatches(const fs::path& pack) {
+std::vector<std::string> ListPatches(const fs::path& pack, bool* complete = nullptr) {
   std::vector<std::string> patches;
-  for (const std::string& file : ListFiles(pack / L"patches")) {
+  for (const std::string& file : ListFiles(pack / L"patches", complete)) {
     if (file.size() > 6 && Lower(file.substr(file.size() - 6)) == ".delta") {
       patches.push_back(file.substr(0, file.size() - 6));
     }
@@ -394,6 +400,43 @@ bool IsLink(const fs::path& path) {
   return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT);
 }
 
+// Deletes a file or a folder with all it holds, never following a link: a link (any reparse point) is removed itself.
+// Read-only files and folders are deleted too. False at the first thing that could not be deleted (`failed`: its path).
+bool DeleteTree(const fs::path& path, fs::path* failed) {
+  const DWORD attributes = GetFileAttributesW(path.c_str());
+  if (attributes == INVALID_FILE_ATTRIBUTES) {
+    const DWORD code = GetLastError();
+    if (code == ERROR_FILE_NOT_FOUND || code == ERROR_PATH_NOT_FOUND) return true;
+    *failed = path;
+    return false;
+  }
+  if (attributes & FILE_ATTRIBUTE_READONLY) SetFileAttributesW(path.c_str(), attributes & ~FILE_ATTRIBUTE_READONLY);
+  if (attributes & FILE_ATTRIBUTE_DIRECTORY) {
+    if (!(attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+      std::vector<fs::path> children;
+      std::error_code ec;
+      for (fs::directory_iterator it(path, ec), end; !ec && it != end; it.increment(ec)) children.push_back(it->path());
+      if (ec) {
+        *failed = path;
+        return false;
+      }
+      for (const fs::path& child : children) {
+        if (!DeleteTree(child, failed)) return false;
+      }
+    }
+    if (!RemoveDirectoryW(path.c_str())) {
+      *failed = path;
+      return false;
+    }
+    return true;
+  }
+  if (!DeleteFileW(path.c_str())) {
+    *failed = path;
+    return false;
+  }
+  return true;
+}
+
 // Whether writing `out` stays in the pack's folder: neither it nor a folder between it and the pack's is a link, and
 // its canonical path is under the pack's.
 bool WritesInside(const fs::path& pack, const fs::path& out) {
@@ -446,9 +489,12 @@ ModPack ReadPack(const fs::path& dir, const fs::path& root) {
   ModPack pack;
   pack.folder = Utf8(dir.filename());
   pack.name = pack.folder;
-  // enabled.txt skips its '#' lines and trims its lines: a folder it could not name is never on.
+  // enabled.txt skips its '#' lines and trims its lines: a folder it could not name is never on. Nor one the game
+  // leaves out (its ModPackFolderName: at most 255 bytes of UTF-8, and a name that comes back the same from UTF-8: an
+  // unpaired surrogate would turn into U+FFFD, another folder's name), or a tab, which it trims.
   if (pack.folder.empty() || pack.folder[0] == '#' || pack.folder.front() == ' ' || pack.folder.back() == ' ' ||
-      pack.folder.back() == '.') {
+      pack.folder.front() == '\t' || pack.folder.back() == '\t' || pack.folder.back() == '.' ||
+      pack.folder.size() > 255 || FromUtf8(pack.folder) != dir.filename()) {
     pack.broken = ModPack::Broken::kFolderName;
     return pack;
   }
@@ -489,8 +535,15 @@ ModPack ReadPack(const fs::path& dir, const fs::path& root) {
     pack.detail = title;
     return pack;
   }
-  const std::vector<std::string> files = ListFiles(dir / L"files");
-  const std::vector<std::string> patches = ListPatches(dir);
+  // A folder of it that cannot be read now: left as it was, as a mod.toml another program holds (a pack switched on
+  // with some of its patches never applied, or a file of it missing, would not be the pack).
+  bool files_complete = true, patches_complete = true;
+  const std::vector<std::string> files = ListFiles(dir / L"files", &files_complete);
+  const std::vector<std::string> patches = ListPatches(dir, &patches_complete);
+  if (!files_complete || !patches_complete) {
+    pack.state = ModPack::State::kUnavailable;
+    return pack;
+  }
   if (files.empty() && patches.empty()) {
     pack.broken = ModPack::Broken::kEmpty;
     return pack;
@@ -640,7 +693,8 @@ ModPackAdd AddPack(const fs::path& exe_dir, const fs::path& source, bool replace
     add.result = ModPackAdd::Result::kNotAPack;
     return add;
   }
-  // Every name of the zip checked before anything is written.
+  // Every name of the zip checked before anything is written, and the sizes its headers give added up.
+  uint64_t unpacked = 0;
   if (is_zip) {
     for (const zip::Entry& entry : archive.entries()) {
       if (entry.directory() || entry.name.rfind(prefix, 0) != 0 || entry.name.size() == prefix.size()) continue;
@@ -648,6 +702,7 @@ ModPackAdd AddPack(const fs::path& exe_dir, const fs::path& source, bool replace
         add.error = "a name in the archive Windows cannot take: " + Printable(entry.name);
         return add;
       }
+      unpacked += entry.size;
     }
   }
 
@@ -674,7 +729,25 @@ ModPackAdd AddPack(const fs::path& exe_dir, const fs::path& source, bool replace
   // Into Mods\.adding <id> first, then in place in one step: a failure leaves no half pack.
   staging = mods / FromUtf8(".adding " + add.id);
   fs::create_directories(mods, ec);
+  // What an earlier addition left there (a launcher closed in the middle, a file another program held) is never
+  // taken into this one: it is deleted, or the addition stops.
   fs::remove_all(staging, ec);
+  if (fs::exists(staging, ec) || ec) {
+    add.error = "a folder an earlier addition left could not be deleted: " + Utf8(staging);
+    staging.clear();
+    return add;
+  }
+  // The zip's files fit on the disk (the headers' sizes, and 64 MB of room), before any is written.
+  if (is_zip) {
+    const fs::space_info space = fs::space(mods, ec);
+    constexpr uint64_t kRoom = 64ull << 20;
+    if (!ec && unpacked + kRoom > space.available) {
+      add.error = "not enough free space: " + std::to_string((unpacked + kRoom) >> 20) + " MB needed, " +
+                  std::to_string(space.available >> 20) + " MB free";
+      staging.clear();
+      return add;
+    }
+  }
   fs::create_directories(staging, ec);
   auto fail = [&](const std::string& error) {
     fs::remove_all(staging, ec);
@@ -782,6 +855,57 @@ bool SetModPackOn(const fs::path& exe_dir, ModPacks& packs, size_t index, bool o
     return false;
   }
   return true;
+}
+
+ModPackRemove RemoveModPack(const fs::path& exe_dir, ModPacks& packs, size_t index) {
+  ModPackRemove remove;
+  if (index >= packs.packs.size()) {
+    remove.error = "no such pack";
+    return remove;
+  }
+  const ModPack& pack = packs.packs[index];
+  const fs::path name = FromUtf8(pack.folder);
+  // Only a folder right in the Mods folder, as the list read it (not one of the launcher's own, starting with '.').
+  if (pack.folder.empty() || pack.folder[0] == '.' || name != name.filename() ||
+      pack.folder.find_first_of("/\\:") != std::string::npos) {
+    remove.error = "not a folder of the Mods folder: " + pack.folder;
+    return remove;
+  }
+  packs.folder = ModsFolder(exe_dir);
+  std::error_code ec;
+  // What an earlier removal left (the launcher's own folders): deleted first, so that this one's name is free.
+  for (fs::directory_iterator it(packs.folder, ec), end; !ec && it != end; it.increment(ec)) {
+    if (it->path().filename().native().starts_with(L".removing ")) {
+      fs::path ignored;
+      DeleteTree(it->path(), &ignored);
+    }
+  }
+  const fs::path folder = packs.folder / name;
+  const fs::path removing = packs.folder / (L".removing " + name.native());
+  if (!MoveFileExW(folder.c_str(), removing.c_str(), 0)) {
+    const DWORD code = GetLastError();
+    remove.error = "cannot move " + Utf8(folder) + " (" + std::to_string(code) + ")";
+    return remove;
+  }
+  // Out of enabled.txt before anything is deleted; put back as it was when that cannot be written.
+  if (pack.on) {
+    packs.packs[index].on = false;
+    if (!WriteEnabled(packs)) {
+      packs.packs[index].on = true;
+      MoveFileExW(removing.c_str(), folder.c_str(), 0);
+      remove.error = "enabled.txt not written";
+      return remove;
+    }
+  }
+  packs.packs.erase(packs.packs.begin() + std::ptrdiff_t(index));
+  fs::path failed;
+  if (DeleteTree(removing, &failed)) {
+    remove.result = ModPackRemove::Result::kRemoved;
+  } else {
+    remove.result = ModPackRemove::Result::kFilesLeft;
+    remove.error = Utf8(failed);
+  }
+  return remove;
 }
 
 ModPackAdd AddModPack(const fs::path& exe_dir, const fs::path& source, bool replace) {
@@ -995,7 +1119,13 @@ void ModPackPreparation::Run(fs::path exe_dir, std::string folder) {
     };
     std::vector<Work> work;
     uint64_t total = 0;
-    for (const std::string& relative : ListPatches(pack)) {
+    bool listed = true;
+    const std::vector<std::string> patches = ListPatches(pack, &listed);
+    if (!listed) {
+      finish(State::kFailed, ModPack::State::kUnavailable, "patches", "its patches folder could not be read");
+      return;
+    }
+    for (const std::string& relative : patches) {
       PatchHeader header;
       if (!ReadPatchHeader(PatchPath(pack, relative), &header)) {
         finish(State::kFailed, ModPack::State::kBroken, relative, "not a patch");
@@ -1030,7 +1160,7 @@ void ModPackPreparation::Run(fs::path exe_dir, std::string folder) {
       const fs::path base = root / FromUtf8(w.relative);
       const fs::path out = files / FromUtf8(w.relative);
       const std::string key = Lower(w.relative);
-      fs::create_directories(out.parent_path(), ec);
+      // Checked before anything is made: its folders are made by ApplyModPatch, after it (never through a link).
       if (!WritesInside(pack, out)) {
         finish(State::kFailed, ModPack::State::kReady, w.relative, "a link in the way of " + Utf8(out));
         return;

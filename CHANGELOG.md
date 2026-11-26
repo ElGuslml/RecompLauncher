@@ -25,6 +25,8 @@ Rock's mod packs).
   file. At the foot: mods never change the game's files, they apply when the game starts, and online they may not work
   with players who lack them. Y: what a pack is, how one is added and prepared, the load order. Its hints: Turn on or
   off, Cancel, More info. The rows wait while the folder is read again or a pack is added.
+- A pack's **Delete** (its row, or X; the confirmation's card first): its folder renamed to `Mods\.removing <folder>` (refused while
+  a file of it is open), out of `enabled.txt`, then deleted without following a link inside it; the list read again.
 - Adding (`AddModPack`, on a thread, never throwing): the zip (the updater's reader: the whole archive in memory, no
   ZIP64) or the folder with its `mod.toml` at its top or one folder down, installed as `Mods\<id>\` through
   `Mods\.adding <id>\`. Every name of the zip is checked first (valid UTF-8, relative, a name Windows takes in each
