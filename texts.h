@@ -779,6 +779,10 @@ struct Texts {
   const char* group_highway_background;
   const char* group_highway_shape;
   const char* group_highway_look;
+  // Launcher 3.37: the Highway section's "Note effects" group and the Stage section's "Venues in Quickplay" one
+  // (game::ToggleGroup::kModsNoteEffects, kModsVenues).
+  const char* group_note_effects;
+  const char* group_venues;
   const char* highway_folder;
   const char* highway_folder_sub;
   const char* highway_folder_help;

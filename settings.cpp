@@ -120,10 +120,11 @@ void ResetModsHighway(Options& o) {
   o.highway_image = defaults.highway_image;
   o.highway_random_favorites = defaults.highway_random_favorites;
   o.highway_dim = defaults.highway_dim;
-  ResetToggles(o, {game::ToggleGroup::kModsHighway, game::ToggleGroup::kModsHighwayLook});
+  ResetToggles(o, {game::ToggleGroup::kModsHighway, game::ToggleGroup::kModsHighwayLook,
+                   game::ToggleGroup::kModsNoteEffects});
 }
 
-void ResetModsStage(Options& o) { ResetToggles(o, {game::ToggleGroup::kModsStage}); }
+void ResetModsStage(Options& o) { ResetToggles(o, {game::ToggleGroup::kModsStage, game::ToggleGroup::kModsVenues}); }
 
 void ResetModsSound(Options& o) { ResetToggles(o, {game::ToggleGroup::kModsSound}); }
 

@@ -105,6 +105,14 @@ int CategoryOf(Page page) {
   return kCategoryDisplay + std::clamp(int(page) - int(Page::kDisplay), 0, kCategoryUpdates - kCategoryDisplay);
 }
 
+// Whether the game has a switch in that group (launcher 3.37: a group's title only where it has rows).
+bool HasToggles(game::ToggleGroup group) {
+  for (const game::Toggle& t : game::kToggles) {
+    if (t.group == group) return true;
+  }
+  return false;
+}
+
 // A Mods section with rows in this game (launcher 3.30): Highway with the gallery or a switch or row of its groups,
 // Stage and Sound with one of theirs, Tools always (the launcher's Debug keys); launcher next, Packs where the game has
 // mod packs.
@@ -120,9 +128,10 @@ bool ModsSectionHasRows(int section) {
   };
   switch (section) {
     case 0:
-      return game::kHighwayPreview || has({game::ToggleGroup::kModsHighway, game::ToggleGroup::kModsHighwayLook});
+      return game::kHighwayPreview || has({game::ToggleGroup::kModsHighway, game::ToggleGroup::kModsHighwayLook,
+                                           game::ToggleGroup::kModsNoteEffects});
     case 1:
-      return has({game::ToggleGroup::kModsStage});
+      return has({game::ToggleGroup::kModsStage, game::ToggleGroup::kModsVenues});
     case 2:
       return has({game::ToggleGroup::kModsSound});
     case 4:
@@ -1160,8 +1169,18 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.highway_dim = kHighwayDims[size_t(index)]; };
       push(std::move(row));
     }
+    // Launcher 3.37: the flames and sparks on the strike line, where the game has switches for them.
+    if (HasToggles(game::ToggleGroup::kModsNoteEffects)) {
+      group(t_.group_note_effects);
+      toggle_rows(game::ToggleGroup::kModsNoteEffects);
+    }
   } else if (category == kCategoryStage) {
     toggle_rows(game::ToggleGroup::kModsStage);
+    // Launcher 3.37: the venues the game may pick at random, a switch each.
+    if (HasToggles(game::ToggleGroup::kModsVenues)) {
+      group(t_.group_venues);
+      toggle_rows(game::ToggleGroup::kModsVenues);
+    }
   } else if (category == kCategorySound) {
     toggle_rows(game::ToggleGroup::kModsSound);
   } else if (category == kCategoryTools) {

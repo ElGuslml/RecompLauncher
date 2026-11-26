@@ -41,10 +41,13 @@ struct Language {
 // - kSmoothness: the Display category, "Smoothness", after the frame rate and V-Sync;
 // - kUpscaling: the Graphics category, under Upscaling (NativeXRenderer only; `shown` says with which upscaling);
 // - kModsHighway, kModsHighwayLook, kModsStage, kModsSound, kModsTools: the Mods tab's sections (launcher 3.30): the
-//   Highway section's "Shape" and "Look" groups, Stage, Sound, and Tools (before the launcher's Debug keys).
+//   Highway section's "Shape" and "Look" groups, Stage, Sound, and Tools (before the launcher's Debug keys);
+// - kModsNoteEffects, kModsVenues (launcher 3.37): the Highway section's last group, "Note effects" (the flames and
+//   sparks on the strike line), and the Stage section's "Venues in Quickplay" (the venues the game may pick at random),
+//   each with its group's title only where the game has rows in it.
 enum class ToggleGroup {
   kGame, kScreenEffects, kStart, kSmoothness, kUpscaling, kModsSound, kModsTools, kModsHighway, kModsStage,
-  kModsHighwayLook
+  kModsHighwayLook, kModsNoteEffects, kModsVenues
 };
 
 // When a switch under Upscaling is shown (it is ignored otherwise; its value is kept): always, while something enlarges
