@@ -355,8 +355,9 @@ void App::StartingOverlay(ImVec2 size) {
 
 const char* PageName(Page page) {
   static const char* const kNames[] = {
-      "Play",           "DLC",           "Achievements",      "Mods: Highway",   "Mods: Stage",
-      "Mods: Sound",    "Mods: Tools",   "Mods: Packs",       "Controls",        "Settings: Display",
+      "Play",           "DLC",           "Achievements",      "Mods: Highway",   "Mods: Gameplay",
+      "Mods: Stage",    "Mods: Sound",   "Mods: Tools",       "Mods: Packs",     "Controls",
+      "Settings: Display",
       "Settings: Graphics", "Settings: Effects", "Settings: Audio", "Settings: Game", "Settings: Online",
       "Settings: Updates",
       "Profiles",       "Profile",       "Profile: a game",   "Profile: edit"};
@@ -533,6 +534,7 @@ void App::FrameContents(ImVec2 size) {
       ControlsPage(main);
       break;
     case Page::kModsHighway:
+    case Page::kModsGameplay:
     case Page::kModsStage:
     case Page::kModsSound:
     case Page::kModsTools:

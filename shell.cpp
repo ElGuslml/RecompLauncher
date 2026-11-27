@@ -42,6 +42,7 @@ Page TabOf(Page page) {
     case Page::kOnline:
     case Page::kUpdates:
       return Page::kDisplay;
+    case Page::kModsGameplay:
     case Page::kModsStage:
     case Page::kModsSound:
     case Page::kModsTools:
@@ -177,12 +178,13 @@ void App::Background(ImVec2 size, float dim) {
 
 void App::BackgroundFaint(ImVec2 size) {
   // Launcher 3.35 (Gustavo's GH Aerosmith mockup, "arte atenuado en otras páginas"): under the pages other than Play the
-  // whole art, covering the window and cropped as on Play, at 9 % over the window's own color ("opacity: .09"). 3.18
-  // drew a corner of it at half its size instead.
+  // whole art, covering the window and cropped as on Play, over the window's own color. 3.18 drew a corner of it at half
+  // its size instead. The mockup's 9 % ("opacity: .09") stood out against the rows in GH Warriors of Rock's bright
+  // orange art; 4 % from 3.37, in every game (Gustavo, 2026-11-26).
   ImVec2 origin = ImGui::GetMainViewport()->Pos;
   ImRect window(origin, ImVec2(origin.x + size.x, origin.y + size.y));
   FillRect(window, col::kBackground);
-  DrawArt(Art::kBackground, window, ImVec2(game::kArtFocusX, game::kArtFocusY), 0.0f, 0, 0.09f);
+  DrawArt(Art::kBackground, window, ImVec2(game::kArtFocusX, game::kArtFocusY), 0.0f, 0, 0.04f);
 }
 
 void App::Header(const ImRect& rect) {
@@ -516,6 +518,7 @@ std::vector<App::Hint> App::PageHints() const {
       }
       return {{HintKey::kA, t_.hint_play}, {HintKey::kView, t_.hint_profile}, {HintKey::kB, t_.quit}};
     case Page::kModsHighway:
+    case Page::kModsGameplay:
     case Page::kModsStage:
     case Page::kModsSound:
     case Page::kModsTools:

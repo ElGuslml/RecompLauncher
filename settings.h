@@ -338,6 +338,7 @@ void ResetGame(Options& o);
 // The Mods tab's sections (launcher 3.30). Highway keeps the favorites, each picture's darkening and the recent ones.
 void ResetModsHighway(Options& o);
 void ResetModsStage(Options& o);
+void ResetModsGameplay(Options& o);
 void ResetModsSound(Options& o);
 void ResetModsTools(Options& o);
 void ResetAudio(Options& o);

@@ -2,6 +2,25 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.38.0
+
+The Mods tab's **Gameplay** section (2026-11-26, GH Warriors of Rock's infinite front-end and sustain drop leniency):
+`Page::kModsGameplay` after Highway, `game::ToggleGroup::kModsGameplay` for its switches and rows with several values,
+shown where the game has a row in it (a game without them needs no change); its name and intro in the five languages
+(`group_gameplay`, `mods_intro_gameplay`), Reset with it (`ResetModsGameplay`).
+
+## 3.37.0
+
+Two groups of a game's own switches in the Mods tab, and the art under the other pages darker (2026-11-26, GH Warriors
+of Rock's note effects and venues; Gustavo: "el gráfico de fondo en otras pantallas ... más oscura").
+- `game::ToggleGroup::kModsNoteEffects`: the Highway section's last group, **Note effects** (the flames and sparks on
+  the strike line), after Look. `kModsVenues`: the Stage section's **Venues in Quickplay**, after its own switches
+  (the venues the game may pick at random, a switch each). Each group's title is drawn only where the game has a
+  switch in it, and Reset puts them back with their section. Titles in the five languages (`group_note_effects`,
+  `group_venues`). A game without them needs no change.
+- The art under the pages other than Play (3.35's `App::BackgroundFaint`) at 4 % instead of 9 %, in every game: in GH
+  Warriors of Rock's bright orange art the mockup's 9 % stood out against the rows.
+
 ## 3.36.0
 
 Mod packs: the players' mods as folders of files the game reads in place of its own (2026-11-24, GH Warriors of

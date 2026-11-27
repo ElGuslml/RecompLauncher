@@ -93,7 +93,7 @@ constexpr Type kNoticeText{Font::kRegular, 15};
 // The categories (launcher 3.30): the Mods tab's sections, then the Settings tab's categories, each in its pages' order
 // (Page::kModsHighway to Page::kModsPacks, Page::kDisplay to Page::kUpdates).
 enum Category {
-  kCategoryHighway, kCategoryStage, kCategorySound, kCategoryTools, kCategoryPacks,
+  kCategoryHighway, kCategoryGameplay, kCategoryStage, kCategorySound, kCategoryTools, kCategoryPacks,
   kCategoryDisplay, kCategoryGraphics, kCategoryEffects, kCategoryAudio, kCategoryGame, kCategoryOnline, kCategoryUpdates,
   kCategoryCount
 };
@@ -105,7 +105,16 @@ int CategoryOf(Page page) {
   return kCategoryDisplay + std::clamp(int(page) - int(Page::kDisplay), 0, kCategoryUpdates - kCategoryDisplay);
 }
 
+// Whether the game has a switch in that group (launcher 3.37: a group's title only where it has rows).
+bool HasToggles(game::ToggleGroup group) {
+  for (const game::Toggle& t : game::kToggles) {
+    if (t.group == group) return true;
+  }
+  return false;
+}
+
 // A Mods section with rows in this game (launcher 3.30): Highway with the gallery or a switch or row of its groups,
+// Gameplay (launcher 3.38),
 // Stage and Sound with one of theirs, Tools always (the launcher's Debug keys); launcher next, Packs where the game has
 // mod packs.
 bool ModsSectionHasRows(int section) {
@@ -120,12 +129,15 @@ bool ModsSectionHasRows(int section) {
   };
   switch (section) {
     case 0:
-      return game::kHighwayPreview || has({game::ToggleGroup::kModsHighway, game::ToggleGroup::kModsHighwayLook});
+      return game::kHighwayPreview || has({game::ToggleGroup::kModsHighway, game::ToggleGroup::kModsHighwayLook,
+                                           game::ToggleGroup::kModsNoteEffects});
     case 1:
-      return has({game::ToggleGroup::kModsStage});
+      return has({game::ToggleGroup::kModsGameplay});
     case 2:
+      return has({game::ToggleGroup::kModsStage, game::ToggleGroup::kModsVenues});
+    case 3:
       return has({game::ToggleGroup::kModsSound});
-    case 4:
+    case 5:
       return game::kHasModPacks;
     default:
       return true;
@@ -259,13 +271,15 @@ void App::SettingsPage(const ImRect& rect) {
   // --- The rows of the category ---
   std::vector<OptionRow> rows;
   const char* online_intro = game::kOnlineByAddress ? t_.settings_intro_online : t_.settings_intro_online_steam;
-  const char* const category_labels[] = {t_.group_highway, t_.group_stage,  t_.group_sound,    t_.group_tools,
-                                         t_.group_packs,   t_.nav_display,  t_.nav_graphics,   t_.nav_effects,
-                                         t_.nav_audio,     t_.nav_game,     t_.nav_online,     t_.nav_updates};
-  const char* const intros[] = {t_.mods_intro_highway,      t_.mods_intro_stage,        t_.mods_intro_sound,
-                                t_.mods_intro_tools,        t_.mods_intro_packs,        t_.settings_intro_display,
-                                t_.settings_intro_graphics, t_.settings_intro_effects,  t_.settings_intro_audio,
-                                t_.settings_intro_game,     online_intro,               t_.settings_intro_updates};
+  const char* const category_labels[] = {t_.group_highway, t_.group_gameplay, t_.group_stage,  t_.group_sound,
+                                         t_.group_tools,   t_.group_packs,    t_.nav_display,  t_.nav_graphics,
+                                         t_.nav_effects,   t_.nav_audio,      t_.nav_game,     t_.nav_online,
+                                         t_.nav_updates};
+  const char* const intros[] = {t_.mods_intro_highway,     t_.mods_intro_gameplay,    t_.mods_intro_stage,
+                                t_.mods_intro_sound,       t_.mods_intro_tools,       t_.mods_intro_packs,
+                                t_.settings_intro_display, t_.settings_intro_graphics, t_.settings_intro_effects,
+                                t_.settings_intro_audio,   t_.settings_intro_game,    online_intro,
+                                t_.settings_intro_updates};
   static_assert(std::size(category_labels) == kCategoryCount && std::size(intros) == kCategoryCount);
   const char* category_label = category_labels[category];
   const char* intro = intros[category];
@@ -1160,8 +1174,20 @@ void App::SettingsPage(const ImRect& rect) {
       row.apply = [&o](int index) { o.highway_dim = kHighwayDims[size_t(index)]; };
       push(std::move(row));
     }
+    // Launcher 3.37: the flames and sparks on the strike line, where the game has switches for them.
+    if (HasToggles(game::ToggleGroup::kModsNoteEffects)) {
+      group(t_.group_note_effects);
+      toggle_rows(game::ToggleGroup::kModsNoteEffects);
+    }
+  } else if (category == kCategoryGameplay) {
+    toggle_rows(game::ToggleGroup::kModsGameplay);
   } else if (category == kCategoryStage) {
     toggle_rows(game::ToggleGroup::kModsStage);
+    // Launcher 3.37: the venues the game may pick at random, a switch each.
+    if (HasToggles(game::ToggleGroup::kModsVenues)) {
+      group(t_.group_venues);
+      toggle_rows(game::ToggleGroup::kModsVenues);
+    }
   } else if (category == kCategorySound) {
     toggle_rows(game::ToggleGroup::kModsSound);
   } else if (category == kCategoryTools) {
@@ -1858,6 +1884,9 @@ void App::SettingsPage(const ImRect& rect) {
           break;
         case kCategoryHighway:
           ResetModsHighway(o);
+          break;
+        case kCategoryGameplay:
+          ResetModsGameplay(o);
           break;
         case kCategoryStage:
           ResetModsStage(o);
