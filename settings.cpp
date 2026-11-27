@@ -646,7 +646,7 @@ Options OptionsFromConfig(const Config& c, unsigned primary_dpi) {
     }
   }
   // The Highway gallery (launcher 3.30): the game's cvars, and the launcher's recent pictures.
-  if (game::kHighwayPreview) {
+  if (kHighwayPictures) {
     const game::HighwayGallery& gallery = game::kHighwayGallery;
     o.highway_folder = GetEscapedString(c, gallery.folder_cvar);
     o.highway_image = GetEscapedString(c, gallery.image_cvar);
@@ -1184,7 +1184,7 @@ Settings LoadSettings(const std::filesystem::path& exe_dir) {
   s.o.upscale_quality = FitUpscaleQuality(s.o.upscaler, s.o.upscale_quality, output, ImageAspect(output, s.o.native_aspect));
   // The Highway gallery's folder by default: Highways in the game's user data folder (launcher 3.30), written whole so
   // that the game finds it. A default folder of another place (the game moved) that is gone: this one's.
-  if (game::kHighwayPreview) {
+  if (kHighwayPictures) {
     const std::filesystem::path default_folder = GameUserDataFolder(exe_dir) / game::kHighwayGallery.folder;
     const std::u8string folder = default_folder.u8string();
     s.o.highway_default_folder.assign(reinterpret_cast<const char*>(folder.data()), folder.size());
@@ -1313,7 +1313,7 @@ bool SaveOptions(const Settings& s) {
   }
   // The Highway gallery (launcher 3.30): the folder of pictures, the one chosen ("" the game's own, "<random>"), where
   // a random one comes from, the favorites, the darkenings (every picture's, each one's).
-  if (game::kHighwayPreview) {
+  if (kHighwayPictures) {
     const game::HighwayGallery& gallery = game::kHighwayGallery;
     std::vector<std::string> dims;
     for (const auto& [name, value] : o.highway_image_dims) dims.push_back(name + ":" + value);
@@ -1542,7 +1542,7 @@ bool SaveOptions(const Settings& s) {
   f << "launcher_language = " << o.launcher_language << "\n";
   f << "launcher_check_updates = " << boolean(o.check_updates) << "\n";
   f << "launcher_beta_updates = " << boolean(o.beta_updates) << "\n";
-  if (game::kHighwayPreview) {
+  if (kHighwayPictures) {
     f << "launcher_highway_recent = \"" << Escaped(JoinList(o.highway_recent)) << "\"\n";
   }
   if (o.last_update_check > 0) {

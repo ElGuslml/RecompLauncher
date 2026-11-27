@@ -2,6 +2,20 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.39.0
+
+The Mods tab's highway preview without the player's pictures (2026-11-27, GH Metallica: Gustavo wanted the preview, not
+the gallery):
+- `kHighwayPictures` (settings.h): the Highway section's pictures (Background's Folder, Image and Random among, Dim
+  bright pictures, the gallery, the options file's picture keys and `launcher_highway_recent`) only where the game reads
+  them, `kHighwayGallery.folder_cvar` not null. A game that leaves the gallery's first seven fields null keeps the
+  preview, drawn with its own highway, and the shape and look rows; the caption starts with the shape.
+- A preview part not in `kHighwayAssets.dictionary` is looked up in the pak's other .tex dictionaries (GH Metallica's
+  string is in z_in_game.tex, its gems in basic_gems.tex).
+- `HighwayAssets::gem_cap_scale` (1 by default): the gem's cap drawn narrower than the gem (GH Metallica's chrome cap
+  inside its cup's ring, 0.6).
+Nothing changes for a game with the pictures.
+
 ## 3.38.0
 
 The Mods tab's **Gameplay** section (2026-11-26, GH Warriors of Rock's infinite front-end and sustain drop leniency):

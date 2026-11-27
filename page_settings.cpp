@@ -1095,8 +1095,8 @@ void App::SettingsPage(const ImRect& rect) {
     toggle_rows(game::ToggleGroup::kGame);
   } else if (category == kCategoryHighway) {
     // The Mods tab (launcher 3.30): the note highway's picture (the gallery, game::kHighwayGallery), its shape and its
-    // look.
-    if (game::kHighwayPreview) {
+    // look (launcher 3.39: the pictures only where the game reads them, kHighwayPictures).
+    if (kHighwayPictures) {
       if (!highway_pictures_) highway_pictures_ = std::make_unique<highway::Pictures>();
       highway_pictures_->Refresh(o.highway_folder);
       group(t_.group_highway_background);
@@ -1156,7 +1156,7 @@ void App::SettingsPage(const ImRect& rect) {
     group(t_.group_highway_look);
     toggle_rows(game::ToggleGroup::kModsHighwayLook);
     // Every picture darkened (each one's own in the gallery, Y).
-    if (game::kHighwayPreview) {
+    if (kHighwayPictures) {
       OptionRow row;
       row.id = "highway_dim";
       row.title = t_.highway_dim;

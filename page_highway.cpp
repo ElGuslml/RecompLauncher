@@ -257,11 +257,14 @@ void App::HighwayPanel(const ImRect& rect) {
     }
   }
   if (!highway_pictures_) highway_pictures_ = std::make_unique<highway::Pictures>();
-  PollHighwayFolder();
-  HighwayFolderMenuWindow();
   highway_game_->Update();
-  highway_pictures_->Refresh(o.highway_folder);
-  highway_pictures_->Update();
+  // The player's pictures where the game reads them (launcher 3.39); otherwise the game's own highway only.
+  if (kHighwayPictures) {
+    PollHighwayFolder();
+    HighwayFolderMenuWindow();
+    highway_pictures_->Refresh(o.highway_folder);
+    highway_pictures_->Update();
+  }
 
   // The card: the preview's, or the gallery's (HighwayGalleryWindow draws over it).
   const ImRect card(rect.Min, ImVec2(rect.Max.x, std::min(rect.Max.y, rect.Min.y + Px(500.0f))));
@@ -289,7 +292,7 @@ void App::HighwayPanel(const ImRect& rect) {
   const float caption_height = LineHeight(kCaption) + Px(6.0f) + LineHeight(kNote);
   ImRect area(ImVec2(card.Min.x + pad, y + Px(36.0f)), ImVec2(card.Max.x - pad, card.Max.y - pad - caption_height - Px(14.0f)));
   // The picture shown: the one chosen, or with Random each of its pool's for 3 seconds.
-  std::string picture = o.highway_image;
+  std::string picture = kHighwayPictures ? o.highway_image : std::string();
   if (picture == kHighwayRandom) {
     std::vector<std::string> pool;
     for (const highway::Picture& p : highway_pictures_->List()) {
@@ -319,10 +322,10 @@ void App::HighwayPanel(const ImRect& rect) {
   // The caption: the picture and the shape's rows, then the note.
   y = area.Max.y + Px(14.0f);
   const game::GameTexts& own = game::GameTextsFor(language_);
-  std::string caption = HighwayImageLabel();
+  std::string caption = kHighwayPictures ? HighwayImageLabel() : std::string();
   for (size_t i = 0; i < game::kChoices.size(); ++i) {
     if (game::kChoices[i].group != game::ToggleGroup::kModsHighway) continue;
-    caption += " \xC2\xB7 ";
+    if (!caption.empty()) caption += " \xC2\xB7 ";
     caption += own.choices[i * 2];
     caption += " ";
     caption += ChoiceValue(o, game::kChoices[i].cvar) + game::kChoices[i].suffix;

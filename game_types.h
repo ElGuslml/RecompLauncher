@@ -91,8 +91,10 @@ struct Choice {
 // Launcher 3.30: the Mods tab's Highway section (game.h's kHighwayPreview): a gallery of the player's pictures for the
 // note highway (a folder, one picture or a random one at each song, favorites, bright ones darkened toward black) and a
 // preview drawn from the installed game's own files. The cvars the game reads (its src/), and where its files are.
+// Launcher 3.39: a game without the pictures leaves the first seven fields null (folder_cvar to folder): the section
+// keeps the preview and the shape and look rows, without the Background group, Dim bright pictures and the gallery.
 struct HighwayGallery {
-  const char* folder_cvar;      // the pictures' folder
+  const char* folder_cvar;      // the pictures' folder (null: no pictures, launcher 3.39)
   const char* image_cvar;       // a picture of it, "<random>", or "" for the game's own
   const char* random_from_cvar; // "all" or "favorites"
   const char* favorites_cvar;   // names separated by |
@@ -139,6 +141,9 @@ struct HighwayAssets {
   // tinted by the lane's color, and those keys may then be 0.
   const uint32_t* lane_gems = nullptr;
   const uint32_t* lane_collars = nullptr;
+  // Launcher 3.39: the gem's cap drawn this much narrower than the gem (GH Metallica's nb_cap1_base_01, a chrome cap
+  // that sits inside the cup's ring); 1: as wide, as GH5's layers.
+  float gem_cap_scale = 1.0f;
 };
 
 // A control's keys by default where they are not the SDK's (game.h's kKeyboardDefaults: the Keyboard page's "Reset to

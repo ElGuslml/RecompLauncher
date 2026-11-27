@@ -207,6 +207,19 @@ Image DecodeTexture(const uint8_t* tex, size_t tex_size, uint32_t key) {
   return image;
 }
 
+// A texture from any .tex dictionary of the pak (its entries whose data starts with FACECAA7), or empty (launcher 3.39).
+Image DecodeFromAnyDictionary(const std::vector<uint8_t>& pak, uint32_t key) {
+  for (size_t at = 0; at + 32 <= pak.size(); at += 32) {
+    const uint8_t* e = pak.data() + at;
+    const uint32_t offset = Be32(e + 4), size = Be32(e + 8);
+    if (offset == 0 && size == 0) break;
+    if (size < 16 || at + uint64_t(offset) + size > pak.size() || Be32(e + offset) != 0xFACECAA7) continue;
+    Image image = DecodeTexture(e + offset, size, key);
+    if (!image.rgba.empty()) return image;
+  }
+  return {};
+}
+
 Texture MakeTexture(const uint8_t* rgba, int width, int height) {
   Texture t;
   t.id = gfx::CreateTexture(rgba, width, height);
@@ -314,6 +327,9 @@ void GameTextures::Load(const std::filesystem::path& pak, const std::filesystem:
           if (keys[i] == 0) continue;  // a part this game does not have (its lanes' or GH5's layers)
           Image image = Part(i) == Part::kHighway ? DecodeTexture(highway_tex, highway_tex_size, keys[i])
                                                   : DecodeTexture(tex, tex_size, keys[i]);
+          // Launcher 3.39: a part in another .tex dictionary of the same pak (GH Metallica's string is in
+          // z_in_game.tex, its gems in basic_gems.tex).
+          if (image.rgba.empty() && Part(i) != Part::kHighway) image = DecodeFromAnyDictionary(inflated, keys[i]);
           if (image.rgba.empty()) {
             ok = false;
             continue;
@@ -874,7 +890,7 @@ void Draw(const ImRect& area, const GameTextures& game, const Texture* picture, 
       }
       sprite(body, x, y, width, kLanes[item.note->lane]);
       sprite(rim, x, y, width, IM_COL32_WHITE);
-      sprite(cap, x, y, width, IM_COL32_WHITE);
+      sprite(cap, x, y, width * double(a.gem_cap_scale), IM_COL32_WHITE);
     }
   }
   draw->PopClipRect();

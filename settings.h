@@ -296,6 +296,9 @@ inline constexpr const char* kSystemMicrophone = "default";
 inline constexpr const char* kHighwayRandom = "<random>";
 inline constexpr const char* kHighwayDims[] = {"off", "auto", "90", "80", "70", "60", "50", "40"};
 inline constexpr size_t kHighwayRecentCount = 12;
+// Launcher 3.39: the Highway section's pictures (the gallery, the folder, the darkening), where the game reads them
+// (kHighwayGallery's folder_cvar); without them the section has the preview and the shape and look rows only.
+inline constexpr bool kHighwayPictures = game::kHighwayPreview && game::kHighwayGallery.folder_cvar != nullptr;
 // A picture's own darkening ("" when it takes every picture's), and the list with it set ("" removes it).
 std::string HighwayImageDim(const Options& o, std::string_view name);
 void SetHighwayImageDim(Options& o, std::string_view name, std::string_view value);
