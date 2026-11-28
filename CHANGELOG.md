@@ -2,6 +2,17 @@
 
 The launcher's versions (`launcher_version.h`). Each game shows its own version beside it.
 
+## 3.40.0
+
+Saved games read as downloadable content (2026-11-28, Rock Band 2: the songs exported from the first Rock Band, each a
+saved game of its title, 45410829, with its `songs` folder at the root; Gustavo's 55 of them were passed by):
+- `game::kDlcSavedGames` (game_types.h's `DlcSavedGames`: title IDs and a root folder): the DLC folder's scan (kFolder)
+  takes those saved-game packages (content type 1) besides the downloadable content, groups them by their game as the
+  others and writes them to `content_packages.txt`, which the SDK lists as downloadable content from its change 129.
+  Another save of the same game without the folder (Rock Band's `netcache`, the music store's data) is left out.
+- The scan reads the folders at a package's root too (`PackageInfo::root_folders`); `root_files` stays files only.
+A game without `kDlcSavedGames` (every other game) passes the folder's saved games by, as before: no change needed.
+
 ## 3.39.0
 
 The Mods tab's highway preview without the player's pictures (2026-11-27, GH Metallica: Gustavo wanted the preview, not

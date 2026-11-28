@@ -203,6 +203,16 @@ struct DlcRule {
   DlcForeign foreign = DlcForeign::kUnused;
 };
 
+// Launcher 3.40: saved-game packages (content type 1) the game reads as its downloadable content (game.h's
+// kDlcSavedGames; the DLC page in kFolder mode, the SDK's change 129 listing them as such). Rock Band 2's songs exported
+// from the first Rock Band: each a saved game of 45410829 with the songs folder at its root, read as a song DLC.
+// Without title IDs (the default), the DLC folder's saved games are passed by, as before.
+struct DlcSavedGames {
+  std::span<const uint32_t> title_ids;  // the games that saved them
+  const char* root_folder = nullptr;    // a folder they hold at their root, in lower case (another save of the same
+                                        // game, Rock Band's "netcache", has none); null: any
+};
+
 // A part of the game's art, in the art's own units (its SVG's viewBox): game.h's kArtCorner (unused since 3.35).
 struct ArtPart {
   float left, top, right, bottom;
@@ -231,6 +241,8 @@ inline constexpr float kArtTitleSize = 96.0f;
 inline constexpr bool kHasLowLatencyAudio = true;
 // The DLC page's check of installed packages: none, every package stays on.
 inline constexpr DlcRule kDlcRule{};
+// The DLC page's saved-game packages read as downloadable content (launcher 3.40): none.
+inline constexpr DlcSavedGames kDlcSavedGames{};
 // The DLC page's mode: extracting the packages, as before 3.16 (kFolder where the game has been tried reading them in
 // place).
 inline constexpr DlcMode kDlcMode = DlcMode::kInstall;

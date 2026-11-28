@@ -118,7 +118,8 @@ struct PackageInfo {
   std::string title_name;       // UTF-8
   std::string display_name;     // UTF-8: the first language's name the header has, else the file's name
   std::wstring game_name;       // the name the game gets: the header's English one as is (the SDK's), else the file's
-  std::vector<std::wstring> root_files;  // the files at its root, in lower case
+  std::vector<std::wstring> root_files;    // the files at its root, in lower case
+  std::vector<std::wstring> root_folders;  // the folders at its root, in lower case (launcher 3.40)
 };
 
 // An STFS block's offset in the package: the hash tables before it skipped (the SDK's BlockToOffsetSTFS).
@@ -198,12 +199,12 @@ bool ReadPackageInfo(const std::filesystem::path& path, PackageInfo& out) {
       uint8_t flags = entry[40];
       bool is_directory = flags & 0x80;
       uint16_t parent = uint16_t(entry[50] << 8 | entry[51]);
-      if (!is_directory && parent == 0xFFFF) {
+      if (parent == 0xFFFF) {
         std::wstring name;
         for (size_t c = 0; c < size_t(flags & 0x3F); ++c) {
           name.push_back(wchar_t(std::towlower(entry[c])));
         }
-        out.root_files.push_back(std::move(name));
+        (is_directory ? out.root_folders : out.root_files).push_back(std::move(name));
       }
     }
     block = n + 1 < table_blocks ? NextBlock(file, header_size, block, tables_per_level) : 0xFFFFFF;
@@ -440,6 +441,26 @@ bool FitsByNames(const std::vector<std::wstring>& root_files, const std::wstring
   wchar_t hex[16];
   std::swprintf(hex, std::size(hex), L"%x", key);
   return has(own + hex + L".pak.xen");
+}
+
+// A package the DLC folder's scan takes: downloadable content (type 2), or a saved game (type 1) the game reads as such
+// (game::kDlcSavedGames, launcher 3.40: one of its title IDs, with its root folder). Avatar items, themes and the
+// other saves are passed by.
+bool TakenAsDlc(const PackageInfo& info) {
+  if (info.content_type == 2) {
+    return true;
+  }
+  const game::DlcSavedGames& saved = game::kDlcSavedGames;
+  if (info.content_type != 1 ||
+      std::find(saved.title_ids.begin(), saved.title_ids.end(), info.title_id) == saved.title_ids.end()) {
+    return false;
+  }
+  if (!saved.root_folder) {
+    return true;
+  }
+  std::wstring folder = WideFromUtf8(saved.root_folder);
+  std::transform(folder.begin(), folder.end(), folder.begin(), ::towlower);
+  return std::find(info.root_folders.begin(), info.root_folders.end(), folder) != info.root_folders.end();
 }
 
 // The DLC folder and the player's choices (dlc_library.txt): "folder=", then "on=" / "off=" lines, paths in the
@@ -794,8 +815,8 @@ DlcLibrary ScanDlcLibrary(const std::filesystem::path& exe_dir) {
     }
     PackageInfo info;
     std::error_code file_ec;
-    if (!it->is_regular_file(file_ec) || !ReadPackageInfo(it->path(), info) || info.content_type != 2) {
-      continue;  // not a package, or not downloadable content (an avatar item, a save)
+    if (!it->is_regular_file(file_ec) || !ReadPackageInfo(it->path(), info) || !TakenAsDlc(info)) {
+      continue;  // not a package, or not downloadable content (an avatar item, a save the game does not read as one)
     }
     LibraryDlc package;
     package.path = it->path();
